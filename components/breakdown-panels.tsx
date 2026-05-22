@@ -104,7 +104,7 @@ function CostItemsPanel({ items, total }: { items: CostItem[]; total: number }) 
               );
             })}
             <tr className="font-bold">
-              <td className="px-5 py-2.5">Total</td>
+              <td className="px-5 py-2.5" colSpan={3}>Total</td>
               <td className="px-5 py-2.5 text-right">{formatKrw(total)}</td>
             </tr>
           </tbody>
@@ -117,6 +117,12 @@ function CostItemsPanel({ items, total }: { items: CostItem[]; total: number }) 
 function ParticipantBreakdown({ proposal }: { proposal: Proposal }) {
   const participants = proposal.participants;
   const calculation = proposal.calculationResult;
+  const fairShareTotal = calculation
+    ? Object.values(calculation.fairShareByParticipant).reduce((sum, amount) => sum + amount, 0)
+    : participants.reduce((sum, participant) => sum + participant.shareAmount, 0);
+  const paidTotal = calculation ? Object.values(calculation.totalPaidByParticipant).reduce((sum, amount) => sum + amount, 0) : 0;
+  const netTotal = calculation ? Object.values(calculation.netBalanceByParticipant).reduce((sum, amount) => sum + amount, 0) : -fairShareTotal;
+
   return (
     <AppCard className="overflow-hidden" data-testid="participant-breakdown-panel">
       <div className="border-b border-app-border px-5 py-3 text-base font-bold">Participant Breakdown</div>
@@ -126,8 +132,8 @@ function ParticipantBreakdown({ proposal }: { proposal: Proposal }) {
             <tr>
               <th className="px-5 py-2 text-left font-semibold">Participant</th>
               <th className="px-5 py-2 text-left font-semibold">Role</th>
-              <th className="px-5 py-2 text-right font-semibold">Owes (KRW)</th>
-              <th className="px-5 py-2 text-right font-semibold">Receives (KRW)</th>
+              <th className="px-5 py-2 text-right font-semibold">Fair share (KRW)</th>
+              <th className="px-5 py-2 text-right font-semibold">Paid upfront (KRW)</th>
               <th className="px-5 py-2 text-right font-semibold">Net (KRW)</th>
             </tr>
           </thead>
@@ -150,10 +156,10 @@ function ParticipantBreakdown({ proposal }: { proposal: Proposal }) {
             <tr className="font-bold">
               <td className="px-5 py-2.5">Total</td>
               <td />
-              <td className="px-5 py-2.5 text-right">{formatKrw(participants.reduce((sum, participant) => sum + participant.shareAmount, 0))}</td>
-              <td className="px-5 py-2.5 text-right">{formatKrw(0)}</td>
-              <td className="px-5 py-2.5 text-right text-app-red">
-                -{formatKrw(participants.reduce((sum, participant) => sum + participant.shareAmount, 0))}
+              <td className="px-5 py-2.5 text-right">{formatKrw(fairShareTotal)}</td>
+              <td className="px-5 py-2.5 text-right">{formatKrw(paidTotal)}</td>
+              <td className={`px-5 py-2.5 text-right ${netTotal === 0 ? "text-app-text" : netTotal > 0 ? "text-app-green" : "text-app-red"}`}>
+                {formatKrw(netTotal)}
               </td>
             </tr>
           </tbody>

@@ -2,48 +2,67 @@
 
 import Link from "next/link";
 import { ChevronRight, CreditCard, FileText, FlameKindling, Search, Send } from "lucide-react";
+import { useState } from "react";
 import { formatKrw, humanStatus } from "@/lib/format";
+import { filterProposals, type ProposalFilter } from "@/lib/proposal-filters";
 import { countParticipants } from "@/lib/split";
 import { useSplitFlow } from "@/lib/store";
 import { AppCard } from "@/components/ui/app-card";
 
 const filters = [
-  { label: "Active", icon: null },
-  { label: "Draft", icon: FileText },
-  { label: "Sent", icon: Send },
-  { label: "Paid", icon: CreditCard }
-];
+  { label: "Active", value: "active", icon: null },
+  { label: "Draft", value: "draft", icon: FileText },
+  { label: "Sent", value: "sent", icon: Send },
+  { label: "Paid", value: "paid", icon: CreditCard }
+] satisfies Array<{ label: string; value: ProposalFilter; icon: typeof FileText | null }>;
 
 export default function ProposalsPage() {
   const { state, setActiveProposal } = useSplitFlow();
+  const [query, setQuery] = useState("");
+  const [filter, setFilter] = useState<ProposalFilter>("active");
+  const visibleProposals = filterProposals(state.proposals, filter, query);
 
   return (
     <div className="space-y-4 px-4 py-5 md:p-6" data-testid="proposals-route">
       <label className="flex min-h-14 items-center gap-3 rounded-2xl border border-app-border bg-white px-4 shadow-[0_1px_2px_rgba(24,33,47,0.04)]">
         <Search className="h-6 w-6 text-app-muted" aria-hidden="true" />
-        <input className="min-w-0 flex-1 bg-transparent text-base outline-none placeholder:text-app-muted" placeholder="Search proposals..." />
+        <input
+          data-testid="proposal-search"
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          className="min-w-0 flex-1 bg-transparent text-base outline-none placeholder:text-app-muted"
+          placeholder="Search proposals..."
+        />
       </label>
 
       <div className="flex gap-3 overflow-x-auto pb-1">
-        {filters.map((filter, index) => {
-          const Icon = filter.icon;
+        {filters.map((item) => {
+          const Icon = item.icon;
+          const selected = filter === item.value;
           return (
             <button
-              key={filter.label}
+              key={item.value}
               type="button"
+              data-testid={`proposal-filter-${item.value}`}
+              onClick={() => setFilter(item.value)}
               className={`flex min-h-12 shrink-0 items-center gap-2 rounded-2xl border px-4 text-base font-semibold ${
-                index === 0 ? "border-blue-200 bg-blue-50 text-app-blue" : "border-app-border bg-white text-app-muted"
+                selected ? "border-blue-200 bg-blue-50 text-app-blue" : "border-app-border bg-white text-app-muted"
               }`}
             >
               {Icon ? <Icon className="h-5 w-5" aria-hidden="true" /> : <span className="h-3 w-3 rounded-full bg-app-blue" aria-hidden="true" />}
-              {filter.label}
+              {item.label}
             </button>
           );
         })}
       </div>
 
       <div className="space-y-4">
-        {state.proposals.map((proposal) => {
+        {visibleProposals.length === 0 ? (
+          <AppCard className="p-5 text-sm text-app-muted" data-testid="proposal-empty-state">
+            No proposals match this search and filter.
+          </AppCard>
+        ) : null}
+        {visibleProposals.map((proposal) => {
           const counts = countParticipants(proposal);
           return (
             <Link

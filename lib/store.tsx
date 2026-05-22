@@ -153,14 +153,17 @@ function updateStatusFromParticipants(proposal: Proposal): Proposal {
 
 export function StoreProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<AppState>(initialState);
+  const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
     setState(getDemoState());
+    setHydrated(true);
   }, []);
 
   useEffect(() => {
+    if (!hydrated) return;
     saveDemoState(state);
-  }, [state]);
+  }, [hydrated, state]);
 
   const activeProposal = state.proposals[0] ?? initialState.proposals[0];
 
@@ -330,7 +333,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
             status: "needs_reconfirmation",
             participants: next.participants.map((participant) =>
               participant.status === "accepted" || participant.status === "requested_changes"
-                ? { ...participant, status: "needs_reconfirmation", paymentStatus: "review" }
+                ? { ...participant, status: "needs_reconfirmation", paymentStatus: "review", changeRequestNote: undefined }
                 : participant
             )
           },

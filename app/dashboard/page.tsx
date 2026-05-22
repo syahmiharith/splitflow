@@ -6,6 +6,7 @@ import { formatKrw, humanStatus } from "@/lib/format";
 import { countParticipants } from "@/lib/split";
 import { useSplitFlow } from "@/lib/store";
 import type { Proposal } from "@/lib/types";
+import { DemoToolbar } from "@/components/demo-toolbar";
 import { AppCard } from "@/components/ui/app-card";
 
 export default function DashboardPage() {
@@ -32,6 +33,7 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-4 px-4 py-5 md:p-6" data-testid="dashboard-route">
+      <DemoToolbar compact showLoaders={false} />
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-3">
         <Metric icon={WalletCards} label="Still Owed" value={formatKrw(totals.stillOwed)} tone="blue" />
         <Metric icon={FileText} label="Active Proposals" value={String(active.length)} tone="blue" />

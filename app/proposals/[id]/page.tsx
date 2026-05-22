@@ -5,6 +5,7 @@ import { Archive, Calculator, Check, CreditCard, RefreshCcw, Send, ShieldAlert }
 import { useParams } from "next/navigation";
 import { formatKrw, humanStatus } from "@/lib/format";
 import { useSplitFlow } from "@/lib/store";
+import { DemoToolbar } from "@/components/demo-toolbar";
 import { AppCard } from "@/components/ui/app-card";
 import { StatusBadge } from "@/components/ui/status-badge";
 
@@ -24,6 +25,7 @@ export default function ProposalDetailPage() {
 
   return (
     <div className="space-y-4 px-4 py-5 md:p-6" data-testid="proposal-detail-route">
+      <DemoToolbar compact showLoaders={false} />
       <div className="flex flex-col gap-3 rounded-2xl border border-app-border bg-white p-5 md:rounded-lg">
         <div className="flex flex-wrap items-start gap-3">
           <div className="min-w-0 flex-1">

@@ -24,6 +24,7 @@ SplitFlow is not just an AI bill splitter. It is an agreement workflow system. T
 6. Open `/dashboard` and confirm the change request is now prioritized.
 7. Open the proposal detail page and review itemized math, response state, timeline, risk/recommendation, and settlement instructions.
 8. Accept/recalculate the requested change, request reconfirmation if needed, then mark the proposal settled.
+9. Refresh the page and confirm the settled proposal, itemized math, settlement plan, and timeline still render from `localStorage`.
 
 ## What This Demonstrates
 
@@ -173,34 +174,30 @@ Positive net balance means a participant should receive money. Negative net bala
 
 ```text
 app/
-  api/ai/split-agent/   Server-side OpenAI route
   chat/                 AI Split Agent surface
   dashboard/            Organizer action dashboard
   proposals/            Proposal list
   proposals/[id]/       Full proposal agreement record
-  groups/               Group contexts
-  analytics/            Lightweight insights
   inbox/                Participant proposal review
 
 components/
-  app-shell.tsx         Responsive app shell
-  sidebar.tsx           Desktop sidebar and mobile bottom nav
-  top-header.tsx        Header for desktop and mobile
+  demo-toolbar.tsx      Reset/demo controls for reviewer stability
+  breakdown-panels.tsx Deterministic itemized math display
   proposal-summary-card.tsx
-  breakdown-panels.tsx
   right-panel.tsx
   ui/                   Small custom UI primitives
 
 lib/
-  agents/               Orchestrator and specialized workflow agents
-  domain/               Deterministic money, state, response, and risk services
-  repositories/         Typed in-memory proposal repository
+  domain/itemized-split-engine.ts Deterministic itemized split and settlement engine
   prototype-persistence.ts Client-side prototype persistence helpers
   prototype-proposals.ts   Demo parser, proposal builders, and recalculation glue
-  split.ts              Existing deterministic split and risk logic
-  ai/                   Existing server-side AI request and output handling
   store.tsx             Local demo state and workflow actions
+  proposal-filters.ts   Proposal search and filter helpers
   types.ts              Shared domain types
+
+tests/
+  e2e/app.spec.ts       Reviewer flow, persistence, and proposal filter coverage
+  unit/                 Math, persistence, filters, agents, and route tests
 ```
 
 ## Technical Stack
@@ -247,6 +244,7 @@ Run checks:
 pnpm typecheck
 pnpm lint
 pnpm test
+pnpm build
 pnpm test:e2e
 ```
 
@@ -290,6 +288,7 @@ The main reviewer flow is fully interactive and persists in browser `localStorag
 10. Open the proposal detail page.
 11. Review itemized math, response statuses, change requests, timeline, settlement instructions, and AI recommendation.
 12. Click `Accept requested change`, verify the settlement plan remains reconciled, then click `Mark proposal settled`.
+13. Refresh the proposal detail page and verify the settled state, itemized math, and settlement plan remain visible.
 
 Demo controls:
 
@@ -338,15 +337,22 @@ Current test coverage focuses on the product boundaries that matter most:
 - API success and failure handling
 - route smoke tests
 - Playwright smoke tests for app and mobile workflows
+- full BBQ reviewer flow through settled state and page refresh
+- proposal search and status filters
 
 The optional live AI smoke test only runs when `OPENAI_API_KEY` is configured.
 
 ## Known Trade-offs
 
 - The server orchestrator uses a typed in-memory repository, while the reviewer prototype persists UI proposals in browser `localStorage`.
-- The parser is deterministic and intentionally narrow; it supports the demo scenarios and common phrasing, not arbitrary receipt understanding.
+- The parser is deterministic and intentionally narrow; it supports the BBQ demo and common phrasing, not general receipt parsing.
 - The legacy `/api/ai/split-agent` route remains for compatibility, while the main chat surface uses `useChat()` with a custom transport pointed at `/api/agent`.
-- No real auth, database, notifications, payments, or billing provider are included.
+- Participants are simulated; there is no real auth or invite identity.
+- Notifications are simulated; there are no real emails, push notifications, or reminder jobs.
+- Payment collection is simulated; there is no real payment processor or settlement proof.
+- There is no production database or multi-device sync.
+- The timeline is useful for review but is not an immutable audit log.
+- There is no OCR or general receipt import.
 
 ## Product Scope
 
@@ -394,14 +400,14 @@ SplitFlow is intentionally not a landing page. The UI emphasizes proposal state,
 
 ## Roadmap
 
-1. Stronger deterministic split engine: item matrix, weighted splits, percentage splits, partial attendance, recurring rules, rounding reconciliation.
-2. Proposal lifecycle and versioning: version history, audit trail, change comparison, reconfirmation after edits.
-3. Persistence and authentication: database-backed groups, authenticated users, invite links, role-based access.
-4. Notifications and collaboration: email reminders, in-app notifications, comments, organizer resolution flow.
-5. Category-specific workflows: food receipt mode, travel ledger mode, subscription collection, household bills.
-6. Payment integration: payment links, confirmations, transaction references, reconciliation.
-7. Trust and auditability: explainable risk scoring, final confirmation, audit log, exportable proposal summary.
-8. Future specialized agents: reminder timing, dispute resolution, recurring bill handling, item-level receipt parsing, and participant-specific explanation generation.
+1. Proposal version history with before/after amount comparisons.
+2. Richer change-request resolution and participant reconfirmation flows.
+3. Generalized item parsing beyond the BBQ demo.
+4. Database-backed groups and proposals.
+5. Real invite links, authentication, and participant identity.
+6. Notifications for reminders and requested changes.
+7. Settlement proof and payment verification.
+8. Immutable audit timeline for agreement and payment events.
 
 ## Why This Project Is Interesting
 

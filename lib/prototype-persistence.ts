@@ -1,9 +1,11 @@
 "use client";
 
 import { initialState } from "@/lib/demo-data";
+import { recalculateProposal } from "@/lib/prototype-proposals";
 import type { AppState, ParticipantStatus, Proposal } from "@/lib/types";
 
-export const SPLITFLOW_STORAGE_KEY = "splitflow.demoState.v2";
+export const SPLITFLOW_STORAGE_KEY = "splitflow.demoState.v3";
+const STALE_STORAGE_KEYS = ["splitflow.demoState.v1", "splitflow.demoState.v2"];
 
 function canUseStorage(): boolean {
   return typeof window !== "undefined" && typeof window.localStorage !== "undefined";
@@ -11,11 +13,12 @@ function canUseStorage(): boolean {
 
 export function getDemoState(): AppState {
   if (!canUseStorage()) return initialState;
+  clearStaleStorageKeys();
   const saved = window.localStorage.getItem(SPLITFLOW_STORAGE_KEY);
   if (!saved) return initialState;
 
   try {
-    return { ...initialState, ...JSON.parse(saved) } as AppState;
+    return normalizePersistedState(JSON.parse(saved));
   } catch {
     return initialState;
   }
@@ -74,6 +77,51 @@ export function updateParticipantResponse(
 }
 
 export function resetDemoData(): AppState {
-  if (canUseStorage()) window.localStorage.setItem(SPLITFLOW_STORAGE_KEY, JSON.stringify(initialState));
+  if (canUseStorage()) {
+    clearStaleStorageKeys();
+    window.localStorage.removeItem(SPLITFLOW_STORAGE_KEY);
+    window.localStorage.setItem(SPLITFLOW_STORAGE_KEY, JSON.stringify(initialState));
+  }
   return initialState;
+}
+
+function clearStaleStorageKeys(): void {
+  if (!canUseStorage()) return;
+  for (const key of STALE_STORAGE_KEYS) {
+    window.localStorage.removeItem(key);
+  }
+}
+
+function normalizePersistedState(value: unknown): AppState {
+  if (!isRecord(value)) return initialState;
+  const proposals = Array.isArray(value.proposals) ? value.proposals.map(normalizePersistedProposal).filter((proposal): proposal is Proposal => Boolean(proposal)) : [];
+  if (proposals.length === 0) return initialState;
+
+  return {
+    ...initialState,
+    ...value,
+    proposals,
+    messages: Array.isArray(value.messages) ? value.messages : initialState.messages,
+    notifications: Array.isArray(value.notifications) ? value.notifications : initialState.notifications,
+    agentSteps: Array.isArray(value.agentSteps) ? value.agentSteps : initialState.agentSteps,
+    currentUser: typeof value.currentUser === "string" ? (value.currentUser as AppState["currentUser"]) : initialState.currentUser,
+    aiUnavailable: typeof value.aiUnavailable === "boolean" ? value.aiUnavailable : false
+  } as AppState;
+}
+
+function normalizePersistedProposal(value: unknown): Proposal | undefined {
+  if (!isRecord(value)) return undefined;
+  if (typeof value.id !== "string" || typeof value.title !== "string") return undefined;
+  if (!Array.isArray(value.participants) || value.participants.length === 0) return undefined;
+  if (!Array.isArray(value.costItems) || value.costItems.length === 0) return undefined;
+
+  try {
+    return recalculateProposal(value as Proposal);
+  } catch {
+    return undefined;
+  }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
 }

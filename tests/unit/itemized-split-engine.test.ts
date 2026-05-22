@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { calculateItemizedSplit, generateSettlementInstructions } from "@/lib/domain/itemized-split-engine";
+import type { ItemizedSplitResult } from "@/lib/domain/itemized-split-engine";
 
 const participants = [
   { id: "syahmi", name: "Syahmi" },
@@ -7,6 +8,20 @@ const participants = [
   { id: "sarah", name: "Sarah" },
   { id: "daniel", name: "Daniel" }
 ];
+
+function expectReconciled(result: ItemizedSplitResult) {
+  const paidTotal = Object.values(result.totalPaidByParticipant).reduce((sum, amount) => sum + amount, 0);
+  const fairShareTotal = Object.values(result.fairShareByParticipant).reduce((sum, amount) => sum + amount, 0);
+  const netTotal = Object.values(result.netBalanceByParticipant).reduce((sum, amount) => sum + amount, 0);
+  const debtorTotal = result.settlementInstructions.reduce((sum, instruction) => sum + instruction.amount, 0);
+  const creditorTotal = Object.values(result.netBalanceByParticipant).filter((amount) => amount > 0).reduce((sum, amount) => sum + amount, 0);
+
+  expect(paidTotal).toBe(result.totalCost);
+  expect(fairShareTotal).toBe(result.totalCost);
+  expect(netTotal).toBe(0);
+  expect(debtorTotal).toBe(creditorTotal);
+  expect(result.validationWarnings).toEqual([]);
+}
 
 describe("itemized split engine", () => {
   it("calculates a simple equal split", () => {
@@ -20,6 +35,7 @@ describe("itemized split engine", () => {
     expect(result.fairShareByParticipant).toMatchObject({ syahmi: 5000, ali: 5000 });
     expect(result.netBalanceByParticipant).toMatchObject({ syahmi: 5000, ali: -5000 });
     expect(result.settlementInstructions[0].text).toBe("Ali pays Syahmi ₩5,000");
+    expectReconciled(result);
   });
 
   it("supports multiple payers", () => {
@@ -35,6 +51,7 @@ describe("itemized split engine", () => {
     expect(result.totalPaidByParticipant).toMatchObject({ syahmi: 10000, ali: 4000 });
     expect(result.fairShareByParticipant).toMatchObject({ syahmi: 7000, ali: 7000 });
     expect(result.netBalanceByParticipant).toMatchObject({ syahmi: 3000, ali: -3000 });
+    expectReconciled(result);
   });
 
   it("excludes one participant from one item", () => {
@@ -47,6 +64,8 @@ describe("itemized split engine", () => {
     expect(result.fairShareByParticipant.daniel).toBe(0);
     expect(result.fairShareByParticipant.sarah).toBe(3000);
     expect(result.itemizedBreakdown[0].auditText).toContain("Daniel excluded");
+    expect(result.itemizedBreakdown[0].shareByParticipant.daniel).toBeUndefined();
+    expectReconciled(result);
   });
 
   it("identifies a participant who paid more than their fair share", () => {
@@ -69,6 +88,7 @@ describe("itemized split engine", () => {
     expect(Object.values(result.fairShareByParticipant).reduce((sum, amount) => sum + amount, 0)).toBe(10000);
     expect(result.roundingAdjustments).toHaveLength(1);
     expect(result.validationWarnings).toEqual([]);
+    expectReconciled(result);
   });
 
   it("rejects an invalid item with no eligible participants", () => {
@@ -108,7 +128,9 @@ describe("itemized split engine", () => {
     expect(Object.values(result.fairShareByParticipant).reduce((sum, amount) => sum + amount, 0)).toBe(128000);
     expect(Object.values(result.netBalanceByParticipant).reduce((sum, amount) => sum + amount, 0)).toBe(0);
     expect(result.fairShareByParticipant.daniel).toBeLessThan(result.fairShareByParticipant.aiman);
+    expect(result.itemizedBreakdown.find((item) => item.itemId === "meat")?.shareByParticipant.daniel).toBeUndefined();
     expect(result.settlementInstructions.length).toBeGreaterThan(0);
+    expectReconciled(result);
   });
 });
 

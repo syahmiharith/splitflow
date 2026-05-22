@@ -5,6 +5,7 @@ import { useMemo, useState } from "react";
 import { formatKrw, humanStatus } from "@/lib/format";
 import { useSplitFlow } from "@/lib/store";
 import type { UserMode } from "@/lib/types";
+import { DemoToolbar } from "@/components/demo-toolbar";
 import { AppCard } from "@/components/ui/app-card";
 
 export default function InboxPage() {
@@ -24,6 +25,7 @@ export default function InboxPage() {
 
   return (
     <div className="space-y-4 px-4 py-5 md:p-6" data-testid="inbox-route">
+      <DemoToolbar compact showLoaders={false} />
       <div className="rounded-2xl border border-app-border bg-white p-3 md:rounded-lg">
         <div className="mb-2 text-sm font-semibold text-app-muted">Viewing as</div>
         <div className="flex gap-2 overflow-x-auto pb-1">

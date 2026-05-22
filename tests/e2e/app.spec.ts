@@ -94,4 +94,25 @@ test("full prototype BBQ agreement flow", async ({ page }) => {
   await expect(page.getByTestId("settlement-plan")).toContainText("pays");
   await page.getByTestId("detail-mark-settled").click();
   await expect(page.getByTestId("proposal-detail-route")).toContainText("Settled");
+  await page.reload();
+  await expect(page.getByTestId("proposal-detail-route")).toContainText("Settled");
+  await expect(page.getByTestId("settlement-plan")).toContainText("pays");
+  await expect(page.getByTestId("proposal-detail-route")).toContainText("Itemized math");
+});
+
+test("proposal search and filters are functional", async ({ page }) => {
+  await page.goto("/proposals");
+  await page.evaluate(() => window.localStorage.clear());
+  await page.reload();
+
+  await expect(page.getByText("BBQ Dinner").first()).toBeVisible();
+  await page.getByTestId("proposal-search").fill("Daniel");
+  await expect(page.getByText("BBQ Dinner").first()).toBeVisible();
+  await page.getByTestId("proposal-search").fill("not-a-match");
+  await expect(page.getByTestId("proposal-empty-state")).toBeVisible();
+  await page.getByTestId("proposal-search").fill("");
+  await page.getByTestId("proposal-filter-paid").click();
+  await expect(page.getByTestId("proposal-empty-state")).toBeVisible();
+  await page.getByTestId("proposal-filter-draft").click();
+  await expect(page.getByText("BBQ Dinner").first()).toBeVisible();
 });

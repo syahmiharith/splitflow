@@ -147,7 +147,7 @@ export function applyPrototypeAdjustment(proposal: Proposal, prompt: string): { 
   let changed = false;
   let next = proposal;
 
-  if (/daniel.+(?:did not|didn't|didnt).+(?:beef|meat)|(?:beef|meat).+daniel/i.test(prompt)) {
+  if (isDanielBeefExclusion(prompt)) {
     next = updateItemExclusion(next, "meat", "daniel", true);
     changed = true;
   }
@@ -185,6 +185,10 @@ export function applyPrototypeAdjustment(proposal: Proposal, prompt: string): { 
     `Applied adjustment: ${prompt}`
   );
   return { proposal: recalculated, changed, before };
+}
+
+function isDanielBeefExclusion(prompt: string): boolean {
+  return /daniel.+(?:did not|didn't|didnt).+(?:beef|meat)|(?:beef|meat).+daniel|(?:^|\b)i\s+(?:did not|didn't|didnt)\s+eat\s+(?:beef|meat)/i.test(prompt);
 }
 
 export function loadTripDemoProposal(): Proposal {

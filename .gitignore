@@ -1,0 +1,15 @@
+.next
+node_modules
+coverage
+dist
+playwright-report
+test-results
+output
+.playwright-mcp
+.env
+.env.local
+.env*.local
+*.tsbuildinfo
+debug.log
+
+.vercel

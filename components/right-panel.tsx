@@ -1,7 +1,6 @@
 "use client";
 
 import { Sparkles } from "lucide-react";
-import { formatKrw } from "@/lib/format";
 import { countParticipants } from "@/lib/split";
 import type { AgentStep, Proposal } from "@/lib/types";
 import { AgentStep as AgentStepItem } from "@/components/ui/agent-step";
@@ -11,7 +10,7 @@ import { StatusBadge } from "@/components/ui/status-badge";
 
 export function RightWorkflowPanel({ proposal, agentSteps }: { proposal: Proposal; agentSteps: AgentStep[] }) {
   const counts = countParticipants(proposal);
-  const previewParticipants = proposal.participants.filter((participant) => ["ali", "sarah", "daniel", "aiman"].includes(participant.id));
+  const previewParticipants = proposal.participants.slice(0, 6);
 
   return (
     <aside className="space-y-4 overflow-y-auto border-t border-app-border bg-page p-4 lg:w-[380px] lg:shrink-0 lg:border-l lg:border-t-0 lg:bg-white/40" data-testid="right-workflow-panel">
@@ -76,10 +75,7 @@ export function RightWorkflowPanel({ proposal, agentSteps }: { proposal: Proposa
           <Sparkles className="h-6 w-6 text-app-blue" aria-hidden="true" />
           <h2 className="text-lg font-bold">AI Recommendation</h2>
         </div>
-        <p className="mt-4 pl-9 text-sm leading-6 text-app-text">
-          Daniel’s request is likely valid if he did not eat beef. Suggested adjustment reduces his amount by{" "}
-          <span className="font-bold text-app-green">{formatKrw(8000)}</span>.
-        </p>
+        <p className="mt-4 pl-9 text-sm leading-6 text-app-text">{proposal.recommendation}</p>
       </AppCard>
     </aside>
   );

@@ -5,6 +5,7 @@ import DashboardPage from "@/app/dashboard/page";
 import ProposalsPage from "@/app/proposals/page";
 import AnalyticsPage from "@/app/analytics/page";
 import InboxPage from "@/app/inbox/page";
+import AgentLabPage from "@/app/agent-lab/page";
 
 vi.mock("next/link", () => ({
   default: ({ href, children, ...props }: { href: string; children: React.ReactNode }) => (
@@ -37,5 +38,10 @@ describe("route smoke tests", () => {
   it("renders analytics route", () => {
     renderWithStore(<AnalyticsPage />);
     expect(screen.getByTestId("analytics-route")).toBeInTheDocument();
+  });
+
+  it("renders agent lab route", () => {
+    renderWithStore(<AgentLabPage />);
+    expect(screen.getByTestId("agent-lab-route")).toBeInTheDocument();
   });
 });

@@ -8,19 +8,22 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
+    "typecheck": "tsc --noEmit --incremental false",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "node tests/e2e/run-e2e.mjs",
     "test:e2e:live": "PLAYWRIGHT_BASE_URL=http://127.0.0.1:3000 playwright test"
   },
   "dependencies": {
+    "@ai-sdk/react": "^3.0.192",
     "@next/env": "^15.3.4",
+    "@openai/agents": "^0.11.4",
+    "ai": "^6.0.190",
     "lucide-react": "^0.468.0",
     "next": "^15.3.4",
-    "openai": "^4.104.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "zod": "^3.25.67"
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@eslint/js": "^9.29.0",
@@ -37,8 +40,8 @@
     "jsdom": "^26.1.0",
     "postcss": "^8.5.6",
     "tailwindcss": "^3.4.17",
-    "typescript-eslint": "^8.47.0",
     "typescript": "^5.8.3",
+    "typescript-eslint": "^8.47.0",
     "vitest": "^3.2.4"
   }
 }

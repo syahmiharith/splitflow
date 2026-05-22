@@ -1,9 +1,9 @@
 "use client";
 
 import type { ComponentType } from "react";
-import { Beef, ChevronDown, CupSoda, FileText, Flame, Info, Salad, Users } from "lucide-react";
+import { Beef, ChevronDown, CupSoda, FileText, Flame, Info, Salad, Users, WalletCards } from "lucide-react";
 import { formatKrw } from "@/lib/format";
-import type { CostItem, Participant, Proposal } from "@/lib/types";
+import type { CostItem, Proposal } from "@/lib/types";
 import { AppCard } from "@/components/ui/app-card";
 
 const itemIcons = [Beef, CupSoda, Flame, Salad];
@@ -15,8 +15,39 @@ export function BreakdownPanels({ proposal }: { proposal: Proposal }) {
       <MobileAccordionRow icon={Users} title="Participant Breakdown" />
       <div className="hidden xl:contents">
         <CostItemsPanel items={proposal.costItems} total={proposal.totalCost} />
-        <ParticipantBreakdown participants={proposal.participants.slice(0, 4)} />
+        <ParticipantBreakdown proposal={proposal} />
       </div>
+      {proposal.calculationResult ? (
+        <div className="xl:col-span-2">
+          <AppCard className="overflow-hidden" data-testid="calculation-audit">
+            <div className="flex items-center gap-2 border-b border-app-border px-5 py-3 text-base font-bold">
+              <WalletCards className="h-5 w-5 text-app-blue" aria-hidden="true" />
+              Your calculation
+            </div>
+            <div className="grid gap-3 p-5 md:grid-cols-2">
+              <div className="space-y-2">
+                {proposal.calculationResult.auditExplanation.map((line) => (
+                  <div key={line} className="rounded-lg border border-app-border bg-slate-50 px-3 py-2 text-sm text-app-text">
+                    {line}
+                  </div>
+                ))}
+                {proposal.calculationResult.roundingAdjustments.length > 0 ? (
+                  <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-app-text">
+                    Rounding adjustment: {proposal.calculationResult.roundingAdjustments.length} minor-unit assignment
+                  </div>
+                ) : null}
+              </div>
+              <div className="space-y-2">
+                {proposal.calculationResult.settlementInstructions.map((instruction) => (
+                  <div key={`${instruction.fromParticipantId}-${instruction.toParticipantId}-${instruction.amount}`} className="rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-sm font-medium text-app-text">
+                    {instruction.text}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </AppCard>
+        </div>
+      ) : null}
       <div className="xl:col-span-2">
         <div className="flex items-start gap-3 rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-app-text md:rounded-lg">
           <Info className="mt-0.5 h-5 w-5 shrink-0 text-app-blue" aria-hidden="true" />
@@ -50,6 +81,8 @@ function CostItemsPanel({ items, total }: { items: CostItem[]; total: number }) 
           <thead className="bg-slate-50 text-xs text-app-muted">
             <tr>
               <th className="px-5 py-2 text-left font-semibold">Item</th>
+              <th className="px-5 py-2 text-left font-semibold">Paid by</th>
+              <th className="px-5 py-2 text-left font-semibold">Excluded</th>
               <th className="px-5 py-2 text-right font-semibold">Amount (KRW)</th>
             </tr>
           </thead>
@@ -64,6 +97,8 @@ function CostItemsPanel({ items, total }: { items: CostItem[]; total: number }) 
                       {item.label}
                     </span>
                   </td>
+                  <td className="whitespace-nowrap px-5 py-2.5 text-app-muted">{item.paidBy ?? item.paidByParticipantId ?? "-"}</td>
+                  <td className="whitespace-nowrap px-5 py-2.5 text-app-muted">{item.excludedParticipantIds?.join(", ") || "-"}</td>
                   <td className="whitespace-nowrap px-5 py-2.5 text-right font-medium">{formatKrw(item.amount)}</td>
                 </tr>
               );
@@ -79,7 +114,9 @@ function CostItemsPanel({ items, total }: { items: CostItem[]; total: number }) 
   );
 }
 
-function ParticipantBreakdown({ participants }: { participants: Participant[] }) {
+function ParticipantBreakdown({ proposal }: { proposal: Proposal }) {
+  const participants = proposal.participants;
+  const calculation = proposal.calculationResult;
   return (
     <AppCard className="overflow-hidden" data-testid="participant-breakdown-panel">
       <div className="border-b border-app-border px-5 py-3 text-base font-bold">Participant Breakdown</div>
@@ -103,9 +140,11 @@ function ParticipantBreakdown({ participants }: { participants: Participant[] })
                     {participant.roleNote ?? "Participant"}
                   </span>
                 </td>
-                <td className="px-5 py-2.5 text-right font-medium">{formatKrw(participant.shareAmount)}</td>
-                <td className="px-5 py-2.5 text-right text-app-muted">-</td>
-                <td className="px-5 py-2.5 text-right font-bold text-app-red">-{formatKrw(participant.shareAmount)}</td>
+                <td className="px-5 py-2.5 text-right font-medium">{formatKrw(calculation?.fairShareByParticipant[participant.id] ?? participant.shareAmount)}</td>
+                <td className="px-5 py-2.5 text-right text-app-muted">{formatKrw(calculation?.totalPaidByParticipant[participant.id] ?? 0)}</td>
+                <td className={`px-5 py-2.5 text-right font-bold ${(calculation?.netBalanceByParticipant[participant.id] ?? -participant.shareAmount) >= 0 ? "text-app-green" : "text-app-red"}`}>
+                  {formatKrw(calculation?.netBalanceByParticipant[participant.id] ?? -participant.shareAmount)}
+                </td>
               </tr>
             ))}
             <tr className="font-bold">

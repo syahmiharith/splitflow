@@ -1,43 +1,49 @@
 "use client";
 
 import { Bot, Check, CheckCircle2, ChevronDown, ClipboardList, Edit3, Info, ListChecks, X } from "lucide-react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { formatKrw, humanStatus } from "@/lib/format";
 import { useSplitFlow } from "@/lib/store";
 import type { UserMode } from "@/lib/types";
 import { AppCard } from "@/components/ui/app-card";
 
-const participantModes: UserMode[] = ["ali", "sarah", "daniel", "aiman"];
-
-const includedItems = [
-  { label: "Meat", icon: FoodIcon },
-  { label: "Drinks", icon: DrinkIcon },
-  { label: "Charcoal", icon: FireIcon },
-  { label: "Sides", icon: BowlIcon }
-];
-
 export default function InboxPage() {
-  const { activeProposal, state, setCurrentUser, respondAsParticipant } = useSplitFlow();
+  const { activeProposal, state, setCurrentUser, respondAsParticipant, markPaid } = useSplitFlow();
   const [specialOpen, setSpecialOpen] = useState(true);
-  const selected = state.currentUser === "organizer" ? "aiman" : state.currentUser;
-  const participant = activeProposal.participants.find((item) => item.id === selected) ?? activeProposal.participants[1];
-  const due = participant.id === "aiman" ? 14500 : participant.shareAmount;
+  const [changeReason, setChangeReason] = useState("I did not eat beef");
+  const participantModes = activeProposal.participants.map((participant) => participant.id as UserMode);
+  const selected = state.currentUser === "organizer" ? activeProposal.participants.find((participant) => participant.id !== activeProposal.organizerId)?.id : state.currentUser;
+  const participant = activeProposal.participants.find((item) => item.id === selected) ?? activeProposal.participants[0];
+  const calculation = activeProposal.calculationResult;
+  const included = useMemo(
+    () => activeProposal.costItems.filter((item) => calculation?.itemizedBreakdown.find((row) => row.itemId === item.id)?.eligibleParticipantIds.includes(participant.id)),
+    [activeProposal.costItems, calculation?.itemizedBreakdown, participant.id]
+  );
+  const excluded = activeProposal.costItems.filter((item) => !included.some((includedItem) => includedItem.id === item.id));
+  const net = calculation?.netBalanceByParticipant[participant.id] ?? -participant.shareAmount;
 
   return (
     <div className="space-y-4 px-4 py-5 md:p-6" data-testid="inbox-route">
-      <div className="hidden gap-2 overflow-x-auto pb-1 md:flex">
-        {participantModes.map((mode) => (
-          <button
-            key={mode}
-            type="button"
-            onClick={() => setCurrentUser(mode)}
-            className={`min-h-11 shrink-0 rounded-xl border px-3 text-sm font-semibold ${
-              selected === mode ? "border-blue-200 bg-blue-50 text-app-blue" : "border-app-border bg-white text-app-muted"
-            }`}
-          >
-            {mode.charAt(0).toUpperCase() + mode.slice(1)}
-          </button>
-        ))}
+      <div className="rounded-2xl border border-app-border bg-white p-3 md:rounded-lg">
+        <div className="mb-2 text-sm font-semibold text-app-muted">Viewing as</div>
+        <div className="flex gap-2 overflow-x-auto pb-1">
+          {participantModes.map((mode) => {
+            const person = activeProposal.participants.find((item) => item.id === mode);
+            return (
+              <button
+                key={mode}
+                type="button"
+                onClick={() => setCurrentUser(mode)}
+                data-testid={`participant-switch-${mode}`}
+                className={`min-h-11 shrink-0 rounded-xl border px-3 text-sm font-semibold ${
+                  participant.id === mode ? "border-blue-200 bg-blue-50 text-app-blue" : "border-app-border bg-white text-app-muted"
+                }`}
+              >
+                {person?.name ?? mode}
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       <AppCard className="p-5" data-testid="participant-inbox-card">
@@ -45,7 +51,7 @@ export default function InboxPage() {
           <div className="grid h-14 w-14 place-items-center rounded-full bg-blue-50 text-app-blue">
             <Bot className="h-8 w-8" aria-hidden="true" />
           </div>
-          <h2 className="text-xl font-bold">Syahmi sent you a split proposal</h2>
+          <h2 className="text-xl font-bold">{activeProposal.organizerName} sent you a split proposal</h2>
         </div>
         <div className="grid gap-4 rounded-2xl border border-app-border p-4 sm:grid-cols-2">
           <div>
@@ -58,8 +64,10 @@ export default function InboxPage() {
             </span>
           </div>
           <div className="border-t border-app-border pt-4 sm:border-l sm:border-t-0 sm:pl-5 sm:pt-0">
-            <div className="text-center text-base text-app-muted">Your amount due</div>
-            <div className="mt-4 text-center text-5xl font-bold leading-none text-app-blue sm:text-6xl">{formatKrw(due)}</div>
+            <div className="text-center text-base text-app-muted">{net > 0 ? "You should receive" : "Your fair share"}</div>
+            <div className={`mt-4 text-center text-5xl font-bold leading-none sm:text-6xl ${net > 0 ? "text-app-green" : "text-app-blue"}`}>
+              {formatKrw(net > 0 ? net : participant.shareAmount)}
+            </div>
           </div>
         </div>
       </AppCard>
@@ -68,7 +76,9 @@ export default function InboxPage() {
         <Info className="mt-1 h-8 w-8 shrink-0 text-app-blue" aria-hidden="true" />
         <div>
           <h2 className="text-xl font-bold">Why am I paying this?</h2>
-          <p className="mt-3 text-lg leading-8 text-app-text">Your share covers items you participated in: included in drinks, charcoal, sides, and meat.</p>
+          <p className="mt-3 text-lg leading-8 text-app-text">
+            Your share is the sum of eligible item shares. Net balance compares what you paid with your fair share: positive means you receive money; negative means you pay.
+          </p>
         </div>
       </AppCard>
 
@@ -77,63 +87,68 @@ export default function InboxPage() {
           <ListChecks className="h-8 w-8 text-app-blue" aria-hidden="true" />
           <h2 className="text-xl font-bold">Included items in your share</h2>
         </div>
-        <div className="divide-y divide-app-border">
-          {includedItems.map((item) => {
-            const Icon = item.icon;
-            return (
-              <div key={item.label} className="flex min-h-16 items-center gap-4 py-3">
-                <div className="grid h-12 w-12 place-items-center rounded-xl bg-blue-50 text-app-blue">
-                  <Icon className="h-6 w-6" aria-hidden="true" />
-                </div>
-                <span className="flex-1 text-lg">{item.label}</span>
-                <CheckCircle2 className="h-8 w-8 fill-app-green text-white" aria-label={`${item.label} included`} />
-              </div>
-            );
-          })}
+        <ItemList items={included} participantId={participant.id} proposalId={activeProposal.id} included />
+      </AppCard>
+
+      <AppCard className="p-5">
+        <div className="mb-3 flex items-center gap-3">
+          <X className="h-8 w-8 text-app-red" aria-hidden="true" />
+          <h2 className="text-xl font-bold">Excluded items</h2>
         </div>
+        <ItemList items={excluded} participantId={participant.id} proposalId={activeProposal.id} included={false} />
       </AppCard>
 
       <AppCard className="p-4">
         <button type="button" onClick={() => setSpecialOpen((open) => !open)} className="flex w-full items-center gap-4 text-left" aria-expanded={specialOpen}>
           <ClipboardList className="h-8 w-8 text-app-blue" aria-hidden="true" />
           <div className="min-w-0 flex-1">
-            <div className="text-lg font-bold">Special note</div>
-            {specialOpen ? <div className="mt-1 text-base text-app-muted">“Daniel excluded from beef” is not applicable to you.</div> : null}
+            <div className="text-lg font-bold">Agreement note</div>
+            {specialOpen ? <div className="mt-1 text-base text-app-muted">{activeProposal.fairnessNote}</div> : null}
           </div>
           <ChevronDown className={`h-6 w-6 text-app-text transition ${specialOpen ? "rotate-180" : ""}`} aria-hidden="true" />
         </button>
       </AppCard>
 
-      <div className="space-y-3">
-        <ResponseButton
-          testId="participant-accept"
-          icon={Check}
-          title="Accept"
-          subtitle="Confirm and proceed"
-          tone="primary"
-          onClick={() => respondAsParticipant(participant.id, "accepted")}
+      <label className="block rounded-2xl border border-app-border bg-white p-4">
+        <span className="text-sm font-semibold text-app-muted">Request-change reason</span>
+        <textarea
+          data-testid="change-reason-input"
+          value={changeReason}
+          onChange={(event) => setChangeReason(event.target.value)}
+          className="mt-2 min-h-20 w-full resize-none rounded-xl border border-app-border px-3 py-2 text-sm outline-none focus:border-app-blue"
         />
+      </label>
+
+      <div className="space-y-3">
+        <ResponseButton testId="participant-accept" icon={Check} title="Accept" subtitle="Confirm and proceed" tone="primary" onClick={() => respondAsParticipant(participant.id, "accepted")} />
         <ResponseButton
           testId="participant-request-changes"
           icon={Edit3}
           title="Request change"
-          subtitle="Suggest adjustments to this proposal"
+          subtitle="Send this note to the organizer"
           tone="blue"
-          onClick={() => respondAsParticipant(participant.id, "requested_changes", "Please adjust my included items.")}
+          onClick={() => respondAsParticipant(participant.id, "requested_changes", changeReason)}
         />
-        <ResponseButton
-          testId="participant-opt-out"
-          icon={X}
-          title="Opt out"
-          subtitle="I don’t want to participate in this split"
-          tone="red"
-          onClick={() => respondAsParticipant(participant.id, "opted_out")}
-        />
-        <button type="button" className="mx-auto flex min-h-12 items-center justify-center gap-3 rounded-xl px-4 text-lg font-semibold text-app-blue">
-          <Bot className="h-7 w-7" aria-hidden="true" />
-          Ask AI why
-        </button>
+        <ResponseButton testId="participant-opt-out" icon={X} title="Opt out" subtitle="Remove me from this split" tone="red" onClick={() => respondAsParticipant(participant.id, "opted_out")} />
+        <ResponseButton testId="participant-mark-paid" icon={CheckCircle2} title="Mark paid" subtitle="Simulate payment confirmation" tone="blue" onClick={() => markPaid(participant.id)} />
       </div>
+    </div>
+  );
+}
+
+function ItemList({ items, included }: { items: Array<{ id: string; label: string; amount: number }>; participantId: string; proposalId: string; included: boolean }) {
+  if (items.length === 0) return <div className="rounded-lg border border-app-border bg-slate-50 px-3 py-3 text-sm text-app-muted">No items.</div>;
+  return (
+    <div className="divide-y divide-app-border">
+      {items.map((item) => (
+        <div key={item.id} className="flex min-h-16 items-center gap-4 py-3">
+          <div className={`grid h-12 w-12 place-items-center rounded-xl ${included ? "bg-blue-50 text-app-blue" : "bg-red-50 text-app-red"}`}>
+            {included ? <CheckCircle2 className="h-6 w-6" aria-hidden="true" /> : <X className="h-6 w-6" aria-hidden="true" />}
+          </div>
+          <span className="min-w-0 flex-1 text-lg">{item.label}</span>
+          <span className="font-semibold">{formatKrw(item.amount)}</span>
+        </div>
+      ))}
     </div>
   );
 }
@@ -166,20 +181,4 @@ function ResponseButton({ testId, icon: Icon, title, subtitle, tone, onClick }: 
 
 function ClockBadge() {
   return <span className="grid h-6 w-6 place-items-center rounded-full border-2 border-app-amber text-app-amber">!</span>;
-}
-
-function FoodIcon({ className }: { className?: string }) {
-  return <span className={className}>M</span>;
-}
-
-function DrinkIcon({ className }: { className?: string }) {
-  return <span className={className}>D</span>;
-}
-
-function FireIcon({ className }: { className?: string }) {
-  return <span className={className}>C</span>;
-}
-
-function BowlIcon({ className }: { className?: string }) {
-  return <span className={className}>S</span>;
 }

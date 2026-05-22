@@ -1,7 +1,7 @@
 "use client";
 
 import { Bot, CheckCircle2, ChevronDown, Circle, FileText, Send, Sparkles } from "lucide-react";
-import { formatKrw } from "@/lib/format";
+import { formatKrw, humanStatus } from "@/lib/format";
 import type { Proposal } from "@/lib/types";
 import { AppCard } from "@/components/ui/app-card";
 import { StatusBadge } from "@/components/ui/status-badge";
@@ -36,12 +36,12 @@ export function ProposalSummaryCard({ proposal, onReview, onAdjust, onSend }: Pr
         <SummaryCell label="Event" value={proposal.title} />
         <SummaryCell label="Total" value={formatKrw(proposal.totalCost)} />
         <SummaryCell label="Participants" value={String(proposal.participants.length)} />
-        <SummaryCell label="Split method" value="Mixed item-based" className="md:col-span-1" />
+        <SummaryCell label="Split method" value={humanStatus(proposal.splitMethod)} className="md:col-span-1" />
         <div className="min-w-0 px-2 py-3 md:px-5 md:py-2.5">
           <div className="text-xs text-app-muted">Status</div>
           <div className="mt-1">
             <span className="inline-flex rounded-md border border-amber-100 bg-amber-50 px-1.5 py-0.5 text-[11px] font-medium text-app-amber md:hidden">
-              Draft
+              {humanStatus(proposal.status)}
             </span>
             <span className="hidden md:inline-flex">
               <StatusBadge status={proposal.status} label={proposal.status === "draft" ? "Draft" : undefined} />
@@ -51,6 +51,9 @@ export function ProposalSummaryCard({ proposal, onReview, onAdjust, onSend }: Pr
       </div>
 
       <div className="border-b border-app-border px-5 py-4 md:py-3">
+        <div className="mb-3 rounded-lg border border-green-100 bg-green-50 px-3 py-2 text-sm font-semibold text-app-green">
+          Deterministic calculation: {formatKrw(proposal.calculationResult?.totalCost ?? proposal.totalCost)} reconciled across payer balances.
+        </div>
         <div className="grid grid-cols-[72px_minmax(0,1fr)] items-center gap-2 md:block">
           <div className="text-sm font-medium text-app-muted md:text-xs md:text-app-text">Agents</div>
           <div className="grid grid-cols-5 gap-2 md:mt-2 md:flex md:flex-wrap md:gap-x-6 md:gap-y-2">
@@ -82,7 +85,7 @@ export function ProposalSummaryCard({ proposal, onReview, onAdjust, onSend }: Pr
           type="button"
           data-testid="ask-ai-adjust"
           onClick={onAdjust}
-          className="hidden h-10 items-center justify-center gap-2 rounded-md border border-app-border bg-white px-4 text-sm font-semibold text-app-text hover:bg-slate-50 sm:inline-flex"
+          className="inline-flex h-12 items-center justify-center gap-2 rounded-xl border border-app-border bg-white px-4 text-base font-semibold text-app-text hover:bg-slate-50 md:h-10 md:rounded-md md:text-sm"
         >
           <Sparkles className="h-4 w-4" aria-hidden="true" />
           Ask AI to Adjust
@@ -91,7 +94,7 @@ export function ProposalSummaryCard({ proposal, onReview, onAdjust, onSend }: Pr
           type="button"
           data-testid="send-proposal"
           onClick={onSend}
-          className="hidden h-10 items-center justify-center gap-2 rounded-md border border-app-border bg-white px-4 text-sm font-semibold text-app-text hover:bg-slate-50 sm:inline-flex"
+          className="inline-flex h-12 items-center justify-center gap-2 rounded-xl border border-app-border bg-white px-4 text-base font-semibold text-app-text hover:bg-slate-50 md:h-10 md:rounded-md md:text-sm"
         >
           <Send className="h-4 w-4" aria-hidden="true" />
           Send Proposal

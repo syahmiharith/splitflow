@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { ChevronRight, CreditCard, FileText, FlameKindling, Plane, Search, Send } from "lucide-react";
-import { formatKrw } from "@/lib/format";
+import { ChevronRight, CreditCard, FileText, FlameKindling, Search, Send } from "lucide-react";
+import { formatKrw, humanStatus } from "@/lib/format";
+import { countParticipants } from "@/lib/split";
 import { useSplitFlow } from "@/lib/store";
 import { AppCard } from "@/components/ui/app-card";
 
@@ -13,47 +14,8 @@ const filters = [
   { label: "Paid", icon: CreditCard }
 ];
 
-const proposals = [
-  {
-    title: "BBQ Dinner",
-    icon: FlameKindling,
-    status: "Live",
-    statusTone: "green",
-    total: 128000,
-    participantsLabel: "Participants",
-    participants: "8",
-    splitMethod: "Mixed item-based",
-    footer: "5 accepted     2 pending     1 change",
-    progress: 42
-  },
-  {
-    title: "Jeju Trip",
-    icon: Plane,
-    status: "Draft",
-    statusTone: "amber",
-    total: 420000,
-    participantsLabel: "Participants",
-    participants: "5",
-    splitMethod: "Equal",
-    footer: "Ready for review",
-    progress: 0
-  },
-  {
-    title: "Netflix Family",
-    icon: NetflixIcon,
-    status: "Recurring",
-    statusTone: "violet",
-    total: 17000,
-    participantsLabel: "Members",
-    participants: "5",
-    splitMethod: "Equal",
-    footer: "Next collection in 3 days",
-    progress: 0
-  }
-];
-
 export default function ProposalsPage() {
-  const { activeProposal } = useSplitFlow();
+  const { state, setActiveProposal } = useSplitFlow();
 
   return (
     <div className="space-y-4 px-4 py-5 md:p-6" data-testid="proposals-route">
@@ -81,45 +43,40 @@ export default function ProposalsPage() {
       </div>
 
       <div className="space-y-4">
-        {proposals.map((proposal) => {
-          const Icon = proposal.icon;
+        {state.proposals.map((proposal) => {
+          const counts = countParticipants(proposal);
           return (
-            <Link key={proposal.title} href="/inbox" className="block rounded-2xl focus:outline-none focus:ring-2 focus:ring-app-blue focus:ring-offset-2">
+            <Link
+              key={proposal.id}
+              href={`/proposals/${proposal.id}`}
+              onClick={() => setActiveProposal(proposal.id)}
+              className="block rounded-2xl focus:outline-none focus:ring-2 focus:ring-app-blue focus:ring-offset-2"
+            >
               <AppCard className="relative p-5">
                 <div className="flex gap-3">
                   <div className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl bg-blue-50 text-app-blue sm:h-20 sm:w-20">
-                    <Icon className="h-8 w-8 sm:h-10 sm:w-10" aria-hidden="true" />
+                    <FlameKindling className="h-8 w-8 sm:h-10 sm:w-10" aria-hidden="true" />
                   </div>
                   <div className="min-w-0 flex-1 pr-5">
                     <div className="flex items-start gap-3">
                       <h2 className="min-w-0 flex-1 truncate text-xl font-bold sm:text-2xl">{proposal.title}</h2>
-                      <span className={`shrink-0 rounded-xl px-3 py-1.5 text-sm font-semibold ${badgeClass(proposal.statusTone)}`}>{proposal.status}</span>
+                      <span className="shrink-0 rounded-xl bg-blue-50 px-3 py-1.5 text-sm font-semibold text-app-blue">{humanStatus(proposal.status)}</span>
                     </div>
                     <div className="mt-4 grid grid-cols-[75px_54px_minmax(0,1fr)] items-center gap-2">
-                      <Meta label="Total" value={formatKrw(proposal.total)} />
-                      <Meta label={proposal.participantsLabel} value={proposal.participants} />
-                      <Meta label="Split method" value={proposal.splitMethod} />
+                      <Meta label="Total" value={formatKrw(proposal.totalCost)} />
+                      <Meta label="Members" value={String(proposal.participants.length)} />
+                      <Meta label="Split method" value={humanStatus(proposal.splitMethod)} />
                     </div>
                   </div>
                 </div>
                 <ChevronRight className="absolute right-4 top-[108px] h-6 w-6 text-app-muted" aria-hidden="true" />
-                {proposal.progress > 0 ? (
-                  <div className="mt-6 h-2 rounded-full bg-slate-200">
-                    <div className="h-full rounded-full bg-app-blue" style={{ width: `${proposal.progress}%` }} />
-                  </div>
-                ) : (
-                  <div className="mt-6 border-t border-app-border" />
-                )}
+                <div className="mt-6 h-2 rounded-full bg-slate-200">
+                  <div className="h-full rounded-full bg-app-blue" style={{ width: `${Math.min(100, (counts.accepted / Math.max(1, proposal.participants.length)) * 100)}%` }} />
+                </div>
                 <div className="mt-4 flex flex-wrap gap-x-7 gap-y-2 text-base text-app-muted">
-                  {proposal.title === activeProposal.title ? (
-                    <>
-                      <Dot tone="green" label="5 accepted" />
-                      <Dot tone="amber" label="2 pending" />
-                      <Dot tone="violet" label="1 change" />
-                    </>
-                  ) : (
-                    <Dot tone={proposal.statusTone} label={proposal.footer} />
-                  )}
+                  <Dot tone="green" label={`${counts.accepted} accepted`} />
+                  <Dot tone="amber" label={`${counts.pending} pending`} />
+                  <Dot tone="violet" label={`${counts.changes} change`} />
                 </div>
               </AppCard>
             </Link>
@@ -146,15 +103,4 @@ function Dot({ tone, label }: { tone: string; label: string }) {
       {label}
     </span>
   );
-}
-
-function badgeClass(tone: string) {
-  if (tone === "green") return "bg-green-50 text-app-green";
-  if (tone === "amber") return "bg-amber-50 text-app-amber";
-  if (tone === "violet") return "bg-violet-50 text-app-violet";
-  return "bg-blue-50 text-app-blue";
-}
-
-function NetflixIcon({ className }: { className?: string }) {
-  return <span className={`text-5xl font-black text-red-600 ${className ?? ""}`}>N</span>;
 }

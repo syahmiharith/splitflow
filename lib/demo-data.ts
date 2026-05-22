@@ -1,12 +1,15 @@
 import type { AgentStep, AppState, BotMessage, Notification, Proposal } from "@/lib/types";
+import { recalculateProposal } from "@/lib/prototype-proposals";
 
 const now = "2026-05-22T10:22:00.000+09:00";
 
-export const demoProposal: Proposal = {
+const demoProposalBase: Proposal = {
   id: "bbq-dinner",
   title: "BBQ Dinner",
   description: "BBQ dinner for 8 people with item-based exclusions and tracked participant responses.",
-  organizerName: "You",
+  groupId: "bbq-crew",
+  organizerId: "you",
+  organizerName: "Syahmi",
   totalCost: 128000,
   currency: "KRW",
   splitMethod: "mixed_item_based",
@@ -20,15 +23,15 @@ export const demoProposal: Proposal = {
   recommendation:
     "Daniel's request is likely valid if he did not eat beef. Suggested adjustment reduces his amount by ₩8,000.",
   costItems: [
-    { id: "meat", label: "Meat", amount: 64000, paidBy: "you" },
-    { id: "drinks", label: "Drinks", amount: 24000, paidBy: "ali" },
-    { id: "charcoal", label: "Charcoal", amount: 10000, paidBy: "sarah" },
-    { id: "sides", label: "Sides", amount: 30000, paidBy: "you" }
+    { id: "meat", label: "Meat", amount: 64000, paidBy: "Syahmi", paidByParticipantId: "you", excludedParticipantIds: ["daniel"] },
+    { id: "drinks", label: "Drinks", amount: 24000, paidBy: "Ali", paidByParticipantId: "ali" },
+    { id: "charcoal", label: "Charcoal", amount: 10000, paidBy: "Sarah", paidByParticipantId: "sarah" },
+    { id: "sides", label: "Sides", amount: 30000, paidBy: "Syahmi", paidByParticipantId: "you" }
   ],
   participants: [
     {
       id: "you",
-      name: "You",
+      name: "Syahmi",
       status: "accepted",
       paymentStatus: "review",
       shareAmount: 64000,
@@ -66,8 +69,15 @@ export const demoProposal: Proposal = {
     { id: "amir", name: "Amir", status: "accepted", paymentStatus: "paid", shareAmount: 17000 },
     { id: "aisyah", name: "Aisyah", status: "accepted", paymentStatus: "paid", shareAmount: 17000 },
     { id: "mina", name: "Mina", status: "pending", paymentStatus: "remind", shareAmount: 17000 }
-  ]
+  ],
+  timeline: [
+    { id: "created", at: now, actor: "Organizer", text: "Created BBQ proposal." },
+    { id: "daniel-change", at: now, actor: "Daniel", text: "Requested exclusion from beef." }
+  ],
+  aiExplanation: "AI drafted the proposal context; deterministic TypeScript calculated item shares and settlement."
 };
+
+export const demoProposal: Proposal = recalculateProposal(demoProposalBase);
 
 export const demoMessages: BotMessage[] = [
   {

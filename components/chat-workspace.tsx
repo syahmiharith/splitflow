@@ -1,60 +1,88 @@
 "use client";
 
 import { FormEvent, useState } from "react";
-import { Paperclip, Send } from "lucide-react";
+import { useChat } from "@ai-sdk/react";
+import { RotateCcw, Send, Utensils, Map, CreditCard } from "lucide-react";
 import { compactTime } from "@/lib/format";
+import { createSplitFlowChatTransport } from "@/lib/ai/splitflow-chat-transport";
 import { useSplitFlow } from "@/lib/store";
 import { AssistantAvatar, ProposalSummaryCard } from "@/components/proposal-summary-card";
 import { BreakdownPanels } from "@/components/breakdown-panels";
 import { RightWorkflowPanel } from "@/components/right-panel";
 
 export function ChatWorkspace() {
-  const { state, activeProposal, sendChatMessage, sendProposal, reviewProposal, askAiToAdjust } = useSplitFlow();
+  const { state, activeProposal, applyAgentResponse, sendProposal, reviewProposal, askAiToAdjust, loadDemo, resetDemo } = useSplitFlow();
   const [message, setMessage] = useState("");
-  const [submitting, setSubmitting] = useState(false);
+  const [chatError, setChatError] = useState<string | undefined>();
+  const { messages, sendMessage, status, error } = useChat({
+    messages: state.messages.map((chatMessage) => ({
+      id: chatMessage.id,
+      role: chatMessage.sender === "user" ? "user" : "assistant",
+      parts: [{ type: "text", text: chatMessage.content }]
+    })),
+    transport: createSplitFlowChatTransport({ onResponse: applyAgentResponse })
+  });
+  const submitting = status === "submitted" || status === "streaming";
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const trimmed = message.trim();
     if (!trimmed || submitting) return;
-    setSubmitting(true);
     setMessage("");
-    await sendChatMessage(trimmed);
-    setSubmitting(false);
+    setChatError(undefined);
+    try {
+      await sendMessage({ text: trimmed });
+    } catch (sendError) {
+      setChatError(sendError instanceof Error ? sendError.message : "Agent workflow unavailable.");
+    }
   }
 
   return (
     <div className="flex min-h-[calc(100vh-68px)] flex-col lg:h-[calc(100vh-76px)] lg:min-h-0 lg:flex-row" data-testid="chat-route">
       <section className="flex h-[calc(100vh-152px-env(safe-area-inset-bottom))] shrink-0 flex-col lg:h-auto lg:min-h-0 lg:min-w-0 lg:flex-1">
         <div className="scrollbar-thin flex-1 space-y-4 overflow-y-auto p-4 md:p-5">
+          <div className="flex flex-wrap gap-2 rounded-2xl border border-app-border bg-white p-2 md:rounded-lg" data-testid="demo-toolbar">
+            <DemoButton icon={Utensils} label="Load BBQ Demo" onClick={() => loadDemo("bbq")} />
+            <DemoButton icon={Map} label="Load Trip Demo" onClick={() => loadDemo("trip")} />
+            <DemoButton icon={CreditCard} label="Load Subscription Demo" onClick={() => loadDemo("subscription")} />
+            <DemoButton icon={RotateCcw} label="Reset Demo Data" onClick={resetDemo} />
+          </div>
           <div className="space-y-5 md:space-y-3">
-            {state.messages.map((chatMessage) => (
-              <div key={chatMessage.id} className={chatMessage.sender === "user" ? "flex justify-end gap-3" : "flex justify-start gap-3"}>
-                {chatMessage.sender !== "user" ? <AssistantAvatar /> : null}
-                <div className={`max-w-[78%] md:max-w-[720px] ${chatMessage.sender === "user" ? "order-1" : ""}`}>
+            {messages.map((chatMessage) => {
+              const content = chatMessage.parts
+                .filter((part) => part.type === "text")
+                .map((part) => part.text)
+                .join("");
+              const isUser = chatMessage.role === "user";
+
+              return (
+              <div key={chatMessage.id} className={isUser ? "flex justify-end gap-3" : "flex justify-start gap-3"}>
+                {!isUser ? <AssistantAvatar /> : null}
+                <div className={`max-w-[78%] md:max-w-[720px] ${isUser ? "order-1" : ""}`}>
                   <div
                     className={`rounded-2xl border px-4 py-3 text-base leading-7 shadow-[0_1px_2px_rgba(24,33,47,0.04)] md:rounded-lg md:px-5 md:leading-6 ${
-                      chatMessage.sender === "user"
+                      isUser
                         ? "border-app-blue bg-app-blue text-white md:border-blue-200 md:bg-blue-50 md:text-app-text"
                         : "border-app-border bg-white text-app-text"
                     }`}
                   >
-                    {chatMessage.content}
+                    {content}
                   </div>
-                  <div className={`mt-2 text-sm text-app-muted md:mt-1.5 md:text-xs ${chatMessage.sender === "user" ? "text-right" : "pl-3"}`}>
-                    {compactTime(chatMessage.createdAt)}
+                  <div className={`mt-2 text-sm text-app-muted md:mt-1.5 md:text-xs ${isUser ? "text-right" : "pl-3"}`}>
+                    {compactTime(new Date().toISOString())}
                   </div>
                 </div>
-                {chatMessage.sender === "user" ? (
+                {isUser ? (
                   <div className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-slate-200 text-xs font-semibold">You</div>
                 ) : null}
               </div>
-            ))}
+              );
+            })}
           </div>
 
-          {state.aiUnavailable ? (
+          {state.aiUnavailable || error || chatError ? (
             <div data-testid="ai-unavailable" className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-app-text">
-              AI unavailable: {state.lastAiError ?? "Configure the server API key to enable live AI drafting."}
+              AI unavailable: {chatError ?? error?.message ?? state.lastAiError ?? "Configure the server API key to enable live AI drafting."}
             </div>
           ) : null}
 
@@ -65,7 +93,7 @@ export function ChatWorkspace() {
         <div className="border-t border-app-border bg-page px-4 py-2 md:px-6 md:py-3" data-testid="chat-input-area">
           <form onSubmit={onSubmit} className="flex min-h-16 items-center gap-3 rounded-2xl border border-app-border bg-white p-2 shadow-[0_1px_2px_rgba(24,33,47,0.04)] md:min-h-0 md:rounded-lg">
             <button type="button" className="grid h-11 w-11 place-items-center rounded-xl text-app-muted hover:bg-slate-50 md:h-10 md:w-10 md:rounded-md" aria-label="Attach file">
-              <Paperclip className="h-6 w-6 md:h-5 md:w-5" aria-hidden="true" />
+              <Utensils className="h-6 w-6 md:h-5 md:w-5" aria-hidden="true" />
             </button>
             <input
               data-testid="chat-input"
@@ -89,5 +117,18 @@ export function ChatWorkspace() {
 
       <RightWorkflowPanel proposal={activeProposal} agentSteps={state.agentSteps} />
     </div>
+  );
+}
+
+function DemoButton({ icon: Icon, label, onClick }: { icon: typeof Utensils; label: string; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-app-border px-3 text-sm font-semibold text-app-text hover:bg-slate-50"
+    >
+      <Icon className="h-4 w-4 text-app-blue" aria-hidden="true" />
+      {label}
+    </button>
   );
 }

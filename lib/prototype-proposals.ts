@@ -1,5 +1,12 @@
-import { calculateItemizedSplit, type AgreementItem, type AgreementParticipant } from "@/lib/domain/itemized-split-engine";
-import type { CostItem, Participant, Proposal, TimelineEvent } from "@/lib/types";
+import {
+  calculateItemizedSplit,
+  generateSettlementInstructions,
+  type AgreementItem,
+  type AgreementParticipant
+} from "@/lib/domain/itemized-split-engine";
+import { parseExpensePrompt } from "@/lib/parser/expense-parser";
+import type { ParsedExpenseDraft, ParserResult } from "@/lib/parser/expense-types";
+import type { CostItem, Participant, ParticipantCredit, Proposal, TimelineEvent } from "@/lib/types";
 
 const defaultNames = ["Syahmi", "Ali", "Sarah", "Daniel", "Aiman", "Amir", "Aisyah", "Mina"];
 
@@ -44,6 +51,7 @@ export function recalculateProposal(proposal: Proposal, timelineText?: string): 
     participants: asAgreementParticipants(proposal.participants),
     items: asAgreementItems(proposal.costItems)
   });
+  const creditAdjustedCalculation = applyCreditsToCalculation(calculation, proposal.credits ?? [], proposal.participants);
 
   const timeline: TimelineEvent[] = [
     ...(proposal.timeline ?? []),
@@ -55,17 +63,127 @@ export function recalculateProposal(proposal: Proposal, timelineText?: string): 
     totalCost: calculation.totalCost,
     participants: proposal.participants.map((participant) => ({
       ...participant,
-      shareAmount: calculation.fairShareByParticipant[participant.id] ?? 0,
+      shareAmount: creditAdjustedCalculation.fairShareByParticipant[participant.id] ?? 0,
       roleNote:
-        calculation.totalPaidByParticipant[participant.id] > 0
-          ? `Paid ${formatKrw(calculation.totalPaidByParticipant[participant.id])}`
+        creditAdjustedCalculation.totalPaidByParticipant[participant.id] > 0
+          ? `Paid ${formatKrw(creditAdjustedCalculation.totalPaidByParticipant[participant.id])}`
           : participant.roleNote
     })),
-    calculationResult: calculation,
-    fairnessNote: calculation.auditExplanation.join(" · "),
-    recommendation: deriveRecommendation(proposal.status, calculation.validationWarnings.length),
+    calculationResult: creditAdjustedCalculation,
+    fairnessNote: creditAdjustedCalculation.auditExplanation.join(" · "),
+    recommendation: deriveRecommendation(proposal.status, creditAdjustedCalculation.validationWarnings.length),
     timeline,
     updatedAt: now()
+  };
+}
+
+export function createProposalFromPrompt(message: string, groupId = "bbq-crew"): { proposal?: Proposal; parserResult: ParserResult } {
+  const parserResult = parseExpensePrompt(message);
+  if (parserResult.status !== "ready" || !parserResult.draft) return { parserResult };
+  return { parserResult, proposal: createProposalFromParsedDraft(parserResult.draft, groupId) };
+}
+
+export function createProposalFromParsedDraft(draft: ParsedExpenseDraft, groupId = "bbq-crew"): Proposal {
+  const createdAt = now();
+  const participants = draft.participants.map((participant, index) => ({
+    id: participant.id,
+    name: participant.name,
+    status: participant.id === "you" || index === 0 ? ("accepted" as const) : ("not_sent" as const),
+    paymentStatus: participant.id === "you" || index === 0 ? ("review" as const) : ("remind" as const),
+    shareAmount: 0,
+    roleNote: participant.generated ? "Generated participant label" : undefined
+  }));
+  const participantIdByName = new Map(participants.map((participant) => [participant.name, participant.id]));
+  const organizerId = participantIdByName.get("Organizer") ?? participants[0]?.id ?? "you";
+  const costItems = buildCostItemsFromDraft(draft, participantIdByName, organizerId);
+  const credits = draft.credits.map<ParticipantCredit>((credit) => ({
+    fromParticipantId: participantIdByName.get(credit.fromName) ?? slug(credit.fromName),
+    toParticipantId: participantIdByName.get(credit.toName) ?? organizerId,
+    amount: credit.amount,
+    note: credit.note
+  }));
+
+  const proposal: Proposal = {
+    id: draft.title === "BBQ Dinner" ? "bbq-dinner" : `proposal-${slug(draft.title)}-${Date.now()}`,
+    title: draft.title,
+    description: "Parsed from chat input.",
+    groupId,
+    organizerId,
+    organizerName: participants.find((participant) => participant.id === organizerId)?.name ?? "Organizer",
+    totalCost: 0,
+    currency: draft.currency,
+    splitMethod: "mixed_item_based",
+    deadline: "2026-05-24T14:30:00.000+09:00",
+    cancellationRule: "Participants should accept before the organizer treats the settlement as ready.",
+    participants,
+    costItems,
+    credits,
+    status: "draft",
+    isBooked: false,
+    createdAt,
+    updatedAt: createdAt,
+    fairnessNote: "Item costs are split only among eligible participants, then payer reimbursements are netted.",
+    recommendation: "Review the deterministic calculation and send the proposal for participant approval.",
+    timeline: [{ id: "created", at: createdAt, actor: "Parser", text: "Created draft from prototype-grade natural language parser." }],
+    aiExplanation: "The parser extracted structure; deterministic TypeScript calculated all amounts.",
+    parserAssumptions: draft.assumptions,
+    parserWarnings: draft.warnings
+  };
+
+  return recalculateProposal(proposal);
+}
+
+function buildCostItemsFromDraft(draft: ParsedExpenseDraft, participantIdByName: Map<string, string>, organizerId: string): CostItem[] {
+  const firstItem = draft.items[0];
+  const fixedPayers = draft.payers.filter((payer) => typeof payer.amount === "number");
+  const restPayer = draft.payers.find((payer) => payer.paysRest);
+
+  if (draft.items.length === 1 && firstItem?.amount && fixedPayers.length > 0 && restPayer) {
+    const fixedTotal = fixedPayers.reduce((sum, payer) => sum + (payer.amount ?? 0), 0);
+    const restAmount = Math.max(0, firstItem.amount - fixedTotal);
+    return [
+      ...fixedPayers.map((payer) => itemFromDraft(firstItem, payer.amount ?? 0, participantIdByName.get(payer.name) ?? slug(payer.name), participantIdByName, slug(payer.name))),
+      ...(restAmount > 0 ? [itemFromDraft(firstItem, restAmount, participantIdByName.get(restPayer.name) ?? organizerId, participantIdByName, slug(restPayer.name))] : [])
+    ];
+  }
+
+  return draft.items.map((item) => itemFromDraft(item, item.amount ?? draft.statedTotal ?? 0, participantIdByName.get(item.paidByName ?? "") ?? organizerId, participantIdByName));
+}
+
+function itemFromDraft(item: ParsedExpenseDraft["items"][number], amount: number, paidByParticipantId: string, participantIdByName: Map<string, string>, idSuffix?: string): CostItem {
+  return {
+    id: idSuffix ? `${item.id}-${idSuffix}` : item.id,
+    label: item.label,
+    amount,
+    paidByParticipantId,
+    includedParticipantIds: item.includedParticipantNames?.map((name) => participantIdByName.get(name) ?? slug(name)),
+    excludedParticipantIds: item.excludedParticipantNames?.map((name) => participantIdByName.get(name) ?? slug(name))
+  };
+}
+
+function applyCreditsToCalculation(
+  calculation: ReturnType<typeof calculateItemizedSplit>,
+  credits: ParticipantCredit[],
+  participants: Participant[]
+): ReturnType<typeof calculateItemizedSplit> {
+  if (credits.length === 0) return calculation;
+  const netBalanceByParticipant = { ...calculation.netBalanceByParticipant };
+  const auditExplanation = [...calculation.auditExplanation];
+
+  for (const credit of credits) {
+    netBalanceByParticipant[credit.fromParticipantId] = (netBalanceByParticipant[credit.fromParticipantId] ?? 0) + credit.amount;
+    netBalanceByParticipant[credit.toParticipantId] = (netBalanceByParticipant[credit.toParticipantId] ?? 0) - credit.amount;
+    auditExplanation.push(credit.note);
+  }
+
+  return {
+    ...calculation,
+    netBalanceByParticipant,
+    settlementInstructions: generateSettlementInstructions(
+      participants.map((participant) => ({ id: participant.id, name: participant.name })),
+      netBalanceByParticipant
+    ),
+    auditExplanation
   };
 }
 
@@ -116,7 +234,7 @@ export function createBbqProposalFromPrompt(message: string): Proposal | undefin
 
   const createdAt = now();
   const proposal: Proposal = {
-    id: `proposal-${Date.now()}`,
+    id: "bbq-dinner",
     title: "BBQ Dinner",
     description: "Itemized BBQ split with payer reimbursement and item exclusions.",
     groupId: "bbq-crew",

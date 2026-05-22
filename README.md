@@ -1,166 +1,64 @@
 # SplitFlow
 
-AI copilot for group expenses: turn messy shared costs into fair proposals, participant approvals, and settlement-ready decisions.
-
-SplitFlow is a product prototype for a deeper version of cost splitting. It does not only calculate who owes what. It helps a group reach agreement before money creates friction.
-
-The app lets an organizer describe a shared expense in natural language, converts it into a structured proposal, applies deterministic split logic, explains the reasoning, sends the proposal to participants for review, and tracks whether the group is ready to settle.
+SplitFlow is an AI-assisted split agreement workspace. It helps a group organizer turn messy shared costs into explicit proposals, participant responses, deterministic recalculations, and settlement-ready decisions.
 
 SplitFlow is not just an AI bill splitter. It is an agreement workflow system. The AI layer helps organizers convert messy shared-cost situations into explicit participant consent, recalculated obligations, and payment-readiness decisions. Financial calculations and state transitions remain deterministic for correctness and trust.
 
-## Live Demo
+## Current Prototype
 
-- Production app: https://splitflow-xi.vercel.app
-- Primary flow: `/chat` -> `/inbox` -> `/dashboard` -> `/proposals/[id]`
-- Developer workflow lab: `/agent-lab`
+The app is now group-first:
 
-## Reviewer Quick Path
+- `/` is global Home across all groups.
+- `/groups/[groupId]` is a group overview.
+- `/groups/[groupId]/chat` is the group-scoped chat workspace.
+- `/groups/[groupId]/proposals` is the group proposal list with a right detail panel.
+- `/groups/[groupId]/proposals/[proposalId]` opens a proposal record.
+- `/groups/[groupId]/inbox` simulates participant review for that group.
+- `/groups/[groupId]/settings` manages group context.
 
-1. Open `/chat`.
-2. Paste: `BBQ dinner for 8. I paid ₩64,000 meat, Ali paid ₩24,000 drinks, Sarah paid ₩10,000 charcoal, sides were ₩30,000. Daniel did not eat beef.`
-3. Review the draft proposal, itemized costs, deterministic calculation, net balances, and settlement plan.
-4. Click `Send Proposal`.
-5. Open `/inbox`, switch to Daniel, and request change with `I did not eat beef`.
-6. Open `/dashboard` and confirm the change request is now prioritized.
-7. Open the proposal detail page and review itemized math, response state, timeline, risk/recommendation, and settlement instructions.
-8. Accept/recalculate the requested change, request reconfirmation if needed, then mark the proposal settled.
-9. Refresh the page and confirm the settled proposal, itemized math, settlement plan, and timeline still render from `localStorage`.
+Legacy `/chat`, `/dashboard`, `/proposals`, and `/inbox` remain compatibility routes and redirect into the selected/default group. If localStorage is empty, stale, or invalid, SplitFlow automatically recreates and selects the canonical `BBQ Crew` group.
 
-## What This Demonstrates
+SplitFlow’s chat supports prototype-grade natural language parsing for common group-expense scenarios. The parser extracts items, participants, payers, exclusions, and credits from realistic prompts, then validates the result before handing it to the deterministic split engine. It is intentionally not a full OCR or arbitrary receipt parser yet.
 
-SplitFlow treats shared expenses as an agreement workflow, not just arithmetic.
+## Reviewer Walkthrough
 
-Most split tools answer:
+1. Open `/`.
+2. Confirm `BBQ Crew` is selected in the header.
+3. Open `/groups/bbq-crew/chat`.
+4. Paste: `BBQ dinner for 8. I paid ₩64,000 meat, Ali paid ₩24,000 drinks, Sarah paid ₩10,000 charcoal, sides were ₩30,000. Daniel did not eat beef.`
+5. Confirm agent progress appears and proposal artifacts are created.
+6. Open the proposal artifact in the right panel.
+7. Click `Send proposal` from the sticky panel footer.
+8. Open `/groups/bbq-crew/inbox`.
+9. Switch to Daniel and request change with `I did not eat beef`.
+10. Open `/`; the global Home view prioritizes the change request.
+11. Open `/groups/bbq-crew/proposals/bbq-dinner`.
+12. Review itemized math, participant balances, settlement plan, and timeline.
+13. Click `Accept change`, then `Mark settled`.
+14. Refresh; the settled state and math persist from localStorage.
 
-```text
-How much does everyone owe?
-```
+You can create another group from the header switcher. Group chats, proposals, artifacts, and participant state are scoped to the selected group. Creating a fourth chat in a group removes the oldest chat; this is an explicit prototype retention limit.
 
-SplitFlow also asks:
+## Product Principle
 
-```text
-Has everyone understood, accepted, and agreed to the split?
-```
+AI may draft, explain, classify, and recommend. It must not own money correctness.
 
-That distinction matters because real group expenses often include context:
+The parser extracts structure from natural language. The deterministic split engine computes final totals, shares, rounding, balances, and settlements.
 
-- someone paid upfront
-- someone did not consume a specific item
-- someone joined late
-- a subscription member changed mid-cycle
-- a housemate moved in partway through a bill period
-- the organizer does not know whether everyone agrees
+Deterministic TypeScript owns:
 
-## Product Workflow
-
-```text
-Messy group expense
-  -> AI-assisted intake
-  -> structured proposal draft
-  -> deterministic split calculation
-  -> fairness explanation
-  -> organizer review
-  -> participant approval
-  -> change request handling
-  -> settlement readiness
-```
-
-The current prototype focuses on the BBQ Dinner scenario, but the product model is designed to expand across food, travel, subscriptions, bills, and shared purchases.
-
-## Core Screens
-
-| Screen | Purpose |
-| --- | --- |
-| AI Split Agent | Chat-first proposal creation with structured review cards |
-| Dashboard | Action-first overview of pending responses, changes, payments, and risk |
-| Proposals | List of active, draft, sent, recurring, and completed split proposals |
-| Proposal Detail | Agreement record with itemized math, participant responses, settlement plan, change requests, and timeline |
-| Groups | Recurring shared-expense contexts such as BBQ Crew, Housemates, trips, and subscriptions |
-| Analytics | Lightweight insights about recovery, still-owed amounts, slow groups, and dispute patterns |
-| Participant Review | Focused participant approval flow with amount, explanation, included items, and response actions |
-
-## AI Boundary
-
-AI assists with interpretation and explanation. It is not the source of truth for money.
-
-AI may:
-
-- interpret natural-language expense input
-- draft proposal fields
-- classify expense type
-- explain split reasoning
-- summarize participant objections
-- suggest next actions
-
-Typed deterministic application code owns:
-
-- split calculation
+- item totals
 - rounding
-- participant eligibility
-- item-level inclusion and exclusion
+- participant eligibility and exclusions
+- fair shares
 - payer reimbursement
-- net settlement
+- net balances
+- settlement instructions
 - proposal status transitions
-- reconfirmation rules
-- risk and settlement-readiness checks
+- participant response updates
+- risk and readiness logic
 
-This boundary is intentional. SplitFlow is financial-adjacent, so money behavior must be predictable, testable, and auditable.
-
-## Architecture
-
-```text
-User input
-  -> /api/agent
-  -> SplitFlow Orchestrator Agent
-  -> specialized workflow agents
-  -> deterministic domain services
-  -> typed in-memory proposal repository
-  -> structured UI response
-```
-
-OpenAI usage is server-side only. The client never receives `OPENAI_API_KEY`, server prompts, raw model responses, or sensitive environment values.
-
-If the AI API is unavailable, the app shows an explicit unavailable state and keeps the deterministic demo workflow usable.
-
-### Orchestrator-first design
-
-The Orchestrator Agent is the single control point for the new workflow system. UI and API code call the orchestrator only. Specialized agents are plain workflow modules with one responsibility each:
-
-- Intake Agent understands messy organizer input.
-- Split Planning Agent chooses the split strategy.
-- Proposal Agent creates the proposal explanation.
-- Participant Communication Agent drafts participant-facing messages.
-- Response Tracking Agent tracks accept, opt-out, and change requests.
-- Recalculation Agent recomputes shares after participant changes.
-- Risk Decision Agent evaluates payment or booking safety.
-- Recommendation Agent decides the best next action.
-
-The server path includes an OpenAI Agents SDK runtime using `@openai/agents`. Set both `OPENAI_API_KEY` and `SPLITFLOW_USE_OPENAI_AGENTS_SDK=1` to let the SDK-backed SplitFlow Orchestrator Agent draft organizer-facing workflow prose from deterministic proposal, risk, recommendation, and trace data. The SDK runtime is not allowed to calculate money, mutate proposal state, decide risk, or mark payment readiness.
-
-Domain services own correctness:
-
-- `lib/domain/money.ts`
-- `lib/domain/split-calculator.ts`
-- `lib/domain/itemized-split-engine.ts`
-- `lib/domain/proposal-state.ts`
-- `lib/domain/participant-response.ts`
-- `lib/domain/risk-engine.ts`
-
-### Itemized agreement engine
-
-The prototype now includes a deterministic itemized split engine for realistic shared-cost workflows. It supports:
-
-- total cost from itemized expenses
-- item payer tracking
-- included and excluded participants per item
-- equal item-based splits
-- payer reimbursement
-- net balances per participant
-- settlement instruction generation
-- deterministic rounding adjustment records
-- audit explanations for every item
-
-The engine reconciles these invariants:
+The itemized split engine reconciles:
 
 ```text
 sum(total paid) == total cost
@@ -168,61 +66,80 @@ sum(fair shares) == total cost
 sum(net balances) == 0
 ```
 
-Positive net balance means a participant should receive money. Negative net balance means they should pay money.
+Positive net balance means the participant receives money. Negative net balance means the participant pays money.
 
-## Codebase Map
+## Implementation Map
 
 ```text
 app/
-  chat/                 AI Split Agent surface
-  dashboard/            Organizer action dashboard
-  proposals/            Proposal list
-  proposals/[id]/       Full proposal agreement record
-  inbox/                Participant proposal review
+  page.tsx                         Global Home
+  groups/[groupId]/page.tsx        Group overview
+  groups/[groupId]/chat/page.tsx   Group chat workspace
+  groups/[groupId]/proposals/      Group proposal list/detail panel
+  groups/[groupId]/inbox/page.tsx  Participant simulation
+  groups/[groupId]/settings/page.tsx
+  chat/, dashboard/, inbox/, proposals/  Compatibility redirects
+  api/agent/route.ts               Structured orchestrator API
 
 components/
-  demo-toolbar.tsx      Reset/demo controls for reviewer stability
-  breakdown-panels.tsx Deterministic itemized math display
-  proposal-summary-card.tsx
-  right-panel.tsx
-  ui/                   Small custom UI primitives
+  top-header.tsx                   Header group switcher and group creation
+  sidebar.tsx                      Global Home plus selected-group workspace nav
+  chat-workspace.tsx               Group chat, sessions, progress, artifacts
+  workspace-detail-panel.tsx       Artifact/proposal right panel with sticky actions
+  demo-toolbar.tsx                 Reset demo data
 
 lib/
-  domain/itemized-split-engine.ts Deterministic itemized split and settlement engine
-  prototype-persistence.ts Client-side prototype persistence helpers
-  prototype-proposals.ts   Demo parser, proposal builders, and recalculation glue
-  store.tsx             Local demo state and workflow actions
-  proposal-filters.ts   Proposal search and filter helpers
-  types.ts              Shared domain types
+  domain/itemized-split-engine.ts  Deterministic itemized split and settlement engine
+  parser/expense-parser.ts         Parser pipeline entrypoint
+  parser/expense-normalizer.ts     Amounts, items, names, payers, exclusions, credits
+  parser/expense-validator.ts      Total, participant, payer, and rule validation
+  parser/clarification.ts          Specific clarification question generation
+  prototype-proposals.ts           Demo parser, proposal builders, recalculation glue
+  prototype-persistence.ts         localStorage schema, validation, fallback/reset
+  demo-data.ts                     Canonical BBQ group, proposal, chats, artifacts
+  store.tsx                       Group-scoped local state and workflow actions
+  proposal-filters.ts             Proposal search/filter helpers
+  types.ts                        Shared prototype types
 
 tests/
-  e2e/app.spec.ts       Reviewer flow, persistence, and proposal filter coverage
-  unit/                 Math, persistence, filters, agents, and route tests
+  unit/                           Domain, persistence, filters, agents, route smoke
+  e2e/app.spec.ts                 Group-first reviewer flow and persistence coverage
 ```
 
-## Technical Stack
+## AI Boundary
 
-- Framework: Next.js App Router
-- Language: TypeScript
-- Styling: Tailwind CSS
-- UI system: custom components
-- Icons: Lucide React
-- AI layer: server-side OpenAI integration
-- Agent runtime: OpenAI Agents SDK for TypeScript (`@openai/agents`)
-- State: local prototype state with deterministic workflow actions
-- Tests: Vitest and Playwright
+The main chat surface uses `useChat()` with a custom transport to `/api/agent`. OpenAI usage stays server-side. The app includes an OpenAI Agents SDK runtime through `@openai/agents`, guarded by server configuration.
 
-## Running Locally
+Do not expose `OPENAI_API_KEY`, server prompts, raw model responses, or hidden environment values in client components, rendered HTML, logs, tests, or screenshots.
 
-Install dependencies:
+Optional local AI configuration:
+
+```env
+OPENAI_API_KEY=your_server_side_key
+OPENAI_MODEL=gpt-5.4-mini
+SPLITFLOW_USE_OPENAI_AGENTS_SDK=1
+```
+
+Without API configuration, the deterministic reviewer path still works.
+
+## Parser Scope
+
+The parser currently handles common prototype prompts such as:
+
+- `128000`, `128,000`, `128k`, `₩128,000`, `128,000 won`, and `128,000 KRW`
+- itemized costs like `meat was 80k`, `80k for meat`, and `groceries 64,500`
+- total-only prompts like `Split 100,000 won between 5 people`
+- participant counts and simple named participant lists
+- exclusions like `Daniel does not eat beef`, `Hakim does not drink`, and `Mira only had drinks`
+- multiple payers like `Adam paid 50k upfront and I paid the rest`
+- simple previous payments like `Sarah already paid me 10,000`
+
+When the parser cannot safely create a proposal, it asks a concrete clarification question. For example, if a stated total does not match the itemized costs, it asks whether to use the stated total or the itemized total.
+
+## Run Locally
 
 ```bash
 pnpm install
-```
-
-Start the development server:
-
-```bash
 pnpm dev
 ```
 
@@ -232,13 +149,7 @@ Open:
 http://localhost:3000
 ```
 
-Build for production:
-
-```bash
-pnpm build
-```
-
-Run checks:
+Verification:
 
 ```bash
 pnpm typecheck
@@ -248,179 +159,40 @@ pnpm build
 pnpm test:e2e
 ```
 
-## Manual Agent Workflow Demo
+## Demo Controls
 
-Open `/agent-lab` locally after starting the dev server:
+Use `Reset Demo Data` to clear stale localStorage and restore the canonical BBQ group. Demo state is stored in browser localStorage only. There is no database.
 
-```bash
-pnpm dev
-```
+The seeded demo includes:
 
-Use the scenario buttons or paste one of these prompts:
+- `BBQ Crew` group
+- members
+- one chat session
+- BBQ proposal
+- proposal and settlement artifacts
+- Daniel's beef exclusion/change-request scenario
 
-- `Split a ₩480,000 Busan Airbnb between 5 people. Amir stays 1 night and everyone else stays 2 nights.`
-- `Split a ₩120,000 dinner equally between 4 people.`
-- `Split a ₩300,000 group gift where Aina pays ₩50,000 fixed and the rest split the remaining amount between 3 people.`
+## Known Limitations
 
-Then test:
+- localStorage persistence only
+- prototype-grade deterministic parser, not OCR or a general arbitrary receipt parser
+- simulated agents and agent progress
+- simulated participants, no real auth
+- no production database
+- no real notifications
+- no real payment collection
+- no multi-device sync
+- no immutable audit log
+- no OCR or general receipt import
 
-1. Create a proposal from natural language.
-2. Review calculated participant amounts.
-3. Send the proposal simulation.
-4. Accept for one or more participants.
-5. Opt a participant out and confirm recalculation.
-6. Request a change and confirm risk blocks payment readiness.
-7. Inspect risk, recommendation, and agent trace.
+## Suggested Next Steps
 
-## Manual Prototype Flow
-
-The main reviewer flow is fully interactive and persists in browser `localStorage`.
-
-1. Start the app with `pnpm dev`.
-2. Open `/chat`.
-3. Use `Load BBQ Demo` or paste the BBQ prompt from the Reviewer Quick Path.
-4. Confirm the draft proposal shows itemized costs and deterministic calculation rows.
-5. Click `Send Proposal`.
-6. Open `/inbox`.
-7. Use `Viewing as` to switch between Syahmi, Ali, Sarah, Daniel, Aiman, Amir, Aisyah, and Mina.
-8. As Daniel, enter `I did not eat beef` and click `Request change`.
-9. Open `/dashboard`; the change request should be the highest-priority action.
-10. Open the proposal detail page.
-11. Review itemized math, response statuses, change requests, timeline, settlement instructions, and AI recommendation.
-12. Click `Accept requested change`, verify the settlement plan remains reconciled, then click `Mark proposal settled`.
-13. Refresh the proposal detail page and verify the settled state, itemized math, and settlement plan remain visible.
-
-Demo controls:
-
-- `Load BBQ Demo`
-- `Load Trip Demo`
-- `Load Subscription Demo`
-- `Reset Demo Data`
-
-Created proposals and participant responses survive refresh until `Reset Demo Data` is used.
-
-## Environment Variables
-
-Create `.env.local` for local AI usage:
-
-```env
-OPENAI_API_KEY=your_server_side_key
-OPENAI_MODEL=gpt-5.4-mini
-SPLITFLOW_USE_OPENAI_AGENTS_SDK=1
-```
-
-`OPENAI_MODEL` and `SPLITFLOW_USE_OPENAI_AGENTS_SDK` are optional. Without the SDK flag, `/api/agent` stays fully deterministic and still returns structured workflow responses.
-
-Do not expose API keys in client components, rendered HTML, browser logs, screenshots, test output, or public repository files.
-
-## Validation Coverage
-
-Current test coverage focuses on the product boundaries that matter most:
-
-- money normalization and deterministic rounding
-- itemized split calculation, exclusions, payer reimbursement, net balances, and settlements
-- equal, weighted, percentage, and fixed split behavior
-- proposal state transitions and reconfirmation rules
-- participant response handling
-- rule-based risk assessment
-- specialized agent responsibility boundaries
-- orchestrator workflow integration
-- `/api/agent` structured route behavior
-- equal split behavior
-- custom split validation
-- unit-based split behavior
-- opt-out recalculation
-- reconfirmation logic
-- safe-to-book logic
-- organizer risk calculation
-- AI output schema validation
-- API success and failure handling
-- route smoke tests
-- Playwright smoke tests for app and mobile workflows
-- full BBQ reviewer flow through settled state and page refresh
-- proposal search and status filters
-
-The optional live AI smoke test only runs when `OPENAI_API_KEY` is configured.
-
-## Known Trade-offs
-
-- The server orchestrator uses a typed in-memory repository, while the reviewer prototype persists UI proposals in browser `localStorage`.
-- The parser is deterministic and intentionally narrow; it supports the BBQ demo and common phrasing, not general receipt parsing.
-- The legacy `/api/ai/split-agent` route remains for compatibility, while the main chat surface uses `useChat()` with a custom transport pointed at `/api/agent`.
-- Participants are simulated; there is no real auth or invite identity.
-- Notifications are simulated; there are no real emails, push notifications, or reminder jobs.
-- Payment collection is simulated; there is no real payment processor or settlement proof.
-- There is no production database or multi-device sync.
-- The timeline is useful for review but is not an immutable audit log.
-- There is no OCR or general receipt import.
-
-## Product Scope
-
-Included in this prototype:
-
-- AI split assistant interface
-- draft proposal generation flow
-- deterministic split logic foundation
-- organizer proposal review
-- participant proposal review
-- accept, request change, and opt-out responses
-- dashboard status tracking
-- groups, proposals, and analytics screens
-- mobile-first UI
-- multi-agent workflow visualization
-- risk/action queue concept
-
-Not included:
-
-- real payment processing
-- real authentication
-- real push notifications
-- production database
-- banking integrations
-- OCR receipt scanning
-- legally binding settlement flow
-
-## Key Product Decisions
-
-### Chat for intake, cards for review
-
-A pure form is easier to validate but too rigid for messy real-world expense descriptions. A pure chatbot is flexible but too ambiguous for money workflows.
-
-SplitFlow uses chat for intake and structured cards for review.
-
-### No real payments yet
-
-The product question is not whether money can move. It is whether the app can help people agree on what should be paid before payment happens.
-
-Payment integration should come after the agreement workflow is mature.
-
-### Operational UI over marketing UI
-
-SplitFlow is intentionally not a landing page. The UI emphasizes proposal state, participant responses, next actions, risk signals, status badges, and compact dashboards.
-
-## Roadmap
-
-1. Proposal version history with before/after amount comparisons.
-2. Richer change-request resolution and participant reconfirmation flows.
-3. Generalized item parsing beyond the BBQ demo.
-4. Database-backed groups and proposals.
-5. Real invite links, authentication, and participant identity.
-6. Notifications for reminders and requested changes.
+1. Database-backed groups and proposals.
+2. Real auth and invite links.
+3. Real notifications and reminders.
+4. Real-time collaboration for organizer and participants.
+5. Proposal version history with before/after amount changes.
+6. Richer change-request resolution.
 7. Settlement proof and payment verification.
-8. Immutable audit timeline for agreement and payment events.
-
-## Why This Project Is Interesting
-
-Most cost-splitting apps treat the problem as arithmetic.
-
-SplitFlow treats it as coordination.
-
-That shift changes the product:
-
-- from calculator to workflow
-- from payment request to proposal
-- from private assumption to shared agreement
-- from group chat chaos to structured resolution
-- from AI magic to AI-assisted deterministic decision support
-
-The project demonstrates how AI can support financial-adjacent workflows without giving it unsafe control over money logic.
+8. Generalized receipt and item parser.
+9. Immutable audit timeline.

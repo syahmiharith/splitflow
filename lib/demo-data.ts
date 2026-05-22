@@ -1,4 +1,4 @@
-import type { AgentStep, AppState, BotMessage, Notification, Proposal } from "@/lib/types";
+import type { AgentStep, AppState, Artifact, BotMessage, ChatSession, Notification, Proposal, SplitFlowGroup } from "@/lib/types";
 import { recalculateProposal } from "@/lib/prototype-proposals";
 
 const now = "2026-05-22T10:22:00.000+09:00";
@@ -121,8 +121,61 @@ export const demoNotifications: Notification[] = [
   }
 ];
 
+export const demoArtifacts: Artifact[] = [
+  {
+    id: "artifact-bbq-proposal",
+    type: "proposal_draft",
+    title: "BBQ Dinner proposal",
+    summary: "Itemized proposal with Daniel excluded from beef and payer reimbursement calculated.",
+    proposalId: "bbq-dinner",
+    createdAt: now
+  },
+  {
+    id: "artifact-bbq-settlement",
+    type: "settlement_plan",
+    title: "BBQ settlement plan",
+    summary: "Deterministic debtor-to-creditor settlement instructions for the BBQ proposal.",
+    proposalId: "bbq-dinner",
+    createdAt: now
+  }
+];
+
+export const demoChats: ChatSession[] = [
+  {
+    id: "chat-bbq-intake",
+    title: "BBQ proposal setup",
+    messages: demoMessages,
+    artifactIds: demoArtifacts.map((artifact) => artifact.id),
+    createdAt: "2026-05-22T10:21:00.000+09:00",
+    updatedAt: now
+  }
+];
+
+export const defaultGroup: SplitFlowGroup = {
+  id: "bbq-crew",
+  name: "BBQ Crew",
+  description: "Default reviewer group for the BBQ split agreement demo.",
+  members: demoProposal.participants,
+  proposals: [demoProposal],
+  chats: demoChats,
+  artifacts: demoArtifacts,
+  analyticsSummary: {
+    activeProposals: 1,
+    openChangeRequests: 1,
+    pendingSettlements: 1,
+    totalFronted: demoProposal.calculationResult?.totalCost ?? demoProposal.totalCost,
+    stillOwed: Math.max(0, demoProposal.calculationResult?.netBalanceByParticipant.you ?? 0)
+  },
+  createdAt: now,
+  updatedAt: now
+};
+
 export const initialState: AppState = {
   currentUser: "organizer",
+  selectedGroupId: defaultGroup.id,
+  selectedChatIdByGroupId: { [defaultGroup.id]: demoChats[0].id },
+  groups: [defaultGroup],
+  workspacePanel: null,
   proposals: [demoProposal],
   messages: demoMessages,
   notifications: demoNotifications,

@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { getDemoState, getProposalById, getProposals, resetDemoData, saveProposal, SPLITFLOW_STORAGE_KEY, updateParticipantResponse } from "@/lib/prototype-persistence";
+import { defaultGroup, initialState } from "@/lib/demo-data";
+import { getDemoState, getProposalById, getProposals, resetDemoData, saveDemoState, saveProposal, SPLITFLOW_STORAGE_KEY, updateParticipantResponse } from "@/lib/prototype-persistence";
 import { createBbqProposalFromPrompt } from "@/lib/prototype-proposals";
+import type { ChatSession, SplitFlowGroup } from "@/lib/types";
 
 describe("prototype persistence helpers", () => {
   beforeEach(() => {
@@ -44,6 +46,8 @@ describe("prototype persistence helpers", () => {
     window.localStorage.setItem(SPLITFLOW_STORAGE_KEY, JSON.stringify({ proposals: [{ id: "bad", title: "Bad" }] }));
 
     expect(getDemoState().proposals[0].id).toBe("bbq-dinner");
+    expect(getDemoState().selectedGroupId).toBe("bbq-crew");
+    expect(getDemoState().groups[0].name).toBe("BBQ Crew");
   });
 
   it("recalculates valid persisted proposals on load", () => {
@@ -53,5 +57,39 @@ describe("prototype persistence helpers", () => {
     window.localStorage.setItem(SPLITFLOW_STORAGE_KEY, JSON.stringify({ ...getDemoState(), proposals: [{ ...proposal, totalCost: 1 }] }));
 
     expect(getDemoState().proposals[0].totalCost).toBe(128000);
+  });
+
+  it("persists selected user-created groups ahead of the fallback group", () => {
+    const customGroup: SplitFlowGroup = {
+      ...defaultGroup,
+      id: "jeju-trip",
+      name: "Jeju Trip",
+      description: "Trip planning workspace",
+      proposals: [],
+      chats: defaultGroup.chats.map((chat) => ({ ...chat, id: "jeju-chat" })),
+      artifacts: [],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+
+    saveDemoState({ ...initialState, groups: [customGroup, defaultGroup], selectedGroupId: customGroup.id });
+
+    const loaded = getDemoState();
+    expect(loaded.selectedGroupId).toBe("jeju-trip");
+    expect(loaded.groups.map((group) => group.id)).toEqual(["jeju-trip", "bbq-crew"]);
+  });
+
+  it("keeps only the newest three chats per persisted group", () => {
+    const chats: ChatSession[] = Array.from({ length: 4 }, (_, index) => ({
+      ...defaultGroup.chats[0],
+      id: `chat-${index + 1}`,
+      title: `Chat ${index + 1}`,
+      createdAt: new Date(2026, 0, index + 1).toISOString(),
+      updatedAt: new Date(2026, 0, index + 1).toISOString()
+    }));
+
+    window.localStorage.setItem(SPLITFLOW_STORAGE_KEY, JSON.stringify({ ...initialState, groups: [{ ...defaultGroup, chats }], selectedGroupId: defaultGroup.id }));
+
+    expect(getDemoState().groups[0].chats.map((chat) => chat.id)).toEqual(["chat-2", "chat-3", "chat-4"]);
   });
 });

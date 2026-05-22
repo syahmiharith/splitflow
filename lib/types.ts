@@ -49,6 +49,13 @@ export type CostItem = {
   excludedParticipantIds?: string[];
 };
 
+export type ParticipantCredit = {
+  fromParticipantId: string;
+  toParticipantId: string;
+  amount: number;
+  note: string;
+};
+
 export type TimelineEvent = {
   id: string;
   at: string;
@@ -103,6 +110,7 @@ export type Proposal = {
   cancellationRule: string;
   participants: Participant[];
   costItems: CostItem[];
+  credits?: ParticipantCredit[];
   status: ProposalStatus;
   isBooked: boolean;
   createdAt: string;
@@ -112,6 +120,8 @@ export type Proposal = {
   timeline?: TimelineEvent[];
   calculationResult?: ProposalCalculationResult;
   aiExplanation?: string;
+  parserAssumptions?: string[];
+  parserWarnings?: string[];
 };
 
 export type BotMessage = {
@@ -122,6 +132,60 @@ export type BotMessage = {
   relatedProposalId?: string;
   agentName?: string;
 };
+
+export type ArtifactType =
+  | "proposal_draft"
+  | "itemized_breakdown"
+  | "eligibility_matrix"
+  | "settlement_plan"
+  | "change_request_summary"
+  | "risk_summary";
+
+export type Artifact = {
+  id: string;
+  type: ArtifactType;
+  title: string;
+  summary: string;
+  proposalId?: string;
+  details?: string[];
+  createdAt: string;
+};
+
+export type ChatSession = {
+  id: string;
+  title: string;
+  messages: BotMessage[];
+  artifactIds: string[];
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type GroupAnalyticsSummary = {
+  activeProposals: number;
+  openChangeRequests: number;
+  pendingSettlements: number;
+  totalFronted: number;
+  stillOwed: number;
+};
+
+export type SplitFlowGroup = {
+  id: string;
+  name: string;
+  description: string;
+  members: Participant[];
+  proposals: Proposal[];
+  chats: ChatSession[];
+  artifacts: Artifact[];
+  analyticsSummary: GroupAnalyticsSummary;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type WorkspacePanel =
+  | { type: "artifact"; artifactId: string }
+  | { type: "proposal"; proposalId: string }
+  | { type: "group_settings" }
+  | null;
 
 export type Notification = {
   id: string;
@@ -143,10 +207,14 @@ export type AgentStep = {
   status: AgentStatus;
 };
 
-export type UserMode = "organizer" | "you" | "amir" | "aisyah" | "daniel" | "ali" | "sarah" | "aiman" | "mina";
+export type UserMode = string;
 
 export type AppState = {
   currentUser: UserMode;
+  selectedGroupId?: string;
+  selectedChatIdByGroupId?: Record<string, string>;
+  groups: SplitFlowGroup[];
+  workspacePanel?: WorkspacePanel;
   proposals: Proposal[];
   messages: BotMessage[];
   notifications: Notification[];

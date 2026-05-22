@@ -1,96 +1,71 @@
 "use client";
 
-import { CheckCircle2, ChevronRight, Clock3, FlameKindling, Home, Plane, Plus, Users, WalletCards } from "lucide-react";
+import Link from "next/link";
+import { CheckCircle2, ChevronRight, Clock3, Plus, Users, WalletCards } from "lucide-react";
 import { AppCard } from "@/components/ui/app-card";
-
-const groups = [
-  {
-    name: "BBQ Crew",
-    icon: FlameKindling,
-    status: "Active",
-    tone: "green",
-    members: "8 members",
-    detail: "1 active proposal",
-    meta: "Last activity: Today",
-    action: "Open Group"
-  },
-  {
-    name: "Housemates",
-    icon: Home,
-    status: "Past Due",
-    tone: "red",
-    members: "4 members",
-    detail: "2 unpaid bills",
-    meta: "Outstanding: ₩42,000",
-    action: "View Split"
-  },
-  {
-    name: "Jeju Trip 2026",
-    icon: Plane,
-    status: "Draft",
-    tone: "amber",
-    members: "5 members",
-    detail: "Draft settlement ready",
-    meta: "Last activity: 2 days ago",
-    action: "Open Group"
-  },
-  {
-    name: "Netflix Family",
-    icon: NetflixIcon,
-    status: "Upcoming",
-    tone: "blue",
-    members: "5 members",
-    detail: "Next billing in 3 days",
-    meta: "Last activity: 5 days ago",
-    action: "View Split"
-  }
-];
+import { formatKrw } from "@/lib/format";
+import { useSplitFlow } from "@/lib/store";
 
 export default function GroupsPage() {
+  const { state, createGroup } = useSplitFlow();
+  const outstanding = state.groups.reduce((total, group) => total + group.analyticsSummary.stillOwed, 0);
+
   return (
     <div className="space-y-4 px-4 py-5 md:p-6" data-testid="groups-route">
       <div className="grid grid-cols-3 gap-2 sm:gap-3">
-        <Summary icon={Users} label="Groups" value="4" tone="blue" />
-        <Summary icon={CheckCircle2} label="Active splits" value="3" tone="green" />
-        <Summary icon={WalletCards} label="Outstanding" value="₩102,000" tone="amber" />
+        <Summary icon={Users} label="Groups" value={String(state.groups.length)} tone="blue" />
+        <Summary icon={CheckCircle2} label="Active splits" value={String(state.groups.reduce((total, group) => total + group.analyticsSummary.activeProposals, 0))} tone="green" />
+        <Summary icon={WalletCards} label="Outstanding" value={formatKrw(outstanding)} tone="amber" />
       </div>
 
       <div className="space-y-4">
-        {groups.map((group) => {
-          const Icon = group.icon;
-          return (
-            <AppCard key={group.name} className="p-5">
-              <div className="flex gap-4">
-                <div className={`grid h-20 w-20 shrink-0 place-items-center rounded-full ${group.tone === "green" ? "bg-blue-50 text-app-blue" : group.tone === "red" ? "bg-green-50 text-app-green" : group.tone === "amber" ? "bg-violet-50 text-app-violet" : "bg-red-50 text-red-600"}`}>
-                  <Icon className="h-10 w-10" aria-hidden="true" />
+        {state.groups.map((group) => (
+          <AppCard key={group.id} className="p-5">
+            <div className="flex gap-4">
+              <div className="grid h-16 w-16 shrink-0 place-items-center rounded-2xl bg-blue-50 text-app-blue">
+                <Users className="h-8 w-8" aria-hidden="true" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-start gap-3">
+                  <h2 className="min-w-0 flex-1 truncate text-xl font-bold sm:text-2xl">{group.name}</h2>
+                  <span className="shrink-0 rounded-lg bg-green-50 px-3 py-1.5 text-sm font-semibold text-app-green">
+                    {group.analyticsSummary.openChangeRequests > 0 ? "Needs review" : "Active"}
+                  </span>
                 </div>
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-start gap-3">
-                    <h2 className="min-w-0 flex-1 truncate text-xl font-bold sm:text-2xl">{group.name}</h2>
-                    <span className={`shrink-0 rounded-xl px-3 py-1.5 text-sm font-semibold ${badgeClass(group.tone)}`}>{group.status}</span>
-                  </div>
-                  <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2 text-base text-app-muted">
-                    <span className="inline-flex items-center gap-1.5"><Users className="h-4 w-4" />{group.members}</span>
-                    <span>•</span>
-                    <span>{group.detail}</span>
-                    <span className="basis-full inline-flex items-center gap-1.5"><Clock3 className="h-4 w-4" />{group.meta}</span>
-                  </div>
-                  <div className="mt-5 flex items-center justify-between gap-3">
-                    <AvatarStack />
-                    <button type="button" className="inline-flex min-h-12 shrink-0 items-center gap-1.5 rounded-2xl border border-app-border px-3 text-xs font-semibold text-app-blue sm:gap-2 sm:px-4 sm:text-base">
-                      {group.action}
-                      <ChevronRight className="h-5 w-5" aria-hidden="true" />
-                    </button>
-                  </div>
+                <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2 text-sm text-app-muted">
+                  <span className="inline-flex items-center gap-1.5">
+                    <Users className="h-4 w-4" />
+                    {group.members.length} members
+                  </span>
+                  <span>{group.analyticsSummary.activeProposals} active proposals</span>
+                  <span className="basis-full inline-flex items-center gap-1.5">
+                    <Clock3 className="h-4 w-4" />
+                    Updated {new Date(group.updatedAt).toLocaleDateString()}
+                  </span>
+                </div>
+                <div className="mt-5 flex items-center justify-between gap-3">
+                  <AvatarStack names={group.members.map((member) => member.name)} />
+                  <Link
+                    href={`/groups/${group.id}`}
+                    className="inline-flex min-h-11 shrink-0 items-center gap-2 rounded-lg border border-app-border px-4 text-sm font-semibold text-app-blue hover:bg-slate-50"
+                  >
+                    Open group
+                    <ChevronRight className="h-5 w-5" aria-hidden="true" />
+                  </Link>
                 </div>
               </div>
-            </AppCard>
-          );
-        })}
+            </div>
+          </AppCard>
+        ))}
       </div>
 
-      <button type="button" className="flex min-h-14 w-full items-center justify-center gap-3 rounded-2xl bg-app-blue text-lg font-semibold text-white shadow-soft">
-        <Plus className="h-6 w-6" aria-hidden="true" />
+      <button
+        type="button"
+        onClick={() => createGroup({ name: `New Group ${state.groups.length + 1}`, description: "Shared-cost workspace" })}
+        className="flex min-h-14 w-full items-center justify-center gap-3 rounded-lg bg-app-blue text-base font-semibold text-white shadow-soft"
+        data-testid="groups-create-group"
+      >
+        <Plus className="h-5 w-5" aria-hidden="true" />
         New Group
       </button>
     </div>
@@ -109,24 +84,15 @@ function Summary({ icon: Icon, label, value, tone }: { icon: typeof Users; label
   );
 }
 
-function AvatarStack() {
+function AvatarStack({ names }: { names: string[] }) {
   return (
     <div className="flex -space-x-2">
-      {["A", "S", "D"].map((letter) => (
-        <span key={letter} className="grid h-9 w-9 place-items-center rounded-full border-2 border-white bg-slate-200 text-xs font-bold">{letter}</span>
+      {names.slice(0, 3).map((name) => (
+        <span key={name} className="grid h-9 w-9 place-items-center rounded-full border-2 border-white bg-slate-200 text-xs font-bold">
+          {name.charAt(0).toUpperCase()}
+        </span>
       ))}
-      <span className="grid h-9 w-9 place-items-center rounded-full border-2 border-white bg-slate-100 text-xs font-bold text-app-muted">+5</span>
+      {names.length > 3 ? <span className="grid h-9 w-9 place-items-center rounded-full border-2 border-white bg-slate-100 text-xs font-bold text-app-muted">+{names.length - 3}</span> : null}
     </div>
   );
-}
-
-function badgeClass(tone: string) {
-  if (tone === "green") return "bg-green-50 text-app-green";
-  if (tone === "red") return "bg-red-50 text-app-red";
-  if (tone === "amber") return "bg-amber-50 text-app-amber";
-  return "bg-blue-50 text-app-blue";
-}
-
-function NetflixIcon({ className }: { className?: string }) {
-  return <span className={`text-5xl font-black text-red-600 ${className ?? ""}`}>N</span>;
 }

@@ -1,5 +1,5 @@
-import { ChatWorkspace } from "@/components/chat-workspace";
+import { LegacyGroupRedirect } from "@/components/legacy-group-redirect";
 
-export default function ChatPage() {
-  return <ChatWorkspace />;
+export default function ChatRedirectPage() {
+  return <LegacyGroupRedirect target="chat" />;
 }

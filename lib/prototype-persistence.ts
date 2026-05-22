@@ -1,11 +1,11 @@
 "use client";
 
-import { initialState } from "@/lib/demo-data";
+import { defaultGroup, initialState } from "@/lib/demo-data";
 import { recalculateProposal } from "@/lib/prototype-proposals";
-import type { AppState, ParticipantStatus, Proposal } from "@/lib/types";
+import type { AppState, ChatSession, ParticipantStatus, Proposal, SplitFlowGroup } from "@/lib/types";
 
-export const SPLITFLOW_STORAGE_KEY = "splitflow.demoState.v3";
-const STALE_STORAGE_KEYS = ["splitflow.demoState.v1", "splitflow.demoState.v2"];
+export const SPLITFLOW_STORAGE_KEY = "splitflow.demoState.v4";
+const STALE_STORAGE_KEYS = ["splitflow.demoState.v1", "splitflow.demoState.v2", "splitflow.demoState.v3"];
 
 function canUseStorage(): boolean {
   return typeof window !== "undefined" && typeof window.localStorage !== "undefined";
@@ -39,11 +39,21 @@ export function getProposalById(id: string): Proposal | undefined {
 
 export function saveProposal(proposal: Proposal): void {
   const state = getDemoState();
-  const exists = state.proposals.some((item) => item.id === proposal.id);
-  const proposals = exists
-    ? state.proposals.map((item) => (item.id === proposal.id ? proposal : item))
-    : [proposal, ...state.proposals];
-  saveDemoState({ ...state, proposals });
+  const targetGroupId = proposal.groupId ?? state.selectedGroupId ?? defaultGroup.id;
+  const groups = state.groups.map((group) => {
+    if (group.id !== targetGroupId) return group;
+    const nextProposal = { ...proposal, groupId: group.id };
+    const exists = group.proposals.some((item) => item.id === nextProposal.id);
+    return {
+      ...group,
+      proposals: exists ? group.proposals.map((item) => (item.id === nextProposal.id ? nextProposal : item)) : [nextProposal, ...group.proposals],
+      updatedAt: new Date().toISOString()
+    };
+  });
+  const proposalGroups = groups.some((group) => group.id === targetGroupId)
+    ? groups
+    : [{ ...defaultGroup, id: targetGroupId, proposals: [{ ...proposal, groupId: targetGroupId }] }, ...groups];
+  saveDemoState(normalizePersistedState({ ...state, selectedGroupId: targetGroupId, groups: proposalGroups }));
 }
 
 export function updateParticipantResponse(
@@ -54,25 +64,28 @@ export function updateParticipantResponse(
 ): Proposal | undefined {
   const state = getDemoState();
   let updated: Proposal | undefined;
-  const proposals = state.proposals.map((proposal) => {
-    if (proposal.id !== proposalId) return proposal;
-    updated = {
-      ...proposal,
-      participants: proposal.participants.map((participant) =>
-        participant.id === participantId
-          ? {
-              ...participant,
-              status: response,
-              changeRequestNote: response === "requested_changes" || response === "disputed" ? note : participant.changeRequestNote,
-              lastRespondedAt: new Date().toISOString()
-            }
-          : participant
-      ),
-      updatedAt: new Date().toISOString()
-    };
-    return updated;
-  });
-  saveDemoState({ ...state, proposals });
+  const groups = state.groups.map((group) => ({
+    ...group,
+    proposals: group.proposals.map((proposal) => {
+      if (proposal.id !== proposalId) return proposal;
+      updated = {
+        ...proposal,
+        participants: proposal.participants.map((participant) =>
+          participant.id === participantId
+            ? {
+                ...participant,
+                status: response,
+                changeRequestNote: response === "requested_changes" || response === "disputed" ? note : participant.changeRequestNote,
+                lastRespondedAt: new Date().toISOString()
+              }
+            : participant
+        ),
+        updatedAt: new Date().toISOString()
+      };
+      return updated;
+    })
+  }));
+  saveDemoState(normalizePersistedState({ ...state, groups }));
   return updated;
 }
 
@@ -94,19 +107,57 @@ function clearStaleStorageKeys(): void {
 
 function normalizePersistedState(value: unknown): AppState {
   if (!isRecord(value)) return initialState;
-  const proposals = Array.isArray(value.proposals) ? value.proposals.map(normalizePersistedProposal).filter((proposal): proposal is Proposal => Boolean(proposal)) : [];
-  if (proposals.length === 0) return initialState;
+  const groups = Array.isArray(value.groups) ? value.groups.map(normalizePersistedGroup).filter((group): group is SplitFlowGroup => Boolean(group)) : [];
+  if (groups.length === 0) return initialState;
+
+  const selectedGroupId =
+    typeof value.selectedGroupId === "string" && groups.some((group) => group.id === value.selectedGroupId)
+      ? value.selectedGroupId
+      : groups[0]?.id ?? defaultGroup.id;
+  const selectedChatIdByGroupId = isRecord(value.selectedChatIdByGroupId) ? (value.selectedChatIdByGroupId as Record<string, string>) : {};
+  const activeGroup = groups.find((group) => group.id === selectedGroupId) ?? groups[0] ?? defaultGroup;
+  if (!selectedChatIdByGroupId[selectedGroupId] && activeGroup.chats[0]) {
+    selectedChatIdByGroupId[selectedGroupId] = activeGroup.chats[0].id;
+  }
+  const proposals = groups.flatMap((group) => group.proposals);
 
   return {
     ...initialState,
     ...value,
+    selectedGroupId,
+    selectedChatIdByGroupId,
+    groups,
     proposals,
-    messages: Array.isArray(value.messages) ? value.messages : initialState.messages,
+    messages: activeGroup.chats.find((chat) => chat.id === selectedChatIdByGroupId[selectedGroupId])?.messages ?? initialState.messages,
     notifications: Array.isArray(value.notifications) ? value.notifications : initialState.notifications,
     agentSteps: Array.isArray(value.agentSteps) ? value.agentSteps : initialState.agentSteps,
     currentUser: typeof value.currentUser === "string" ? (value.currentUser as AppState["currentUser"]) : initialState.currentUser,
     aiUnavailable: typeof value.aiUnavailable === "boolean" ? value.aiUnavailable : false
   } as AppState;
+}
+
+function normalizePersistedGroup(value: unknown): SplitFlowGroup | undefined {
+  if (!isRecord(value)) return undefined;
+  if (typeof value.id !== "string" || typeof value.name !== "string") return undefined;
+  const proposals = Array.isArray(value.proposals) ? value.proposals.map(normalizePersistedProposal).filter((proposal): proposal is Proposal => Boolean(proposal)) : [];
+  const members = Array.isArray(value.members) && value.members.length > 0 ? value.members : proposals[0]?.participants;
+  const chats = Array.isArray(value.chats) ? value.chats.filter(isChatSession).slice(-3) : [];
+  const artifacts = Array.isArray(value.artifacts) ? value.artifacts.filter(isRecord) : [];
+  if (!members || members.length === 0) return undefined;
+
+  return {
+    ...defaultGroup,
+    ...value,
+    members,
+    proposals,
+    chats: chats.length > 0 ? chats : defaultGroup.chats,
+    artifacts: artifacts.length > 0 ? (artifacts as SplitFlowGroup["artifacts"]) : defaultGroup.artifacts,
+    analyticsSummary: isRecord(value.analyticsSummary)
+      ? (value.analyticsSummary as SplitFlowGroup["analyticsSummary"])
+      : defaultGroup.analyticsSummary,
+    createdAt: typeof value.createdAt === "string" ? value.createdAt : new Date().toISOString(),
+    updatedAt: typeof value.updatedAt === "string" ? value.updatedAt : new Date().toISOString()
+  };
 }
 
 function normalizePersistedProposal(value: unknown): Proposal | undefined {
@@ -120,6 +171,10 @@ function normalizePersistedProposal(value: unknown): Proposal | undefined {
   } catch {
     return undefined;
   }
+}
+
+function isChatSession(value: unknown): value is ChatSession {
+  return isRecord(value) && typeof value.id === "string" && typeof value.title === "string" && Array.isArray(value.messages);
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

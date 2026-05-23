@@ -164,11 +164,60 @@ describe("proposal state and risk", () => {
 
     expect(risk.level).toBe("medium");
     expect(risk.pendingParticipantIds).toEqual(["b", "c"]);
+    expect(risk.reasons).toContain("2 participant responses are still pending.");
+  });
+
+  it("uses singular pending-response copy", () => {
+    const proposal = baseProposal();
+    const risk = evaluateRisk({
+      ...proposal,
+      participants: proposal.participants.map((participant, index) => ({
+        ...participant,
+        responseStatus: index === 0 || index === 1 ? "accepted" : "pending"
+      }))
+    });
+
+    expect(risk.level).toBe("medium");
+    expect(risk.pendingParticipantIds).toEqual(["c"]);
+    expect(risk.reasons).toContain("1 participant response is still pending.");
+  });
+
+  it("blocks when pending participants also need reconfirmation", () => {
+    const proposal = baseProposal();
+    const risk = evaluateRisk({
+      ...proposal,
+      participants: proposal.participants.map((participant, index) => ({
+        ...participant,
+        responseStatus: index === 0 ? "accepted" : index === 1 ? "reconfirmation_required" : "pending"
+      })),
+      status: "reconfirmation_required"
+    });
+
+    expect(risk.level).toBe("blocked");
+    expect(risk.pendingParticipantIds).toEqual(["b", "c"]);
+    expect(risk.reasons).toContain("1 participant response is still pending.");
+    expect(risk.reasons).toContain("Changed amounts require participant reconfirmation.");
   });
 
   it("risk blocks payment when no participants accepted", () => {
     const risk = evaluateRisk(baseProposal());
     expect(risk.level).toBe("blocked");
     expect(risk.reasons).toContain("No participants have accepted the proposal yet.");
+  });
+
+  it("reports accepted exposure as medium risk until organizer is recovered", () => {
+    const proposal = baseProposal({
+      participants: baseProposal().participants.map((participant) => ({
+        ...participant,
+        responseStatus: "accepted",
+        amountOwed: participant.id === "a" ? 40000 : 0
+      }))
+    });
+
+    const risk = evaluateRisk(proposal);
+    expect(risk.level).toBe("medium");
+    expect(risk.frontingExposure).toBe(80000);
+    expect(risk.pendingParticipantIds).toEqual([]);
+    expect(risk.reasons).toContain("Organizer still has unrecovered upfront exposure.");
   });
 });

@@ -1,11 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { Bell, ChevronDown, Menu, Plus, Settings, Users } from "lucide-react";
+import { Bell, ChevronDown, Menu, Plus, RotateCcw, Users } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import { FormEvent, useState } from "react";
 import { deriveGlobalAnalytics } from "@/lib/analytics";
 import { useSplitFlow } from "@/lib/store";
+import type { DeviceLayoutMode } from "@/lib/use-device-profile";
 
 const routeCopy: Record<string, { title: string; subtitle: string }> = {
   "/": { title: "Home", subtitle: "Global overview across groups" },
@@ -14,25 +15,26 @@ const routeCopy: Record<string, { title: string; subtitle: string }> = {
 
 function routeTitle(pathname: string) {
   if (routeCopy[pathname]) return routeCopy[pathname];
-  if (/\/groups\/[^/]+\/chat/.test(pathname)) return { title: "Group Chat", subtitle: "Create artifacts from conversation" };
   if (/\/groups\/[^/]+\/proposals/.test(pathname)) return { title: "Group Proposals", subtitle: "Review proposal records and settlement actions" };
-  if (/\/groups\/[^/]+\/inbox/.test(pathname)) return { title: "Participant Review", subtitle: "Simulate participant responses" };
+  if (/\/groups\/[^/]+\/inbox/.test(pathname)) return { title: "Notifications", subtitle: "Review participant updates and responses" };
   if (/\/groups\/[^/]+\/settings/.test(pathname)) return { title: "Group Settings", subtitle: "Manage members and context" };
   if (/\/groups\/[^/]+/.test(pathname)) return { title: "Group Overview", subtitle: "Group-scoped analytics and activity" };
   return { title: "Home", subtitle: "Global overview across groups" };
 }
 
-export function TopHeader() {
+export function TopHeader({ layoutMode = "unknown", onMenuClick }: { layoutMode?: DeviceLayoutMode; onMenuClick?: () => void }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { state, activeGroup, selectGroup, createGroup, openGroupSettings } = useSplitFlow();
+  const { state, activeGroup, activeChat, selectGroup, createGroup, resetDemo } = useSplitFlow();
   const [open, setOpen] = useState(false);
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
-  const copy = routeTitle(pathname);
+  const isChatRoute = /\/groups\/[^/]+\/chat/.test(pathname);
+  const copy = isChatRoute ? { title: activeChat.title, subtitle: activeGroup.name } : routeTitle(pathname);
   const groupRoute = pathname.startsWith("/groups/");
   const globalSummary = deriveGlobalAnalytics(state.groups);
+  const menuVisibilityClass = layoutMode === "desktop" ? "hidden" : layoutMode === "unknown" ? "flex md:hidden" : "flex";
 
   function onCreate(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -52,19 +54,25 @@ export function TopHeader() {
 
   return (
     <header className="sticky top-0 z-30 grid min-h-[68px] grid-cols-[44px_minmax(0,1fr)_auto] items-center gap-2 border-b border-app-border bg-white px-4 py-3 md:flex md:min-h-[76px] md:justify-between md:gap-4 md:px-6 md:py-4 lg:px-8" data-testid="top-header">
-      <div className="flex items-center md:hidden">
-        <button className="grid h-11 w-11 place-items-center rounded-xl text-app-text hover:bg-slate-50" aria-label="Open menu">
+      <div className={`${menuVisibilityClass} items-center`}>
+        <button
+          type="button"
+          onClick={onMenuClick}
+          className="grid h-11 w-11 place-items-center rounded-xl text-app-text hover:bg-slate-50"
+          aria-label="Open menu"
+          data-testid="mobile-sidebar-open"
+        >
           <Menu className="h-8 w-8" aria-hidden="true" />
         </button>
       </div>
 
       <div className="min-w-0 text-center md:text-left">
-        <h1 className="truncate text-2xl font-bold tracking-tight text-app-text">{copy.title}</h1>
+        <h1 className="truncate text-lg font-bold tracking-tight text-app-text sm:text-xl md:text-2xl">{copy.title}</h1>
         <p className="mt-1 hidden truncate text-sm text-app-muted md:block">{copy.subtitle}</p>
       </div>
 
       <div className="flex shrink-0 items-center justify-end gap-2 md:gap-3">
-        <div className="relative">
+        <div className="relative hidden md:block">
           <button
             type="button"
             data-testid="group-switcher"
@@ -99,18 +107,6 @@ export function TopHeader() {
               <div className="my-2 border-t border-app-border" />
               <button
                 type="button"
-                onClick={() => {
-                  openGroupSettings();
-                  setOpen(false);
-                  router.push(`/groups/${activeGroup.id}/settings`);
-                }}
-                className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm font-semibold text-app-text hover:bg-slate-50"
-              >
-                <Settings className="h-4 w-4" aria-hidden="true" />
-                Manage current group
-              </button>
-              <button
-                type="button"
                 data-testid="create-group-open"
                 onClick={() => setCreating(true)}
                 className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm font-semibold text-app-blue hover:bg-blue-50"
@@ -121,16 +117,21 @@ export function TopHeader() {
             </div>
           ) : null}
         </div>
-        <Link href="/" className="relative grid h-11 w-11 place-items-center rounded-xl border border-app-border bg-white text-app-text hover:bg-slate-50" aria-label="Simulated in-app notifications">
+        <button
+          type="button"
+          data-testid="reset-demo-data"
+          onClick={resetDemo}
+          className="grid h-11 w-11 place-items-center rounded-xl border border-app-border bg-white text-app-text hover:bg-slate-50"
+          aria-label="Reset demo data"
+        >
+          <RotateCcw className="h-5 w-5" aria-hidden="true" />
+        </button>
+        <Link href={`/groups/${activeGroup.id}/inbox`} className="relative grid h-11 w-11 place-items-center rounded-xl border border-app-border bg-white text-app-text hover:bg-slate-50" aria-label="Notifications">
           <Bell className="h-5 w-5" aria-hidden="true" />
           <span className="absolute -right-1 -top-1 grid h-5 min-w-5 place-items-center rounded-full bg-app-red px-1 text-xs font-bold text-white">
             {globalSummary.unresolvedChangeRequests}
           </span>
         </Link>
-        <button className="flex h-11 items-center gap-3 rounded-xl border border-app-border bg-white px-2.5 text-sm font-semibold text-app-text hover:bg-slate-50 md:rounded-lg" aria-label="User menu">
-          <span className="grid h-8 w-8 place-items-center overflow-hidden rounded-full bg-slate-200 text-[11px]">You</span>
-          <span className="hidden sm:inline">You</span>
-        </button>
       </div>
 
       {creating ? (

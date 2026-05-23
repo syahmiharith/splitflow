@@ -52,7 +52,7 @@ app/
   groups/[groupId]/settings/page.tsx
   chat/, dashboard/, inbox/, proposals/  Compatibility redirects
   api/agent/route.ts               Primary structured orchestrator API
-  api/ai/split-agent/route.ts      Compatibility smoke route
+  api/ai/split-agent/route.ts      Server-side split-agent route with schema validation and proposal normalization
 
 components/
   top-header.tsx                   Header group switcher and group creation

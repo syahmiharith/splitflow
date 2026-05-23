@@ -1,21 +1,20 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, KeyboardEvent, useEffect, useRef, useState } from "react";
 import { useChat } from "@ai-sdk/react";
-import { FileText, MessageCircle, Plus, Send, Sparkles } from "lucide-react";
+import { FileText, Send, Sparkles } from "lucide-react";
 import { compactTime, humanStatus } from "@/lib/format";
 import { createSplitFlowChatTransport } from "@/lib/ai/splitflow-chat-transport";
 import { useSplitFlow } from "@/lib/store";
-import { DemoToolbar } from "@/components/demo-toolbar";
 import { WorkspaceDetailPanel } from "@/components/workspace-detail-panel";
 
 const agentProgress = [
-  "Reading expense request",
-  "Extracting items and participants",
-  "Checking exclusions and credits",
-  "Validating totals",
-  "Running deterministic split engine",
-  "Creating proposal artifact"
+  { agent: "Intake Agent", detail: "Reading expense request" },
+  { agent: "Cost Agent", detail: "Extracting items and participants" },
+  { agent: "Fairness Agent", detail: "Checking exclusions and credits" },
+  { agent: "Validation Agent", detail: "Validating totals" },
+  { agent: "Split Agent", detail: "Running deterministic split engine" },
+  { agent: "Proposal Agent", detail: "Creating proposal artifact" }
 ];
 
 export function ChatWorkspace() {
@@ -24,14 +23,14 @@ export function ChatWorkspace() {
     activeChat,
     activeArtifacts,
     state,
-    createChat,
-    selectChat,
     recordChatUserMessage,
     applyAgentResponse,
     openArtifact
   } = useSplitFlow();
   const [message, setMessage] = useState("");
   const [chatError, setChatError] = useState<string | undefined>();
+  const [progressIndex, setProgressIndex] = useState(0);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
   const { sendMessage, status, error } = useChat({
     messages: activeChat.messages.map((chatMessage) => ({
       id: chatMessage.id,
@@ -41,6 +40,30 @@ export function ChatWorkspace() {
     transport: createSplitFlowChatTransport({ onResponse: applyAgentResponse })
   });
   const submitting = status === "submitted" || status === "streaming";
+  const currentProgress = agentProgress[Math.min(progressIndex, agentProgress.length - 1)];
+  const progressPercent = Math.round(((Math.min(progressIndex, agentProgress.length - 1) + 1) / agentProgress.length) * 100);
+
+  useEffect(() => {
+    const input = inputRef.current;
+    if (!input) return;
+
+    input.style.height = "auto";
+    input.style.height = `${Math.min(input.scrollHeight, window.innerHeight * 0.25)}px`;
+    input.style.overflowY = input.scrollHeight > window.innerHeight * 0.25 ? "auto" : "hidden";
+  }, [message]);
+
+  useEffect(() => {
+    if (!submitting) {
+      setProgressIndex(0);
+      return;
+    }
+
+    const interval = window.setInterval(() => {
+      setProgressIndex((current) => Math.min(current + 1, agentProgress.length - 1));
+    }, 900);
+
+    return () => window.clearInterval(interval);
+  }, [submitting]);
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -56,45 +79,16 @@ export function ChatWorkspace() {
     }
   }
 
+  function onInputKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
+    if (event.key !== "Enter" || event.shiftKey || event.nativeEvent.isComposing) return;
+    event.preventDefault();
+    event.currentTarget.form?.requestSubmit();
+  }
+
   return (
     <div className="flex min-h-[calc(100vh-68px)] flex-col lg:h-[calc(100vh-76px)] lg:min-h-0 lg:flex-row" data-testid="chat-route">
-      <aside className="border-b border-app-border bg-white p-3 lg:w-72 lg:shrink-0 lg:border-b-0 lg:border-r">
-        <DemoToolbar compact={false} showLoaders={false} />
-        <button
-          type="button"
-          data-testid="new-chat"
-          onClick={() => createChat()}
-          className="mt-3 flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-app-blue px-3 text-sm font-semibold text-white"
-        >
-          <Plus className="h-4 w-4" aria-hidden="true" />
-          New chat
-        </button>
-        <div className="mt-4 text-xs font-semibold uppercase tracking-wide text-app-muted">Previous chats · max 3</div>
-        <div className="mt-2 space-y-1" data-testid="chat-session-list">
-          {activeGroup.chats.map((chat) => (
-            <button
-              key={chat.id}
-              type="button"
-              onClick={() => selectChat(chat.id)}
-              className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm font-semibold ${
-                chat.id === activeChat.id ? "bg-blue-50 text-app-blue" : "text-app-text hover:bg-slate-50"
-              }`}
-            >
-              <MessageCircle className="h-4 w-4 shrink-0" aria-hidden="true" />
-              <span className="min-w-0 flex-1 truncate">{chat.title}</span>
-            </button>
-          ))}
-        </div>
-      </aside>
-
       <section className="flex min-h-0 flex-1 flex-col">
         <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4 md:p-5">
-          <div className="rounded-lg border border-app-border bg-white p-4">
-            <div className="text-sm font-semibold text-app-muted">{activeGroup.name}</div>
-            <h2 className="mt-1 text-xl font-bold">Group chat</h2>
-            <p className="mt-1 text-sm text-app-muted">Conversation creates artifacts. Proposal math stays deterministic.</p>
-          </div>
-
           <div className="space-y-4" data-testid="chat-messages">
             {activeChat.messages.map((chatMessage) => {
               const isUser = chatMessage.sender === "user";
@@ -109,19 +103,20 @@ export function ChatWorkspace() {
             })}
           </div>
 
-          {(submitting || state.agentSteps.length > 0) ? (
+          {submitting ? (
             <div className="rounded-lg border border-blue-100 bg-blue-50 p-4" data-testid="agent-progress">
-              <div className="mb-3 flex items-center gap-2 text-sm font-bold text-app-blue">
+              <div className="flex items-center gap-2 text-sm font-bold text-app-blue">
                 <Sparkles className="h-4 w-4" aria-hidden="true" />
-                Agent progress
+                Running {currentProgress.agent}
               </div>
-              <div className="grid gap-2 md:grid-cols-2">
-                {agentProgress.map((step, index) => (
-                  <div key={step} className="rounded-md border border-blue-100 bg-white px-3 py-2 text-sm">
-                    <span className="mr-2 font-bold text-app-blue">{index + 1}</span>
-                    {step}
-                  </div>
-                ))}
+              <div className="mt-3 rounded-md border border-blue-100 bg-white px-3 py-2 text-sm">
+                {currentProgress.detail}
+              </div>
+              <div className="mt-3 h-2 overflow-hidden rounded-full bg-white">
+                <div className="h-full rounded-full bg-app-blue transition-all duration-500" style={{ width: `${progressPercent}%` }} />
+              </div>
+              <div className="mt-2 text-xs font-semibold text-app-muted">
+                Step {Math.min(progressIndex, agentProgress.length - 1) + 1} of {agentProgress.length}
               </div>
             </div>
           ) : null}
@@ -157,12 +152,14 @@ export function ChatWorkspace() {
         <div className="border-t border-app-border bg-page px-4 py-2 md:px-6 md:py-3" data-testid="chat-input-area">
           <form onSubmit={onSubmit} className="flex min-h-16 items-center gap-3 rounded-2xl border border-app-border bg-white p-2 shadow-[0_1px_2px_rgba(24,33,47,0.04)] md:min-h-0 md:rounded-lg">
             <textarea
+              ref={inputRef}
               data-testid="chat-input"
               value={message}
               onChange={(event) => setMessage(event.target.value)}
+              onKeyDown={onInputKeyDown}
               placeholder={`Message ${activeGroup.name}...`}
               rows={1}
-              className="min-h-11 min-w-0 flex-1 resize-none bg-transparent px-4 py-2 text-base outline-none placeholder:text-app-muted md:min-h-10 md:text-sm"
+              className="max-h-[25vh] min-h-11 min-w-0 flex-1 resize-none bg-transparent px-4 py-2 text-base outline-none placeholder:text-app-muted md:min-h-10 md:text-sm"
             />
             <button
               data-testid="chat-send"

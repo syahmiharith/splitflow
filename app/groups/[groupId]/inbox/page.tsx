@@ -39,7 +39,7 @@ export default function GroupInboxPage() {
       <div className="px-4 py-5 md:p-6" data-testid="inbox-route">
         <GroupRouteSync groupId={groupId} />
         <DemoToolbar compact />
-        <div className="rounded-lg border border-app-border bg-white p-5">No participant inbox is available for this group yet.</div>
+        <div className="rounded-lg border border-app-border bg-white p-5">No notifications are available for this group yet.</div>
       </div>
     );
   }
@@ -130,7 +130,7 @@ export default function GroupInboxPage() {
         <div className="mt-4 grid gap-2 sm:grid-cols-4">
           <ActionButton icon={Check} label="Accept" onClick={() => respondAsParticipant(selectedParticipant.id, "accepted", undefined, proposal.id)} testId="participant-accept" />
           <ActionButton icon={MessageSquareWarning} label="Request Change" onClick={() => respondAsParticipant(selectedParticipant.id, "requested_changes", reason, proposal.id)} testId="participant-request-changes" />
-          <ActionButton icon={UserRoundCheck} label="Opt Out" onClick={() => respondAsParticipant(selectedParticipant.id, "opted_out", "Opted out from participant inbox.", proposal.id)} testId="participant-opt-out" />
+          <ActionButton icon={UserRoundCheck} label="Opt Out" onClick={() => respondAsParticipant(selectedParticipant.id, "opted_out", "Opted out from notifications.", proposal.id)} testId="participant-opt-out" />
           <ActionButton icon={CreditCard} label="Mark Paid" onClick={() => markPaid(selectedParticipant.id, proposal.id)} testId="participant-mark-paid" />
         </div>
         <label className="mt-3 block text-sm font-semibold text-app-text" htmlFor="change-reason-input">

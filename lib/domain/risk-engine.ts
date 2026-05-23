@@ -32,7 +32,7 @@ export function evaluateRisk(proposal: Proposal): RiskAssessment {
   }
 
   if (summary.pending > 0) {
-    reasons.push(`${summary.pending} participant response${summary.pending === 1 ? " is" : "s are"} still pending.`);
+    reasons.push(`${summary.pending} participant response${summary.pending === 1 ? "" : "s"} ${summary.pending === 1 ? "is" : "are"} still pending.`);
     level = maxRisk(level, proposal.totalAmount >= 250000 ? "high" : "medium");
   }
 

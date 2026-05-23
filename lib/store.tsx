@@ -5,6 +5,7 @@ import type { OrchestratorResponse } from "@/lib/agents/agent-types";
 import { deriveGroupAnalytics } from "@/lib/analytics";
 import type { Proposal as DomainProposal } from "@/lib/domain/proposal-types";
 import { defaultGroup, initialState } from "@/lib/demo-data";
+import { createGroupParticipant } from "@/lib/group-participant";
 import { countParticipants, deriveProposalStatus } from "@/lib/split";
 import { getDemoState, resetDemoData, saveDemoState } from "@/lib/prototype-persistence";
 import {
@@ -23,7 +24,6 @@ import type {
   Artifact,
   BotMessage,
   ChatSession,
-  Participant,
   ParticipantStatus,
   Proposal,
   SplitFlowGroup,
@@ -114,25 +114,15 @@ function createEmptyChat(title = "New chat"): ChatSession {
   };
 }
 
-function createParticipant(name: string, index: number): Participant {
-  const id = name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") || `member-${index + 1}`;
-  return {
-    id: id === "syahmi" ? "you" : id,
-    name,
-    status: index === 0 ? "accepted" : "not_sent",
-    shareAmount: 0,
-    paymentStatus: index === 0 ? "review" : "remind"
-  };
-}
-
 function createGroupRecord(input: { name: string; description?: string; members?: string[] }): SplitFlowGroup {
   const now = new Date().toISOString();
   const chat = createEmptyChat(`${input.name} intake`);
+  const memberNames = input.members?.length ? input.members : ["Syahmi", "Ali", "Sarah"];
   return {
     id: input.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") || crypto.randomUUID(),
     name: input.name,
     description: input.description?.trim() || "Shared-cost workspace",
-    members: (input.members?.length ? input.members : ["Syahmi", "Ali", "Sarah"]).map(createParticipant),
+    members: memberNames.map((member, index) => createGroupParticipant(member, index, { isCurrentUser: index === 0 })),
     proposals: [],
     chats: [chat],
     artifacts: [],

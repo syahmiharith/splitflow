@@ -2,6 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import type { OrchestratorResponse } from "@/lib/agents/agent-types";
+import { deriveGroupAnalytics } from "@/lib/analytics";
 import type { Proposal as DomainProposal } from "@/lib/domain/proposal-types";
 import { defaultGroup, initialState } from "@/lib/demo-data";
 import { countParticipants, deriveProposalStatus } from "@/lib/split";
@@ -10,9 +11,12 @@ import {
   applyPrototypeAdjustment,
   createBbqProposalFromPrompt,
   createProposalFromPrompt,
+  createProposalFromPromptWithAllocation,
+  createSettlementLedgerLines,
   loadSubscriptionDemoProposal,
   loadTripDemoProposal,
-  recalculateProposal
+  recalculateProposal,
+  updatePaymentRecordStatus
 } from "@/lib/prototype-proposals";
 import type {
   AppState,
@@ -63,6 +67,8 @@ type StoreContextValue = {
   markPaid: (participantId: string, proposalId?: string) => void;
   markSettled: (proposalId?: string) => void;
   archiveProposal: (proposalId?: string) => void;
+  resolveAllocation: (strategy: "single_total_equal_items" | "unallocated_remainder") => void;
+  updateCreditStatus: (recordId: string, status: "confirmed" | "disputed" | "void") => void;
   openArtifact: (artifactId: string) => void;
   openProposalPanel: (proposalId: string) => void;
   openGroupSettings: () => void;
@@ -83,7 +89,7 @@ function createMessage(sender: BotMessage["sender"], content: string, relatedPro
   };
 }
 
-function createArtifact(type: Artifact["type"], title: string, summary: string, proposalId?: string, details?: string[]): Artifact {
+function createArtifact(type: Artifact["type"], title: string, summary: string, proposalId?: string, details?: string[], sourceText?: string): Artifact {
   return {
     id: crypto.randomUUID(),
     type,
@@ -91,6 +97,7 @@ function createArtifact(type: Artifact["type"], title: string, summary: string, 
     summary,
     proposalId,
     details,
+    sourceText,
     createdAt: new Date().toISOString()
   };
 }
@@ -129,7 +136,7 @@ function createGroupRecord(input: { name: string; description?: string; members?
     proposals: [],
     chats: [chat],
     artifacts: [],
-    analyticsSummary: { activeProposals: 0, openChangeRequests: 0, pendingSettlements: 0, totalFronted: 0, stillOwed: 0 },
+    analyticsSummary: { activeProposals: 0, openChangeRequests: 0, pendingSettlements: 0, totalFronted: 0, stillOwed: 0, pendingResponses: 0, confirmedPayments: 0, claimedUnconfirmedCredits: 0 },
     createdAt: now,
     updatedAt: now
   };
@@ -198,22 +205,6 @@ function appendTimeline(proposal: Proposal, actor: string, text: string): Propos
   };
 }
 
-function analyticsForGroup(group: SplitFlowGroup): SplitFlowGroup["analyticsSummary"] {
-  return group.proposals.reduce(
-    (summary, proposal) => {
-      const counts = countParticipants(proposal);
-      const organizerId = proposal.organizerId ?? "you";
-      summary.activeProposals += proposal.status !== "settled" && proposal.status !== "archived" ? 1 : 0;
-      summary.openChangeRequests += counts.changes;
-      summary.pendingSettlements += proposal.status === "safe_to_book" || proposal.status === "partially_paid" ? 1 : 0;
-      summary.totalFronted += proposal.calculationResult?.totalPaidByParticipant[organizerId] ?? 0;
-      summary.stillOwed += Math.max(0, proposal.calculationResult?.netBalanceByParticipant[organizerId] ?? 0);
-      return summary;
-    },
-    { activeProposals: 0, openChangeRequests: 0, pendingSettlements: 0, totalFronted: 0, stillOwed: 0 }
-  );
-}
-
 function hydrateDerivedState(state: AppState): AppState {
   const groups = state.groups.length > 0 ? state.groups : [defaultGroup];
   const selectedGroupId = state.selectedGroupId && groups.some((group) => group.id === state.selectedGroupId) ? state.selectedGroupId : groups[0].id;
@@ -222,15 +213,11 @@ function hydrateDerivedState(state: AppState): AppState {
   if (!selectedChatIdByGroupId[selectedGroupId] || !activeGroup.chats.some((chat) => chat.id === selectedChatIdByGroupId[selectedGroupId])) {
     selectedChatIdByGroupId[selectedGroupId] = activeGroup.chats[0]?.id ?? createEmptyChat().id;
   }
-  const activeChat = activeGroup.chats.find((chat) => chat.id === selectedChatIdByGroupId[selectedGroupId]) ?? activeGroup.chats[0];
-
   return {
     ...state,
     selectedGroupId,
     selectedChatIdByGroupId,
-    groups,
-    proposals: activeGroup.proposals,
-    messages: activeChat?.messages ?? [],
+    groups: groups.map((group) => ({ ...group, analyticsSummary: deriveGroupAnalytics(group) })),
     agentSteps: state.agentSteps.length > 0 ? state.agentSteps : initialState.agentSteps
   };
 }
@@ -239,7 +226,7 @@ function updateGroup(state: AppState, groupId: string, updater: (group: SplitFlo
   const groups = state.groups.map((group) => {
     if (group.id !== groupId) return group;
     const updated = updater(group);
-    return { ...updated, analyticsSummary: analyticsForGroup(updated), updatedAt: new Date().toISOString() };
+    return { ...updated, analyticsSummary: deriveGroupAnalytics(updated), updatedAt: new Date().toISOString() };
   });
   return hydrateDerivedState({ ...state, groups });
 }
@@ -430,7 +417,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         undefined;
       const parserDetails = parsed?.parserResult.draft
         ? [
+            `Mode: ${parsed.parserResult.mode}`,
+            `Confidence: ${parsed.parserResult.confidence}`,
             parsed.parserResult.normalizedSummary,
+            `Detected total: ${parsed.parserResult.draft.statedTotal ? `₩${parsed.parserResult.draft.statedTotal.toLocaleString("ko-KR")}` : "item total only"}`,
+            `Detected items: ${parsed.parserResult.draft.items.map((item) => `${item.label} ${item.amount ? `₩${item.amount.toLocaleString("ko-KR")}` : "missing amount"}`).join(", ")}`,
+            `Detected participants: ${parsed.parserResult.draft.participants.map((participant) => participant.name).join(", ")}`,
+            `Detected payers: ${parsed.parserResult.draft.payers.map((payer) => `${payer.name}${payer.amount ? ` ₩${payer.amount.toLocaleString("ko-KR")}` : payer.paysRest ? " rest" : ""}`).join(", ")}`,
             ...parsed.parserResult.draft.assumptions.map((assumption) => `Assumption: ${assumption}`),
             ...parsed.parserResult.issues.map((issue) => `${issue.severity === "blocking" ? "Needs clarification" : "Warning"}: ${issue.message}`),
             ...parsed.parserResult.draft.exclusions.map((exclusion) => `Rule: ${exclusion.participantName} excluded from ${exclusion.itemLabel ?? exclusion.onlyIncludedItemLabel ?? "the split"}.`),
@@ -439,10 +432,27 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         : [];
       const artifacts = proposal
         ? [
+            createArtifact("parser_review", `${proposal.title} parser review`, "Review extracted items, participants, payers, exclusions, credits, assumptions, and confidence before sending.", proposal.id, parserDetails),
             createArtifact("proposal_draft", `${proposal.title} proposal`, "Draft proposal created from parsed expense structure.", proposal.id, parserDetails),
             createArtifact("itemized_breakdown", `${proposal.title} itemized math`, "Deterministic itemized calculation and eligibility rules.", proposal.id, proposal.calculationResult?.auditExplanation),
-            createArtifact("settlement_plan", `${proposal.title} settlement plan`, "Debtor-to-creditor settlement instructions.", proposal.id, proposal.calculationResult?.settlementInstructions.map((instruction) => instruction.text))
+            createArtifact("settlement_plan", `${proposal.title} settlement plan`, "Debtor-to-creditor settlement instructions.", proposal.id, proposal.calculationResult?.settlementInstructions.map((instruction) => instruction.text)),
+            createArtifact("settlement_ledger", `${proposal.title} settlement ledger`, "Proof-aware ledger for claimed and confirmed payments.", proposal.id, createSettlementLedgerLines(proposal))
           ]
+        : parsed?.parserResult.issues.some((issue) => issue.code === "allocation_required")
+          ? [
+              createArtifact(
+                "allocation_resolution",
+                "Allocation resolution needed",
+                "Some item amounts are missing, and a participant rule depends on item-level allocation.",
+                undefined,
+                [
+                  parsed.parserResult.normalizedSummary,
+                  "Options: use equal item allocation, enter item amounts manually, or combine as one shared item.",
+                  ...parserDetails
+                ],
+                sourceMessage
+              )
+            ]
         : [];
       const parserReply =
         parsed?.parserResult.status === "needs_clarification"
@@ -613,6 +623,43 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     updateProposalInActiveGroup(proposalId, (proposal) => appendTimeline({ ...proposal, status: "archived" }, "Organizer", "Archived proposal."));
   }, [updateProposalInActiveGroup]);
 
+  const resolveAllocation = useCallback((strategy: "single_total_equal_items" | "unallocated_remainder") => {
+    setState((current) => {
+      const { activeGroup: group, activeChat: chat } = selectedIds(current);
+      const panel = current.workspacePanel;
+      const artifact = panel?.type === "artifact" ? group.artifacts.find((item) => item.id === panel.artifactId) : undefined;
+      if (!artifact?.sourceText) return current;
+      const { proposal, parserResult } = createProposalFromPromptWithAllocation(artifact.sourceText, group.id, strategy);
+      if (!proposal) return current;
+      const artifacts = [
+        createArtifact("parser_review", `${proposal.title} parser review`, "Allocation was resolved by organizer choice before deterministic calculation.", proposal.id, [
+          parserResult.normalizedSummary,
+          `Allocation: ${strategy}`,
+          ...(parserResult.draft?.assumptions ?? []).map((assumption) => `Assumption: ${assumption}`)
+        ]),
+        createArtifact("proposal_draft", `${proposal.title} proposal`, "Draft proposal created after allocation resolution.", proposal.id),
+        createArtifact("settlement_ledger", `${proposal.title} settlement ledger`, "Proof-aware ledger for claimed and confirmed payments.", proposal.id, createSettlementLedgerLines(proposal))
+      ];
+      return updateGroup({ ...current, workspacePanel: { type: "artifact", artifactId: artifacts[0].id } }, group.id, (currentGroup) => {
+        let nextGroup = upsertProposal(currentGroup, proposal);
+        nextGroup = appendChatMessage(nextGroup, chat.id, createMessage("bot", `Resolved allocation using ${strategy.replaceAll("_", " ")}. Deterministic proposal artifacts are ready.`, proposal.id));
+        return appendArtifactsToChat(nextGroup, chat.id, artifacts);
+      });
+    });
+  }, []);
+
+  const updateCreditStatus = useCallback((recordId: string, status: "confirmed" | "disputed" | "void") => {
+    setState((current) => {
+      const { activeGroup: group } = selectedIds(current);
+      return updateGroup(current, group.id, (currentGroup) => ({
+        ...currentGroup,
+        proposals: currentGroup.proposals.map((proposal) =>
+          proposal.paymentRecords?.some((record) => record.id === recordId) ? updatePaymentRecordStatus(proposal, recordId, status) : proposal
+        )
+      }));
+    });
+  }, []);
+
   const openArtifact = useCallback((artifactId: string) => {
     setState((current) => ({ ...current, workspacePanel: { type: "artifact", artifactId } }));
   }, []);
@@ -674,6 +721,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       markPaid,
       markSettled,
       archiveProposal,
+      resolveAllocation,
+      updateCreditStatus,
       openArtifact,
       openProposalPanel,
       openGroupSettings,
@@ -711,6 +760,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       markPaid,
       markSettled,
       archiveProposal,
+      resolveAllocation,
+      updateCreditStatus,
       openArtifact,
       openProposalPanel,
       openGroupSettings,

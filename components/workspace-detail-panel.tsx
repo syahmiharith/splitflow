@@ -16,9 +16,12 @@ export function WorkspaceDetailPanel({ fallbackProposal }: { fallbackProposal?: 
     acceptRequestedChange,
     markPaid,
     markSettled,
+    resolveAllocation,
+    updateCreditStatus,
     closePanel
   } = useSplitFlow();
   const proposal = selectedPanelProposal ?? (selectedArtifact?.proposalId ? activeGroup.proposals.find((item) => item.id === selectedArtifact.proposalId) : undefined) ?? fallbackProposal;
+  const claimedCredit = proposal?.paymentRecords?.find((record) => record.status === "claimed");
 
   if (!state.workspacePanel && !fallbackProposal) return null;
 
@@ -45,10 +48,23 @@ export function WorkspaceDetailPanel({ fallbackProposal }: { fallbackProposal?: 
       <div className="sticky bottom-[calc(5.5rem+env(safe-area-inset-bottom))] grid gap-2 border-t border-app-border bg-white p-4 lg:bottom-0" data-testid="workspace-panel-footer">
         {proposal ? (
           <>
+            {claimedCredit ? (
+              <>
+                <PanelAction testId="panel-confirm-credit" icon={Check} label="Confirm claimed credit" onClick={() => updateCreditStatus(claimedCredit.id, "confirmed")} />
+                <PanelAction testId="panel-dispute-credit" icon={X} label="Dispute claimed credit" onClick={() => updateCreditStatus(claimedCredit.id, "disputed")} />
+                <PanelAction testId="panel-void-credit" icon={X} label="Void claimed credit" onClick={() => updateCreditStatus(claimedCredit.id, "void")} />
+              </>
+            ) : null}
             <PanelAction testId="panel-send-proposal" icon={Send} label="Send proposal" onClick={() => sendProposal(proposal.id)} />
             <PanelAction testId="panel-accept-change" icon={Check} label="Accept change" onClick={() => acceptRequestedChange(proposal.id)} />
             <PanelAction testId="panel-mark-paid" icon={CreditCard} label="Mark Daniel paid" onClick={() => markPaid("daniel", proposal.id)} />
             <PanelAction testId="panel-mark-settled" icon={CreditCard} label="Mark settled" onClick={() => markSettled(proposal.id)} primary />
+          </>
+        ) : selectedArtifact?.type === "allocation_resolution" ? (
+          <>
+            <PanelAction testId="panel-use-equal-allocation" icon={Check} label="Use equal item allocation" onClick={() => resolveAllocation("single_total_equal_items")} primary />
+            <PanelAction testId="panel-combine-allocation" icon={CreditCard} label="Combine as one shared item" onClick={() => resolveAllocation("unallocated_remainder")} />
+            <PanelAction testId="panel-close" icon={X} label="Cancel" onClick={closePanel} />
           </>
         ) : (
           <PanelAction testId="panel-close" icon={X} label="Close panel" onClick={closePanel} />
@@ -125,6 +141,20 @@ function ProposalPanelBody({ proposal }: { proposal: Proposal }) {
           ))}
         </div>
       </section>
+
+      {proposal.paymentRecords && proposal.paymentRecords.length > 0 ? (
+        <section>
+          <h3 className="text-sm font-bold">Settlement ledger</h3>
+          <div className="mt-2 space-y-2">
+            {proposal.paymentRecords.map((record) => (
+              <div key={record.id} className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm">
+                <div className="font-semibold">{humanStatus(record.status)} paid: {formatKrw(record.amount)}</div>
+                <div className="mt-1 text-app-muted">{record.proofNote ?? "No proof note attached."}</div>
+              </div>
+            ))}
+          </div>
+        </section>
+      ) : null}
 
       <section>
         <h3 className="text-sm font-bold">Timeline</h3>

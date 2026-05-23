@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { AlertTriangle, FileText, MessageCircle, Users, WalletCards } from "lucide-react";
 import { useParams } from "next/navigation";
+import { deriveGroupAnalytics } from "@/lib/analytics";
 import { formatKrw } from "@/lib/format";
 import { useSplitFlow } from "@/lib/store";
 import { GroupRouteSync } from "@/components/group-route-sync";
@@ -11,7 +12,7 @@ import { AppCard } from "@/components/ui/app-card";
 export default function GroupOverviewPage() {
   const params = useParams<{ groupId: string }>();
   const { activeGroup } = useSplitFlow();
-  const summary = activeGroup.analyticsSummary;
+  const summary = deriveGroupAnalytics(activeGroup);
 
   return (
     <div className="space-y-4 px-4 py-5 md:p-6" data-testid="group-overview-route">

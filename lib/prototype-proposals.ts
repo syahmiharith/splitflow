@@ -5,8 +5,8 @@ import {
   type AgreementParticipant
 } from "@/lib/domain/itemized-split-engine";
 import { parseExpensePrompt } from "@/lib/parser/expense-parser";
-import type { ParsedExpenseDraft, ParserResult } from "@/lib/parser/expense-types";
-import type { CostItem, Participant, ParticipantCredit, Proposal, TimelineEvent } from "@/lib/types";
+import type { AllocationStrategy, ParsedExpenseDraft, ParserResult } from "@/lib/parser/expense-types";
+import type { CostItem, Participant, ParticipantCredit, PaymentRecord, PaymentRecordStatus, Proposal, TimelineEvent } from "@/lib/types";
 
 const defaultNames = ["Syahmi", "Ali", "Sarah", "Daniel", "Aiman", "Amir", "Aisyah", "Mina"];
 
@@ -51,7 +51,11 @@ export function recalculateProposal(proposal: Proposal, timelineText?: string): 
     participants: asAgreementParticipants(proposal.participants),
     items: asAgreementItems(proposal.costItems)
   });
-  const creditAdjustedCalculation = applyCreditsToCalculation(calculation, proposal.credits ?? [], proposal.participants);
+  const creditAdjustedCalculation = applyCreditsToCalculation(
+    calculation,
+    (proposal.paymentRecords ?? []).filter((record) => record.kind === "prior_payment" && record.status === "confirmed"),
+    proposal.participants
+  );
 
   const timeline: TimelineEvent[] = [
     ...(proposal.timeline ?? []),
@@ -83,6 +87,56 @@ export function createProposalFromPrompt(message: string, groupId = "bbq-crew"):
   return { parserResult, proposal: createProposalFromParsedDraft(parserResult.draft, groupId) };
 }
 
+export function createProposalFromPromptWithAllocation(
+  message: string,
+  groupId = "bbq-crew",
+  strategy: Extract<AllocationStrategy, "single_total_equal_items" | "unallocated_remainder">
+): { proposal?: Proposal; parserResult: ParserResult } {
+  const parserResult = parseExpensePrompt(message);
+  if (!parserResult.draft) return { parserResult };
+  const draft = resolveAllocationDraft(parserResult.draft, strategy);
+  return {
+    parserResult: {
+      ...parserResult,
+      status: "ready",
+      mode: draft.mode,
+      draft,
+      issues: parserResult.issues.filter((issue) => issue.code !== "allocation_required"),
+      clarificationQuestions: []
+    },
+    proposal: createProposalFromParsedDraft(draft, groupId)
+  };
+}
+
+function resolveAllocationDraft(draft: ParsedExpenseDraft, strategy: Extract<AllocationStrategy, "single_total_equal_items" | "unallocated_remainder">): ParsedExpenseDraft {
+  if (!draft.statedTotal) return draft;
+  const missing = draft.items.filter((item) => item.amount === undefined);
+  if (strategy === "single_total_equal_items" && missing.length > 0) {
+    const knownTotal = draft.items.reduce((sum, item) => sum + (item.amount ?? 0), 0);
+    const allocatable = draft.statedTotal - knownTotal;
+    const base = Math.floor(allocatable / missing.length);
+    let remainder = allocatable - base * missing.length;
+    return {
+      ...draft,
+      items: draft.items.map((item) => {
+        if (item.amount !== undefined) return item;
+        const extra = remainder > 0 ? 1 : 0;
+        remainder -= extra;
+        return { ...item, amount: base + extra };
+      }),
+      allocationStrategy: "single_total_equal_items",
+      assumptions: [...draft.assumptions, `Split ${formatKrw(allocatable)} equally across ${missing.length} missing item amounts.`]
+    };
+  }
+  return {
+    ...draft,
+    items: [{ id: "shared-expense", label: draft.title, amount: draft.statedTotal, paidByName: draft.payers[0]?.name }],
+    exclusions: [],
+    allocationStrategy: "unallocated_remainder",
+    assumptions: [...draft.assumptions, "Combined ambiguous grouped items into one shared item and removed item-level exclusions."]
+  };
+}
+
 export function createProposalFromParsedDraft(draft: ParsedExpenseDraft, groupId = "bbq-crew"): Proposal {
   const createdAt = now();
   const participants = draft.participants.map((participant, index) => ({
@@ -102,9 +156,26 @@ export function createProposalFromParsedDraft(draft: ParsedExpenseDraft, groupId
     amount: credit.amount,
     note: credit.note
   }));
+  const idSeed = slug(draft.title);
+  const paymentRecords = draft.credits.map<PaymentRecord>((credit, index) => ({
+    id: `credit-${idSeed}-${index + 1}`,
+    groupId,
+    proposalId: draft.title === "BBQ Dinner" ? "bbq-dinner" : `proposal-${idSeed}`,
+    fromParticipantId: participantIdByName.get(credit.fromName) ?? slug(credit.fromName),
+    toParticipantId: participantIdByName.get(credit.toName) ?? organizerId,
+    amount: credit.amount,
+    currency: "KRW",
+    kind: "prior_payment",
+    status: "claimed",
+    proofType: "note",
+    proofNote: credit.note,
+    createdAt,
+    sourceText: credit.note
+  }));
+  const proposalId = draft.title === "BBQ Dinner" ? "bbq-dinner" : `proposal-${idSeed}-${Date.now()}`;
 
   const proposal: Proposal = {
-    id: draft.title === "BBQ Dinner" ? "bbq-dinner" : `proposal-${slug(draft.title)}-${Date.now()}`,
+    id: proposalId,
     title: draft.title,
     description: "Parsed from chat input.",
     groupId,
@@ -118,6 +189,7 @@ export function createProposalFromParsedDraft(draft: ParsedExpenseDraft, groupId
     participants,
     costItems,
     credits,
+    paymentRecords: paymentRecords.map((record) => ({ ...record, proposalId })),
     status: "draft",
     isBooked: false,
     createdAt,
@@ -127,7 +199,7 @@ export function createProposalFromParsedDraft(draft: ParsedExpenseDraft, groupId
     timeline: [{ id: "created", at: createdAt, actor: "Parser", text: "Created draft from prototype-grade natural language parser." }],
     aiExplanation: "The parser extracted structure; deterministic TypeScript calculated all amounts.",
     parserAssumptions: draft.assumptions,
-    parserWarnings: draft.warnings
+    parserWarnings: draft.warnings.length > 0 ? draft.warnings : paymentRecords.length > 0 ? ["Prior payments are claimed until the organizer confirms them."] : []
   };
 
   return recalculateProposal(proposal);
@@ -163,7 +235,7 @@ function itemFromDraft(item: ParsedExpenseDraft["items"][number], amount: number
 
 function applyCreditsToCalculation(
   calculation: ReturnType<typeof calculateItemizedSplit>,
-  credits: ParticipantCredit[],
+  credits: Array<Pick<PaymentRecord, "fromParticipantId" | "toParticipantId" | "amount" | "proofNote">>,
   participants: Participant[]
 ): ReturnType<typeof calculateItemizedSplit> {
   if (credits.length === 0) return calculation;
@@ -173,7 +245,7 @@ function applyCreditsToCalculation(
   for (const credit of credits) {
     netBalanceByParticipant[credit.fromParticipantId] = (netBalanceByParticipant[credit.fromParticipantId] ?? 0) + credit.amount;
     netBalanceByParticipant[credit.toParticipantId] = (netBalanceByParticipant[credit.toParticipantId] ?? 0) - credit.amount;
-    auditExplanation.push(credit.note);
+    auditExplanation.push(credit.proofNote ?? `Confirmed prior payment: ${formatKrw(credit.amount)}.`);
   }
 
   return {
@@ -185,6 +257,55 @@ function applyCreditsToCalculation(
     ),
     auditExplanation
   };
+}
+
+export function updatePaymentRecordStatus(proposal: Proposal, recordId: string, status: PaymentRecordStatus, actor = "Organizer"): Proposal {
+  const records = (proposal.paymentRecords ?? []).map((record) =>
+    record.id === recordId
+      ? {
+          ...record,
+          status,
+          confirmedAt: status === "confirmed" ? now() : record.confirmedAt,
+          confirmedBy: status === "confirmed" ? actor : record.confirmedBy
+        }
+      : record
+  );
+  return recalculateProposal(
+    {
+      ...proposal,
+      paymentRecords: records,
+      timeline: [
+        ...(proposal.timeline ?? []),
+        {
+          id: crypto.randomUUID(),
+          at: now(),
+          actor,
+          text: `Marked credit ${recordId} as ${status}.`
+        }
+      ]
+    },
+    `Updated proof-aware credit ledger: ${recordId} is ${status}.`
+  );
+}
+
+export function createSettlementLedgerLines(proposal: Proposal): string[] {
+  const calculation = proposal.calculationResult;
+  const participantName = new Map(proposal.participants.map((participant) => [participant.id, participant.name]));
+  const records = proposal.paymentRecords ?? [];
+  const lines = ["Settlement ledger"];
+  for (const participant of proposal.participants) {
+    const fairShare = calculation?.fairShareByParticipant[participant.id] ?? participant.shareAmount;
+    const claimed = records.filter((record) => record.fromParticipantId === participant.id && record.status === "claimed").reduce((sum, record) => sum + record.amount, 0);
+    const confirmed = records.filter((record) => record.fromParticipantId === participant.id && record.status === "confirmed").reduce((sum, record) => sum + record.amount, 0);
+    const net = calculation?.netBalanceByParticipant[participant.id] ?? 0;
+    lines.push(`${participant.name}: fair share ${formatKrw(fairShare)}, claimed paid ${formatKrw(claimed)}, confirmed paid ${formatKrw(confirmed)}, remaining net ${formatKrw(net)}.`);
+  }
+  for (const record of records) {
+    lines.push(
+      `${participantName.get(record.fromParticipantId) ?? record.fromParticipantId} claimed ${formatKrw(record.amount)} to ${participantName.get(record.toParticipantId) ?? record.toParticipantId}: ${record.status}${record.proofNote ? ` (${record.proofNote})` : ""}.`
+    );
+  }
+  return lines;
 }
 
 export function createBbqProposalFromPrompt(message: string): Proposal | undefined {

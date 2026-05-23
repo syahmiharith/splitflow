@@ -56,6 +56,29 @@ export type ParticipantCredit = {
   note: string;
 };
 
+export type PaymentRecordKind = "prior_payment" | "settlement_payment" | "manual_adjustment";
+export type PaymentRecordStatus = "claimed" | "confirmed" | "disputed" | "void";
+export type PaymentProofType = "none" | "note" | "reference" | "mock_attachment";
+
+export type PaymentRecord = {
+  id: string;
+  groupId: string;
+  proposalId: string;
+  fromParticipantId: string;
+  toParticipantId: string;
+  amount: number;
+  currency: "KRW";
+  kind: PaymentRecordKind;
+  status: PaymentRecordStatus;
+  proofType?: PaymentProofType;
+  proofNote?: string;
+  reference?: string;
+  createdAt: string;
+  confirmedAt?: string;
+  confirmedBy?: string;
+  sourceText?: string;
+};
+
 export type TimelineEvent = {
   id: string;
   at: string;
@@ -111,6 +134,7 @@ export type Proposal = {
   participants: Participant[];
   costItems: CostItem[];
   credits?: ParticipantCredit[];
+  paymentRecords?: PaymentRecord[];
   status: ProposalStatus;
   isBooked: boolean;
   createdAt: string;
@@ -135,9 +159,12 @@ export type BotMessage = {
 
 export type ArtifactType =
   | "proposal_draft"
+  | "parser_review"
+  | "allocation_resolution"
   | "itemized_breakdown"
   | "eligibility_matrix"
   | "settlement_plan"
+  | "settlement_ledger"
   | "change_request_summary"
   | "risk_summary";
 
@@ -148,6 +175,7 @@ export type Artifact = {
   summary: string;
   proposalId?: string;
   details?: string[];
+  sourceText?: string;
   createdAt: string;
 };
 
@@ -166,6 +194,9 @@ export type GroupAnalyticsSummary = {
   pendingSettlements: number;
   totalFronted: number;
   stillOwed: number;
+  pendingResponses: number;
+  confirmedPayments: number;
+  claimedUnconfirmedCredits: number;
 };
 
 export type SplitFlowGroup = {
@@ -215,9 +246,7 @@ export type AppState = {
   selectedChatIdByGroupId?: Record<string, string>;
   groups: SplitFlowGroup[];
   workspacePanel?: WorkspacePanel;
-  proposals: Proposal[];
-  messages: BotMessage[];
-  notifications: Notification[];
+  globalNotifications?: Notification[];
   agentSteps: AgentStep[];
   aiUnavailable: boolean;
   lastAiError?: string;

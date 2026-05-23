@@ -4,6 +4,7 @@ import Link from "next/link";
 import { Bell, ChevronDown, Menu, Plus, Settings, Users } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import { FormEvent, useState } from "react";
+import { deriveGlobalAnalytics } from "@/lib/analytics";
 import { useSplitFlow } from "@/lib/store";
 
 const routeCopy: Record<string, { title: string; subtitle: string }> = {
@@ -31,6 +32,7 @@ export function TopHeader() {
   const [description, setDescription] = useState("");
   const copy = routeTitle(pathname);
   const groupRoute = pathname.startsWith("/groups/");
+  const globalSummary = deriveGlobalAnalytics(state.groups);
 
   function onCreate(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -76,7 +78,9 @@ export function TopHeader() {
           </button>
           {open ? (
             <div className="absolute right-0 top-12 z-50 w-72 rounded-lg border border-app-border bg-white p-2 shadow-soft" data-testid="group-switcher-menu">
-              <div className="px-3 py-2 text-xs font-semibold uppercase tracking-wide text-app-muted">Switch group</div>
+              <div className="px-3 py-2 text-xs font-semibold uppercase tracking-wide text-app-muted">
+                Current group: {activeGroup?.name ?? "No group selected"}
+              </div>
               {state.groups.map((group) => (
                 <button
                   key={group.id}
@@ -117,10 +121,10 @@ export function TopHeader() {
             </div>
           ) : null}
         </div>
-        <Link href="/" className="relative grid h-11 w-11 place-items-center rounded-xl border border-app-border bg-white text-app-text hover:bg-slate-50" aria-label="Notifications">
+        <Link href="/" className="relative grid h-11 w-11 place-items-center rounded-xl border border-app-border bg-white text-app-text hover:bg-slate-50" aria-label="Simulated in-app notifications">
           <Bell className="h-5 w-5" aria-hidden="true" />
           <span className="absolute -right-1 -top-1 grid h-5 min-w-5 place-items-center rounded-full bg-app-red px-1 text-xs font-bold text-white">
-            {state.groups.reduce((sum, group) => sum + group.analyticsSummary.openChangeRequests, 0)}
+            {globalSummary.unresolvedChangeRequests}
           </span>
         </Link>
         <button className="flex h-11 items-center gap-3 rounded-xl border border-app-border bg-white px-2.5 text-sm font-semibold text-app-text hover:bg-slate-50 md:rounded-lg" aria-label="User menu">

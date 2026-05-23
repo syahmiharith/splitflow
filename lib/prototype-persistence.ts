@@ -1,6 +1,7 @@
 "use client";
 
 import { defaultGroup, initialState } from "@/lib/demo-data";
+import { deriveGroupAnalytics } from "@/lib/analytics";
 import { recalculateProposal } from "@/lib/prototype-proposals";
 import type { AppState, ChatSession, ParticipantStatus, Proposal, SplitFlowGroup } from "@/lib/types";
 
@@ -30,7 +31,7 @@ export function saveDemoState(state: AppState): void {
 }
 
 export function getProposals(): Proposal[] {
-  return getDemoState().proposals;
+  return getDemoState().groups.flatMap((group) => group.proposals);
 }
 
 export function getProposalById(id: string): Proposal | undefined {
@@ -119,21 +120,17 @@ function normalizePersistedState(value: unknown): AppState {
   if (!selectedChatIdByGroupId[selectedGroupId] && activeGroup.chats[0]) {
     selectedChatIdByGroupId[selectedGroupId] = activeGroup.chats[0].id;
   }
-  const proposals = groups.flatMap((group) => group.proposals);
-
   return {
-    ...initialState,
-    ...value,
+    currentUser: typeof value.currentUser === "string" ? (value.currentUser as AppState["currentUser"]) : initialState.currentUser,
     selectedGroupId,
     selectedChatIdByGroupId,
     groups,
-    proposals,
-    messages: activeGroup.chats.find((chat) => chat.id === selectedChatIdByGroupId[selectedGroupId])?.messages ?? initialState.messages,
-    notifications: Array.isArray(value.notifications) ? value.notifications : initialState.notifications,
+    workspacePanel: null,
+    globalNotifications: Array.isArray(value.globalNotifications) ? value.globalNotifications : initialState.globalNotifications,
     agentSteps: Array.isArray(value.agentSteps) ? value.agentSteps : initialState.agentSteps,
-    currentUser: typeof value.currentUser === "string" ? (value.currentUser as AppState["currentUser"]) : initialState.currentUser,
-    aiUnavailable: typeof value.aiUnavailable === "boolean" ? value.aiUnavailable : false
-  } as AppState;
+    aiUnavailable: typeof value.aiUnavailable === "boolean" ? value.aiUnavailable : false,
+    lastAiError: typeof value.lastAiError === "string" ? value.lastAiError : undefined
+  };
 }
 
 function normalizePersistedGroup(value: unknown): SplitFlowGroup | undefined {
@@ -145,19 +142,19 @@ function normalizePersistedGroup(value: unknown): SplitFlowGroup | undefined {
   const artifacts = Array.isArray(value.artifacts) ? value.artifacts.filter(isRecord) : [];
   if (!members || members.length === 0) return undefined;
 
-  return {
+  const group = {
     ...defaultGroup,
     ...value,
     members,
     proposals,
     chats: chats.length > 0 ? chats : defaultGroup.chats,
     artifacts: artifacts.length > 0 ? (artifacts as SplitFlowGroup["artifacts"]) : defaultGroup.artifacts,
-    analyticsSummary: isRecord(value.analyticsSummary)
-      ? (value.analyticsSummary as SplitFlowGroup["analyticsSummary"])
-      : defaultGroup.analyticsSummary,
+    analyticsSummary: defaultGroup.analyticsSummary,
     createdAt: typeof value.createdAt === "string" ? value.createdAt : new Date().toISOString(),
     updatedAt: typeof value.updatedAt === "string" ? value.updatedAt : new Date().toISOString()
   };
+
+  return { ...group, analyticsSummary: deriveGroupAnalytics(group) };
 }
 
 function normalizePersistedProposal(value: unknown): Proposal | undefined {

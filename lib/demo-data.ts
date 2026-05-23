@@ -1,5 +1,6 @@
 import type { AgentStep, AppState, Artifact, BotMessage, ChatSession, Notification, Proposal, SplitFlowGroup } from "@/lib/types";
 import { recalculateProposal } from "@/lib/prototype-proposals";
+import { deriveGroupAnalytics } from "@/lib/analytics";
 
 const now = "2026-05-22T10:22:00.000+09:00";
 
@@ -159,13 +160,7 @@ export const defaultGroup: SplitFlowGroup = {
   proposals: [demoProposal],
   chats: demoChats,
   artifacts: demoArtifacts,
-  analyticsSummary: {
-    activeProposals: 1,
-    openChangeRequests: 1,
-    pendingSettlements: 1,
-    totalFronted: demoProposal.calculationResult?.totalCost ?? demoProposal.totalCost,
-    stillOwed: Math.max(0, demoProposal.calculationResult?.netBalanceByParticipant.you ?? 0)
-  },
+  analyticsSummary: deriveGroupAnalytics({ proposals: [demoProposal] } as SplitFlowGroup),
   createdAt: now,
   updatedAt: now
 };
@@ -176,9 +171,7 @@ export const initialState: AppState = {
   selectedChatIdByGroupId: { [defaultGroup.id]: demoChats[0].id },
   groups: [defaultGroup],
   workspacePanel: null,
-  proposals: [demoProposal],
-  messages: demoMessages,
-  notifications: demoNotifications,
+  globalNotifications: demoNotifications,
   agentSteps: demoAgentSteps,
   aiUnavailable: false
 };

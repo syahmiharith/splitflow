@@ -2,30 +2,22 @@
 
 import Link from "next/link";
 import { AlertTriangle, Check, FileText, Plus, Users, WalletCards } from "lucide-react";
+import { deriveGlobalAnalytics } from "@/lib/analytics";
 import { formatKrw } from "@/lib/format";
 import { useSplitFlow } from "@/lib/store";
 import { AppCard } from "@/components/ui/app-card";
 
 export default function HomePage() {
   const { state, activeGroup } = useSplitFlow();
-  const summary = state.groups.reduce(
-    (acc, group) => {
-      acc.openProposals += group.analyticsSummary.activeProposals;
-      acc.changeRequests += group.analyticsSummary.openChangeRequests;
-      acc.pendingSettlements += group.analyticsSummary.pendingSettlements;
-      acc.stillOwed += group.analyticsSummary.stillOwed;
-      return acc;
-    },
-    { openProposals: 0, changeRequests: 0, pendingSettlements: 0, stillOwed: 0 }
-  );
+  const summary = deriveGlobalAnalytics(state.groups);
   const recent = state.groups.flatMap((group) => group.proposals.slice(0, 2).map((proposal) => ({ group, proposal }))).slice(0, 5);
 
   return (
     <div className="space-y-4 px-4 py-5 md:p-6" data-testid="home-route">
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-3">
-        <Metric icon={Users} label="Active groups" value={String(state.groups.length)} tone="blue" />
+        <Metric icon={Users} label="Active groups" value={String(summary.activeGroups)} tone="blue" />
         <Metric icon={FileText} label="Open proposals" value={String(summary.openProposals)} tone="blue" />
-        <Metric icon={AlertTriangle} label="Urgent changes" value={String(summary.changeRequests)} tone="amber" />
+        <Metric icon={AlertTriangle} label="Urgent changes" value={String(summary.unresolvedChangeRequests)} tone="amber" />
         <Metric icon={WalletCards} label="Still owed" value={formatKrw(summary.stillOwed)} tone="green" />
       </div>
 

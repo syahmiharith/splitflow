@@ -8,6 +8,14 @@ export type ParsedExpenseIntent =
 
 export type ParserStatus = "ready" | "needs_clarification" | "unsupported";
 export type ParserConfidence = "high" | "medium" | "low";
+export type ParserMode = "natural_prompt" | "receipt_text" | "simple_total" | "needs_clarification" | "unsupported";
+export type AllocationStrategy =
+  | "exact_item_amounts"
+  | "single_total_equal_items"
+  | "single_total_weighted_items"
+  | "remaining_amount_allocation"
+  | "unallocated_remainder"
+  | "needs_user_resolution";
 
 export type ParsedParticipant = {
   id: string;
@@ -53,6 +61,7 @@ export type ParserValidationIssue = {
     | "total_mismatch"
     | "ambiguous_item_amounts"
     | "unknown_exclusion_target"
+    | "allocation_required"
     | "payer_mismatch"
     | "unsupported";
   severity: "warning" | "blocking";
@@ -66,6 +75,7 @@ export type ParserClarificationQuestion = {
 
 export type ParsedExpenseDraft = {
   rawInput: string;
+  mode: ParserMode;
   intent: ParsedExpenseIntent;
   title: string;
   currency: "KRW";
@@ -78,12 +88,15 @@ export type ParsedExpenseDraft = {
   credits: ParsedCredit[];
   assumptions: string[];
   warnings: string[];
+  allocationStrategy: AllocationStrategy;
+  confidenceReasons: string[];
 };
 
 export type ParserResult = {
   status: ParserStatus;
   draft?: ParsedExpenseDraft;
   confidence: ParserConfidence;
+  mode: ParserMode;
   issues: ParserValidationIssue[];
   clarificationQuestions: ParserClarificationQuestion[];
   normalizedSummary: string;

@@ -9,6 +9,7 @@ export function parseExpensePrompt(input: string): ParserResult {
     return {
       status: "unsupported",
       confidence: "low",
+      mode: "unsupported",
       issues: [{ code: "unsupported", severity: "blocking", message: "The request is too short to identify a group expense." }],
       clarificationQuestions: [],
       normalizedSummary: "Please describe a group expense with an amount and participants."
@@ -26,6 +27,7 @@ export function parseExpensePrompt(input: string): ParserResult {
       status: "unsupported",
       draft,
       confidence: "low",
+      mode: "unsupported",
       issues: validation.issues,
       clarificationQuestions,
       normalizedSummary: "I can parse totals, itemized costs, participants, payers, exclusions, and simple credits. I could not find enough money information in this prompt."
@@ -36,6 +38,7 @@ export function parseExpensePrompt(input: string): ParserResult {
     status: blocking ? "needs_clarification" : "ready",
     draft,
     confidence: validation.confidence,
+    mode: blocking ? "needs_clarification" : draft.mode,
     issues: validation.issues,
     clarificationQuestions,
     normalizedSummary: summarizeDraft(draft)

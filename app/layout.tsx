@@ -5,7 +5,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "SplitFlow",
-  description: "AI-assisted group split agreement dashboard",
+  description: "AI-assisted group split agreement workspace",
   icons: {
     icon: "/favicon.svg"
   }

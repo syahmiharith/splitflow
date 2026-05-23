@@ -34,8 +34,7 @@ test("home creates and persists a default group", async ({ page }) => {
   await expect(page.getByTestId("group-switcher")).toContainText("BBQ Crew");
   await expect(page.getByText("Open BBQ Crew")).toBeVisible();
 
-  await page.goto("/chat");
-  await expect(page).toHaveURL(/\/groups\/bbq-crew\/chat/);
+  await page.goto("/groups/bbq-crew/chat");
   await expect(page.getByTestId("chat-route")).toBeVisible();
 });
 
@@ -50,7 +49,11 @@ test("user can create a group and switch between group-scoped workspaces", async
 
   await expect(page).toHaveURL(/\/groups\/jeju-trip\/chat/);
   await expect(page.getByTestId("group-switcher")).toContainText("Jeju Trip");
+  await expect(page.getByTestId("sidebar-group-list")).toContainText("Jeju Trip");
   await expect(page.getByTestId("chat-route")).toBeVisible();
+
+  await page.goto("/groups/jeju-trip");
+  await expect(page.getByTestId("group-overview-route")).toBeVisible();
 
   await page.goto("/groups/jeju-trip/proposals");
   await expect(page.getByTestId("proposal-empty-state")).toBeVisible();
@@ -72,7 +75,7 @@ test("group chat creates artifacts and sends a proposal from the sticky panel fo
 
   await expect(page.getByTestId("agent-progress")).toBeVisible();
   await expect(page.getByTestId("artifact-preview-proposal_draft")).toBeVisible();
-  await expect(page.getByTestId("workspace-detail-panel")).toContainText("BBQ Dinner proposal");
+  await expect(page.getByTestId("workspace-detail-panel")).toContainText("BBQ Dinner parser review");
   await expect(page.getByTestId("workspace-panel-footer")).toBeVisible();
   await page.getByTestId("panel-send-proposal").click();
 
@@ -94,6 +97,65 @@ test("chat asks clarification for mismatched parsed totals", async ({ page }) =>
   await expect(page.getByTestId("agent-progress")).toBeVisible();
   await expect(page.getByTestId("chat-messages")).toContainText("need clarification");
   await expect(page.getByTestId("chat-messages")).toContainText("itemized costs add up");
+});
+
+test("chat parses pasted receipt-like text into reviewable artifacts", async ({ page }) => {
+  await mockAgent(page);
+  await clearDemoStorage(page);
+
+  await page.goto("/groups/bbq-crew/chat");
+  await page.getByTestId("new-chat").click();
+  await page.getByTestId("chat-input").fill(`BBQ Crew
+Meat 64,000
+Drinks 24,000
+Charcoal 10,000
+Sides 30,000
+Total 128,000
+8 people
+Daniel no beef`);
+  await page.getByTestId("chat-send").click();
+
+  await expect(page.getByTestId("agent-progress")).toBeVisible();
+  await expect(page.getByTestId("artifact-preview-parser_review")).toBeVisible();
+  await expect(page.getByTestId("workspace-detail-panel")).toContainText("Mode: receipt_text");
+  await expect(page.getByTestId("workspace-detail-panel")).toContainText("Detected items: Meat");
+  await expect(page.getByTestId("workspace-detail-panel")).toContainText("Daniel excluded from meat");
+});
+
+test("ambiguous allocation opens resolver and equal allocation creates proposal", async ({ page }) => {
+  await mockAgent(page);
+  await clearDemoStorage(page);
+
+  await page.goto("/groups/bbq-crew/chat");
+  await page.getByTestId("new-chat").click();
+  await page.getByTestId("chat-input").fill("Dinner and drinks were 120k for 5 people. Daniel did not drink.");
+  await page.getByTestId("chat-send").click();
+
+  await expect(page.getByTestId("artifact-preview-allocation_resolution")).toBeVisible();
+  await expect(page.getByTestId("workspace-detail-panel")).toContainText("Allocation resolution needed");
+  await page.getByTestId("panel-use-equal-allocation").click();
+
+  await expect(page.getByTestId("artifact-preview-proposal_draft")).toBeVisible();
+  await expect(page.getByTestId("workspace-detail-panel")).toContainText("Allocation: single_total_equal_items");
+  await page.getByTestId("panel-send-proposal").click();
+  await page.goto("/groups/bbq-crew/proposals");
+  await expect(page.getByText("Dinner").first()).toBeVisible();
+});
+
+test("claimed prior payment can be confirmed before it affects settlement", async ({ page }) => {
+  await mockAgent(page);
+  await clearDemoStorage(page);
+
+  await page.goto("/groups/bbq-crew/chat");
+  await page.getByTestId("new-chat").click();
+  await page.getByTestId("chat-input").fill("Movie night: I paid 72,000 for tickets and 24,000 for snacks. Daniel skipped snacks. Sarah already paid me 10,000.");
+  await page.getByTestId("chat-send").click();
+
+  await expect(page.getByTestId("artifact-preview-settlement_ledger")).toBeVisible();
+  await expect(page.getByTestId("workspace-detail-panel")).toContainText("Credit: Sarah already paid Organizer ₩10,000");
+  await page.getByTestId("panel-confirm-credit").click();
+  await expect(page.getByTestId("workspace-detail-panel")).toContainText("confirmed");
+  await expect(page.getByTestId("workspace-detail-panel")).toContainText("Confirmed paid: ₩10,000");
 });
 
 test("participant change request is prioritized and can be settled through proposal detail", async ({ page }) => {
@@ -135,6 +197,23 @@ test("chat retention keeps the newest three chats per group", async ({ page }) =
   await expect(page.getByTestId("chat-session-list").getByRole("button")).toHaveCount(3);
   await page.reload();
   await expect(page.getByTestId("chat-session-list").getByRole("button")).toHaveCount(3);
+});
+
+test("reset demo data clears extra groups and restores canonical workspace", async ({ page }) => {
+  await clearDemoStorage(page);
+
+  await page.getByTestId("group-switcher").click();
+  await page.getByTestId("create-group-open").click();
+  await page.getByTestId("create-group-name").fill("Temporary Review Group");
+  await page.getByTestId("create-group-submit").click();
+  await expect(page.getByTestId("group-switcher")).toContainText("Temporary Review Group");
+
+  await page.goto("/groups/temporary-review-group/chat");
+  await page.getByTestId("reset-demo-data").click();
+  await expect(page.getByTestId("group-switcher")).toContainText("BBQ Crew");
+  await page.goto("/groups");
+  await expect(page.getByText("Temporary Review Group")).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "BBQ Crew" })).toBeVisible();
 });
 
 test("proposal search and filters are group-scoped", async ({ page }) => {

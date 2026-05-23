@@ -3,23 +3,26 @@
 import Link from "next/link";
 import { CheckCircle2, ChevronRight, Clock3, Plus, Users, WalletCards } from "lucide-react";
 import { AppCard } from "@/components/ui/app-card";
+import { deriveGlobalAnalytics, deriveGroupAnalytics } from "@/lib/analytics";
 import { formatKrw } from "@/lib/format";
 import { useSplitFlow } from "@/lib/store";
 
 export default function GroupsPage() {
   const { state, createGroup } = useSplitFlow();
-  const outstanding = state.groups.reduce((total, group) => total + group.analyticsSummary.stillOwed, 0);
+  const globalSummary = deriveGlobalAnalytics(state.groups);
 
   return (
     <div className="space-y-4 px-4 py-5 md:p-6" data-testid="groups-route">
       <div className="grid grid-cols-3 gap-2 sm:gap-3">
-        <Summary icon={Users} label="Groups" value={String(state.groups.length)} tone="blue" />
-        <Summary icon={CheckCircle2} label="Active splits" value={String(state.groups.reduce((total, group) => total + group.analyticsSummary.activeProposals, 0))} tone="green" />
-        <Summary icon={WalletCards} label="Outstanding" value={formatKrw(outstanding)} tone="amber" />
+        <Summary icon={Users} label="Groups" value={String(globalSummary.activeGroups)} tone="blue" />
+        <Summary icon={CheckCircle2} label="Active splits" value={String(globalSummary.openProposals)} tone="green" />
+        <Summary icon={WalletCards} label="Outstanding" value={formatKrw(globalSummary.stillOwed)} tone="amber" />
       </div>
 
       <div className="space-y-4">
-        {state.groups.map((group) => (
+        {state.groups.map((group) => {
+          const summary = deriveGroupAnalytics(group);
+          return (
           <AppCard key={group.id} className="p-5">
             <div className="flex gap-4">
               <div className="grid h-16 w-16 shrink-0 place-items-center rounded-2xl bg-blue-50 text-app-blue">
@@ -29,7 +32,7 @@ export default function GroupsPage() {
                 <div className="flex items-start gap-3">
                   <h2 className="min-w-0 flex-1 truncate text-xl font-bold sm:text-2xl">{group.name}</h2>
                   <span className="shrink-0 rounded-lg bg-green-50 px-3 py-1.5 text-sm font-semibold text-app-green">
-                    {group.analyticsSummary.openChangeRequests > 0 ? "Needs review" : "Active"}
+                    {summary.openChangeRequests > 0 ? "Needs review" : "Active"}
                   </span>
                 </div>
                 <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2 text-sm text-app-muted">
@@ -37,7 +40,7 @@ export default function GroupsPage() {
                     <Users className="h-4 w-4" />
                     {group.members.length} members
                   </span>
-                  <span>{group.analyticsSummary.activeProposals} active proposals</span>
+                  <span>{summary.activeProposals} active proposals</span>
                   <span className="basis-full inline-flex items-center gap-1.5">
                     <Clock3 className="h-4 w-4" />
                     Updated {new Date(group.updatedAt).toLocaleDateString()}
@@ -56,7 +59,8 @@ export default function GroupsPage() {
               </div>
             </div>
           </AppCard>
-        ))}
+        );
+        })}
       </div>
 
       <button

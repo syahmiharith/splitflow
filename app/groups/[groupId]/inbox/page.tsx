@@ -54,6 +54,7 @@ export default function GroupInboxPage() {
           <div>
             <p className="text-sm font-semibold uppercase tracking-wide text-app-muted">Viewing as</p>
             <h1 className="mt-1 text-xl font-bold text-app-text">{selectedParticipant.name}</h1>
+            <p className="mt-1 text-sm text-app-muted">Participant switching is simulated for reviewer testing; it is not production authentication.</p>
           </div>
           <div className="flex flex-wrap gap-2">
             {proposal.participants.map((participant) => (

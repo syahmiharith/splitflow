@@ -43,6 +43,7 @@ export function formatKrw(amount: number): string {
 
 export function normalizeExpenseDraft(input: string): ParsedExpenseDraft {
   const cleaned = input.replace(/[’]/g, "'").trim();
+  const mode = classifyParserMode(cleaned);
   const intent = classifyExpenseIntent(cleaned);
   const participantCount = extractParticipantCount(cleaned);
   const rawNames = excludeNonParticipants(extractNames(cleaned), cleaned, intent);
@@ -61,7 +62,9 @@ export function normalizeExpenseDraft(input: string): ParsedExpenseDraft {
 
   const moneyMatches = findMoneyMatches(cleaned);
   const statedTotal = extractStatedTotal(cleaned, moneyMatches);
-  let items = extractItems(cleaned, payers);
+  let items = mode === "receipt_text" ? extractReceiptItems(cleaned, payers) : extractItems(cleaned, payers);
+  items = addMissingExclusionItems(items, exclusions, statedTotal);
+  items = applyRemainingAllocation(items, statedTotal, assumptions);
   if (items.length === 0 && statedTotal) {
     items = [{ id: slug(defaultItemLabel(intent)), label: defaultItemLabel(intent), amount: statedTotal, paidByName: inferDefaultPayer(payers), sourceText: "total-only prompt" }];
     assumptions.push(`Created one ${defaultItemLabel(intent)} item from the stated total.`);
@@ -74,6 +77,7 @@ export function normalizeExpenseDraft(input: string): ParsedExpenseDraft {
 
   return {
     rawInput: input,
+    mode,
     intent,
     title: titleForIntent(intent, cleaned),
     currency: "KRW",
@@ -85,8 +89,28 @@ export function normalizeExpenseDraft(input: string): ParsedExpenseDraft {
     exclusions,
     credits,
     assumptions,
-    warnings: []
+    warnings: [],
+    allocationStrategy: inferAllocationStrategy(items, statedTotal),
+    confidenceReasons: []
   };
+}
+
+function addMissingExclusionItems(items: ParsedExpenseItem[], exclusions: ParsedExclusion[], statedTotal: number | undefined): ParsedExpenseItem[] {
+  void statedTotal;
+  const next = [...items];
+  for (const exclusion of exclusions) {
+    const label = exclusion.itemLabel ?? exclusion.onlyIncludedItemLabel;
+    if (!label || next.some((item) => labelMatches(item.label, label))) continue;
+    next.push({ id: slug(label), label: capitalizeWords(label), sourceText: exclusion.reason });
+  }
+  return next;
+}
+
+export function classifyParserMode(input: string): ParsedExpenseDraft["mode"] {
+  if (!input.trim()) return "unsupported";
+  if (input.split(/\r?\n/).filter((line) => /\d/.test(line)).length >= 3) return "receipt_text";
+  if (/^split\s+(?:₩\s*)?\d/i.test(input) || /spent\s+(?:₩\s*)?\d.+\b(?:people|participants)\b/i.test(input)) return "simple_total";
+  return "natural_prompt";
 }
 
 function excludeNonParticipants(names: string[], input: string, intent: ParsedExpenseIntent): string[] {
@@ -126,7 +150,9 @@ function defaultItemLabel(intent: ParsedExpenseIntent): string {
 
 function extractParticipantCount(input: string): number | undefined {
   const match = input.match(/(?:for|between|among|joined|split between)?\s*(\d+)\s+(?:people|participants|pax|friends)\b/i);
-  return match ? Number(match[1]) : undefined;
+  if (match) return Number(match[1]);
+  const shorthand = input.match(/\b(?:bbq|dinner|movie|trip|gift|house dinner)[^.]*\bfor\s+(\d+)(?:\.|$)/i);
+  return shorthand ? Number(shorthand[1]) : undefined;
 }
 
 function extractNames(input: string): string[] {
@@ -191,17 +217,23 @@ function normalizeAmount(raw: string, suffix?: string): number {
   return suffix?.toLowerCase() === "k" ? base * 1000 : base;
 }
 
+function isLikelyMoney(raw: string, suffix?: string): boolean {
+  return Boolean(suffix) || raw.includes(",") || Number(raw.replace(/,/g, "")) >= 1000;
+}
+
 function hasExplicitCurrency(input: string): boolean {
   return /₩|won|krw/i.test(input);
 }
 
 function extractStatedTotal(input: string, moneyMatches: MoneyMatch[]): number | undefined {
-  const total = input.match(/(?:total|overall|all in)\s+(?:was|is|cost)?\s*(?:₩\s*)?(\d+(?:,\d{3})*|\d+)\s*(k|K|won|KRW|krw)?/i);
+  const total = input.match(/(?:total|subtotal|overall|all in)\s*(?:was|is|cost)?\s*(?:₩\s*|KRW\s*)?(\d+(?:,\d{3})*|\d+)\s*(k|K|won|KRW|krw)?/i);
   if (total) return normalizeAmount(total[1], total[2]);
   const spent = input.match(/(?:we spent|spent)\s+(?:₩\s*)?(\d+(?:,\d{3})*|\d+)\s*(k|K|won|KRW|krw)?/i);
   if (spent) return normalizeAmount(spent[1], spent[2]);
   const split = input.match(/split\s+(?:₩\s*)?(\d+(?:,\d{3})*|\d+)\s*(k|K|won|KRW|krw)?\s+(?:between|among|for)/i);
   if (split) return normalizeAmount(split[1], split[2]);
+  const forPeople = input.match(/(?:was|were|paid)?\s*(?:₩\s*)?(\d+(?:,\d{3})*|\d+)\s*(k|K|won|KRW|krw)?\s+for\s+\d+\s+(?:people|participants|pax|friends)/i);
+  if (forPeople) return normalizeAmount(forPeople[1], forPeople[2]);
   if (moneyMatches.length === 1) return moneyMatches[0].amount;
   return undefined;
 }
@@ -238,9 +270,18 @@ function extractCredits(input: string): ParsedCredit[] {
 function extractItems(input: string, payers: ParsedPayer[]): ParsedExpenseItem[] {
   const items = new Map<string, ParsedExpenseItem>();
 
+  const groupedTotalPattern = /\b([a-z][a-z\s]{2,24}?)\s+and\s+([a-z][a-z\s]{2,24}?)\s+(?:were|was|cost|costs)\s+(?:₩\s*)?(\d+(?:,\d{3})*|\d+)\s*(k|K|won|KRW|krw)?/gi;
+  for (const match of input.matchAll(groupedTotalPattern)) {
+    const first = cleanItemLabel(match[1]);
+    const second = cleanItemLabel(match[2]);
+    if (isUsableItemLabel(first)) addItem(items, first, undefined, payerForItem(first, payers), match[0]);
+    if (isUsableItemLabel(second)) addItem(items, second, undefined, payerForItem(second, payers), match[0]);
+  }
+
   const amountForPattern = /(?:₩\s*)?(\d+(?:,\d{3})*|\d+)\s*(k|K|won|KRW|krw)?\s+for\s+([a-z][a-z\s,&]+?)(?=,|\.|$|\s+and\s+(?:₩\s*)?\d)/gi;
   for (const match of input.matchAll(amountForPattern)) {
     const label = cleanItemLabel(match[3]);
+    if (!isLikelyMoney(match[1], match[2])) continue;
     if (!isUsableItemLabel(label)) continue;
     addItem(items, label, normalizeAmount(match[1], match[2]), payerForItem(label, payers), match[0]);
   }
@@ -248,6 +289,7 @@ function extractItems(input: string, payers: ParsedPayer[]): ParsedExpenseItem[]
   const paidItemPattern = /\b([A-Z][a-z]+|I|i)\s+paid\s+(?:₩\s*)?(\d+(?:,\d{3})*|\d+)\s*(k|K|won|KRW|krw)?\s+([a-z][a-z\s]{2,24}?)(?=,|\.|$)/g;
   for (const match of input.matchAll(paidItemPattern)) {
     const label = cleanItemLabel(match[4]);
+    if (!isLikelyMoney(match[2], match[3])) continue;
     if (!isUsableItemLabel(label)) continue;
     addItem(items, label, normalizeAmount(match[2], match[3]), normalizePersonName(match[1]), match[0]);
   }
@@ -256,17 +298,59 @@ function extractItems(input: string, payers: ParsedPayer[]): ParsedExpenseItem[]
   for (const segment of segments) {
     if (/\b\d+\s+(?:people|participants|pax|friends)\b/i.test(segment)) continue;
     if (/\bpaid\b/i.test(segment)) continue;
+    if (/\bincluded in total\b/i.test(segment)) continue;
     const labelAmount = segment.match(/\b([a-z][a-z\s]{1,26}?)\s+(?:was|were|cost|costs)?\s*(?:₩\s*)?(\d+(?:,\d{3})*|\d+)\s*(k|K|won|KRW|krw)?\b/i);
     if (!labelAmount) continue;
+    if (!isLikelyMoney(labelAmount[2], labelAmount[3])) continue;
     const label = cleanItemLabel(labelAmount[1]);
     if (!isUsableItemLabel(label)) continue;
+    if (/\band\b/i.test(label)) {
+      for (const part of label.split(/\band\b/i).map((value) => value.trim()).filter(Boolean)) {
+        addItem(items, part, undefined, payerForItem(part, payers), segment.trim());
+      }
+      continue;
+    }
     addItem(items, label, normalizeAmount(labelAmount[2], labelAmount[3]), payerForItem(label, payers), segment.trim());
   }
 
   return Array.from(items.values());
 }
 
-function addItem(items: Map<string, ParsedExpenseItem>, label: string, amount: number, paidByName?: string, sourceText?: string) {
+function extractReceiptItems(input: string, payers: ParsedPayer[]): ParsedExpenseItem[] {
+  const items = new Map<string, ParsedExpenseItem>();
+  for (const line of input.split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (!trimmed || /^(total|subtotal|tax|vat|service|discount|change|cash|card|bbq crew)$/i.test(trimmed)) continue;
+    if (/\b\d+\s+(people|participants|pax|friends)\b/i.test(trimmed)) continue;
+    const match = trimmed.match(/^([A-Za-z][A-Za-z\s&-]{1,40})\s+(?:₩\s*|KRW\s*)?(\d+(?:,\d{3})*|\d+)\s*(k|K|won|KRW|krw)?$/i);
+    if (!match) continue;
+    const label = cleanItemLabel(match[1]);
+    if (!isUsableItemLabel(label)) continue;
+    addItem(items, label, normalizeAmount(match[2], match[3]), payerForItem(label, payers), trimmed);
+  }
+  return Array.from(items.values());
+}
+
+function applyRemainingAllocation(items: ParsedExpenseItem[], statedTotal: number | undefined, assumptions: string[]): ParsedExpenseItem[] {
+  if (!statedTotal) return items;
+  const knownTotal = items.reduce((sum, item) => sum + (item.amount ?? 0), 0);
+  const missing = items.filter((item) => item.amount === undefined);
+  const remainder = statedTotal - knownTotal;
+  if (missing.length === 1 && remainder > 0) {
+    assumptions.push(`Allocated remaining ${formatKrw(remainder)} to ${missing[0].label} because the stated total was ${formatKrw(statedTotal)}.`);
+    return items.map((item) => (item.id === missing[0].id ? { ...item, amount: remainder } : item));
+  }
+  return items;
+}
+
+function inferAllocationStrategy(items: ParsedExpenseItem[], statedTotal: number | undefined): ParsedExpenseDraft["allocationStrategy"] {
+  if (items.length > 0 && items.every((item) => typeof item.amount === "number")) return "exact_item_amounts";
+  if (statedTotal && items.filter((item) => item.amount === undefined).length === 1) return "remaining_amount_allocation";
+  if (statedTotal && items.length > 1 && items.every((item) => item.amount === undefined)) return "needs_user_resolution";
+  return "unallocated_remainder";
+}
+
+function addItem(items: Map<string, ParsedExpenseItem>, label: string, amount: number | undefined, paidByName?: string, sourceText?: string) {
   const id = slug(label);
   if (items.has(id)) return;
   items.set(id, { id, label: capitalizeWords(label), amount, paidByName, sourceText });

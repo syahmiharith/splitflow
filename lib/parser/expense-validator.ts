@@ -24,6 +24,21 @@ export function validateExpenseDraft(draft: ParsedExpenseDraft): ExpenseValidati
     });
   }
 
+  const missingItems = draft.items.filter((item) => item.amount === undefined);
+  const exclusionNeedsMissingItemAmount = missingItems.some((item) =>
+    draft.exclusions.some((exclusion) => {
+      const target = exclusion.itemLabel ?? exclusion.onlyIncludedItemLabel;
+      return target ? labelMatches(item.label, target) : false;
+    })
+  );
+  if (exclusionNeedsMissingItemAmount || (draft.statedTotal && missingItems.length > 1)) {
+    issues.push({
+      code: "allocation_required",
+      severity: "blocking",
+      message: "Some item amounts are missing, and at least one participant rule depends on item-level allocation."
+    });
+  }
+
   for (const exclusion of draft.exclusions) {
     if (!draft.participants.some((participant) => participant.name === exclusion.participantName)) {
       issues.push({ code: "unknown_exclusion_target", severity: "blocking", message: `${exclusion.participantName} was mentioned in a split rule but is not in the participant list.` });
@@ -34,7 +49,9 @@ export function validateExpenseDraft(draft: ParsedExpenseDraft): ExpenseValidati
     }
   }
 
-  const singleAmountMultiItem = draft.items.some((item) => item.label.includes(",") || /\band\b/i.test(item.label));
+  const singleAmountMultiItem =
+    draft.items.some((item) => item.label.includes(",") || /\band\b/i.test(item.label) || /,\s*[a-z]|\sand\s/i.test(item.sourceText ?? "")) ||
+    hasGroupedSinglePayerAmount(draft.rawInput);
   if (singleAmountMultiItem && draft.exclusions.length > 0) {
     issues.push({
       code: "ambiguous_item_amounts",
@@ -56,4 +73,14 @@ export function validateExpenseDraft(draft: ParsedExpenseDraft): ExpenseValidati
   const generatedNames = draft.participants.some((participant) => participant.generated);
   const confidence: ParserConfidence = blocking ? "low" : generatedNames || issues.length > 0 || draft.assumptions.length > 0 ? "medium" : "high";
   return { issues, confidence };
+}
+
+function hasGroupedSinglePayerAmount(input: string): boolean {
+  const payerItemList = input.match(/\b(?:[A-Z][a-z]+|I|i)\s+paid\s+(?:₩\s*)?\d+(?:,\d{3})*\s*(?:k|K|won|KRW|krw)?\s+for\s+([^.\n]+)/);
+  if (!payerItemList) return false;
+
+  const itemText = payerItemList[1];
+  const hasItemList = /,|\band\b/i.test(itemText);
+  const hasAdditionalItemAmount = /(?:₩\s*)?\d+(?:,\d{3})*\s*(?:k|K|won|KRW|krw)?\s+for\b/i.test(itemText);
+  return hasItemList && !hasAdditionalItemAmount;
 }

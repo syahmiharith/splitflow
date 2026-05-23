@@ -36,27 +36,52 @@ describe("prototype persistence helpers", () => {
   it("resets demo state", () => {
     window.localStorage.setItem("splitflow.demoState.v1", JSON.stringify({ proposals: [] }));
     window.localStorage.setItem("splitflow.demoState.v2", JSON.stringify({ proposals: [] }));
+    window.localStorage.setItem("splitflow.demoState.v3", JSON.stringify({ proposals: [] }));
     resetDemoData();
     expect(getProposals()[0].id).toBe("bbq-dinner");
     expect(window.localStorage.getItem("splitflow.demoState.v1")).toBeNull();
     expect(window.localStorage.getItem("splitflow.demoState.v2")).toBeNull();
+    expect(window.localStorage.getItem("splitflow.demoState.v3")).toBeNull();
+    expect(window.localStorage.getItem(SPLITFLOW_STORAGE_KEY)).toContain("bbq-crew");
   });
 
   it("falls back to canonical data when persisted state is invalid", () => {
     window.localStorage.setItem(SPLITFLOW_STORAGE_KEY, JSON.stringify({ proposals: [{ id: "bad", title: "Bad" }] }));
 
-    expect(getDemoState().proposals[0].id).toBe("bbq-dinner");
+    expect(getProposals()[0].id).toBe("bbq-dinner");
     expect(getDemoState().selectedGroupId).toBe("bbq-crew");
     expect(getDemoState().groups[0].name).toBe("BBQ Crew");
+  });
+
+  it("ignores stale global proposal and message mirrors", () => {
+    window.localStorage.setItem(
+      SPLITFLOW_STORAGE_KEY,
+      JSON.stringify({
+        ...initialState,
+        proposals: [{ id: "global-copy", title: "Stale global proposal" }],
+        messages: [{ id: "global-message", content: "stale" }]
+      })
+    );
+
+    expect("proposals" in getDemoState()).toBe(false);
+    expect("messages" in getDemoState()).toBe(false);
+    expect(getProposals()[0].id).toBe("bbq-dinner");
   });
 
   it("recalculates valid persisted proposals on load", () => {
     const proposal = createBbqProposalFromPrompt(
       "BBQ dinner for 8. Syahmi paid ₩64,000 meat, Ali paid ₩24,000 drinks, Sarah paid ₩10,000 charcoal, sides were ₩30,000. Daniel did not eat beef."
     )!;
-    window.localStorage.setItem(SPLITFLOW_STORAGE_KEY, JSON.stringify({ ...getDemoState(), proposals: [{ ...proposal, totalCost: 1 }] }));
+    const current = getDemoState();
+    window.localStorage.setItem(
+      SPLITFLOW_STORAGE_KEY,
+      JSON.stringify({
+        ...current,
+        groups: current.groups.map((group) => (group.id === defaultGroup.id ? { ...group, proposals: [{ ...proposal, totalCost: 1 }] } : group))
+      })
+    );
 
-    expect(getDemoState().proposals[0].totalCost).toBe(128000);
+    expect(getProposals()[0].totalCost).toBe(128000);
   });
 
   it("persists selected user-created groups ahead of the fallback group", () => {

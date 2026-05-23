@@ -16,6 +16,7 @@ describe("prototype-grade expense parser", () => {
       ["Charcoal", 10000],
       ["Sides", 18000]
     ]);
+    expect(result.draft?.participants).toHaveLength(8);
     expect(result.draft?.items.find((item) => item.id === "meat")?.excludedParticipantNames).toContain("Daniel");
   });
 
@@ -50,7 +51,7 @@ describe("prototype-grade expense parser", () => {
     expect(proposal?.calculationResult?.totalPaidByParticipant.you).toBe(100000);
   });
 
-  it("applies previous partial payment credit deterministically", () => {
+  it("creates claimed prior payment credit records without applying them as confirmed proof", () => {
     const { proposal, parserResult } = createProposalFromPrompt(
       "Movie night: I paid 72,000 for tickets and 24,000 for snacks. Daniel skipped snacks. Sarah already paid me 10,000.",
       "movie-group"
@@ -58,7 +59,8 @@ describe("prototype-grade expense parser", () => {
 
     expect(parserResult.status).toBe("ready");
     expect(proposal?.credits?.[0]).toMatchObject({ fromParticipantId: "sarah", toParticipantId: "you", amount: 10000 });
-    expect(proposal?.calculationResult?.auditExplanation.join(" ")).toContain("Sarah already paid Organizer");
+    expect(proposal?.paymentRecords?.[0]).toMatchObject({ fromParticipantId: "sarah", toParticipantId: "you", amount: 10000, status: "claimed" });
+    expect(proposal?.parserWarnings?.join(" ")).toContain("claimed");
   });
 
   it("parses named participants", () => {

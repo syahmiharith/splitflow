@@ -156,12 +156,13 @@ export function ChatWorkspace() {
 
         <div className="border-t border-app-border bg-page px-4 py-2 md:px-6 md:py-3" data-testid="chat-input-area">
           <form onSubmit={onSubmit} className="flex min-h-16 items-center gap-3 rounded-2xl border border-app-border bg-white p-2 shadow-[0_1px_2px_rgba(24,33,47,0.04)] md:min-h-0 md:rounded-lg">
-            <input
+            <textarea
               data-testid="chat-input"
               value={message}
               onChange={(event) => setMessage(event.target.value)}
               placeholder={`Message ${activeGroup.name}...`}
-              className="min-w-0 flex-1 bg-transparent px-4 py-2 text-base outline-none placeholder:text-app-muted md:text-sm"
+              rows={1}
+              className="min-h-11 min-w-0 flex-1 resize-none bg-transparent px-4 py-2 text-base outline-none placeholder:text-app-muted md:min-h-10 md:text-sm"
             />
             <button
               data-testid="chat-send"

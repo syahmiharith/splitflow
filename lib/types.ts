@@ -215,8 +215,11 @@ export type AgentRunStatus = "running" | "completed" | "failed";
 
 export type AgentRunEvent =
   | { id: string; runId: string; at: string; type: "run_started"; detail: string }
+  | { id: string; runId: string; at: string; type: "step_started"; step: string; detail: string }
   | { id: string; runId: string; at: string; type: "step_completed"; step: string; detail: string }
   | { id: string; runId: string; at: string; type: "artifact_staged"; artifactId: string }
+  | { id: string; runId: string; at: string; type: "proposal_version_created"; proposalId: string; proposalVersionId: string; version: number; detail: string }
+  | { id: string; runId: string; at: string; type: "text_delta"; delta: string; detail: string }
   | { id: string; runId: string; at: string; type: "run_completed"; detail: string }
   | { id: string; runId: string; at: string; type: "run_failed"; detail: string };
 
@@ -225,7 +228,11 @@ export type AgentRun = {
   groupId: string;
   chatId: string;
   sourceMessageId: string;
+  sourceMessage?: string;
+  idempotencyKey?: string;
   status: AgentRunStatus;
+  retryCount: number;
+  createdAt: string;
   startedAt: string;
   endedAt?: string;
   eventIds: string[];
@@ -237,6 +244,54 @@ export type AgentRunContext = {
   runId: string;
   groupId: string;
   chatId: string;
+};
+
+export type ProposalTransitionType =
+  | "draft_created"
+  | "sent"
+  | "participant_response"
+  | "change_accepted"
+  | "reconfirmation_requested"
+  | "paid_marked"
+  | "booked"
+  | "settled"
+  | "archived";
+
+export type ProposalRecord = {
+  id: string;
+  groupId: string;
+  currentVersionId: string;
+  versionIds: string[];
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type ProposalVersion = {
+  id: string;
+  proposalId: string;
+  groupId: string;
+  version: number;
+  parentVersionId?: string;
+  transitionType: ProposalTransitionType;
+  actor: string;
+  reason: string;
+  proposal: Proposal;
+  amountChanges: ProposalRevisionChange[];
+  createdAt: string;
+};
+
+export type ArtifactRecord = {
+  id: string;
+  artifact: Artifact;
+  groupId: string;
+  runId?: string;
+  proposalId?: string;
+  proposalVersionId?: string;
+  kind: ArtifactType;
+  state: "active" | "superseded";
+  supersedesArtifactId?: string;
+  supersededByArtifactId?: string;
+  createdAt: string;
 };
 
 export type GroupAnalyticsSummary = {

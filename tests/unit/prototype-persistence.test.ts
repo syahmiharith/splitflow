@@ -139,6 +139,8 @@ describe("prototype persistence helpers", () => {
       chatId: defaultGroup.chats[0].id,
       sourceMessageId: "m2",
       status: "completed",
+      retryCount: 0,
+      createdAt: "2026-05-22T10:22:00.000+09:00",
       startedAt: "2026-05-22T10:22:00.000+09:00",
       endedAt: "2026-05-22T10:22:01.000+09:00",
       eventIds: ["event-1"],

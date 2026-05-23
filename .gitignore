@@ -13,3 +13,4 @@ output
 debug.log
 
 .vercel
+.splitflow/

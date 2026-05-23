@@ -130,6 +130,13 @@ export function classifyExpenseIntent(input: string): ParsedExpenseIntent {
 }
 
 function titleForIntent(intent: ParsedExpenseIntent, input: string): string {
+  const locationAirbnb = input.match(/\b(Busan|Jeju|Seoul)\b.*\bAirbnb\b|\bAirbnb\b.*\b(Busan|Jeju|Seoul)\b/i);
+  if (locationAirbnb) return `${locationAirbnb[1] ?? locationAirbnb[2]} Airbnb`;
+  if (/airbnb/i.test(input)) return "Airbnb Split";
+  if (/\b(Busan|Jeju|Seoul)\b.*\bhotel\b|\bhotel\b.*\b(Busan|Jeju|Seoul)\b/i.test(input)) {
+    const hotelLocation = input.match(/\b(Busan|Jeju|Seoul)\b/i)?.[1];
+    return hotelLocation ? `${hotelLocation} Hotel` : "Hotel Split";
+  }
   if (/movie/i.test(input)) return "Movie Night";
   if (/gift/i.test(input)) return "Group Gift";
   if (/trip/i.test(input)) return "Trip Dinner";

@@ -5,9 +5,7 @@ import type { OrchestratorResponse } from "@/lib/agents/agent-types";
 import { deriveGroupAnalytics } from "@/lib/analytics";
 import type { Proposal as DomainProposal } from "@/lib/domain/proposal-types";
 import { defaultGroup, initialState } from "@/lib/demo-data";
-import { formatKrw } from "@/lib/format";
 import { createGroupParticipant } from "@/lib/group-participant";
-import { countParticipants, deriveProposalStatus } from "@/lib/split";
 import { getDemoState, resetDemoData, saveDemoState } from "@/lib/prototype-persistence";
 import {
   applyPrototypeAdjustment,
@@ -29,10 +27,10 @@ import type {
   ChatSession,
   ParticipantStatus,
   Proposal,
-  ProposalRevision,
   SplitFlowGroup,
   UserMode
 } from "@/lib/types";
+import type { WorkflowActionResult, WorkflowRunResult } from "@/lib/workflow/schema";
 
 const MAX_CHATS_PER_GROUP = 3;
 
@@ -54,7 +52,7 @@ type StoreContextValue = {
   recordChatUserMessage: (message: string, context?: AgentRunContext) => void;
   setActiveProposal: (proposalId: string) => void;
   sendChatMessage: (message: string) => Promise<void>;
-  applyAgentResponse: (response: OrchestratorResponse, sourceMessage?: string, context?: AgentRunContext) => void;
+  applyAgentResponse: (response: OrchestratorResponse, sourceMessage?: string, context?: AgentRunContext, result?: WorkflowRunResult) => void;
   failAgentRun: (runId: string, error: string) => void;
   sendProposal: (proposalId?: string) => void;
   reviewProposal: () => void;
@@ -113,6 +111,8 @@ function createAgentRun(context: AgentRunContext, sourceMessageId: string): Agen
     chatId: context.chatId,
     sourceMessageId,
     status: "running",
+    retryCount: 0,
+    createdAt: started.at,
     startedAt: started.at,
     eventIds: [started.id],
     events: [started]
@@ -256,60 +256,6 @@ function appendTimeline(proposal: Proposal, actor: string, text: string): Propos
   };
 }
 
-function participantAmount(proposal: Proposal, participantId: string): number {
-  return proposal.calculationResult?.fairShareByParticipant[participantId] ?? proposal.participants.find((participant) => participant.id === participantId)?.shareAmount ?? 0;
-}
-
-function createProposalRevision(previous: Proposal, next: Proposal, actor: string, reason: string, changeRequestNote?: string): ProposalRevision {
-  const previousVersion = previous.version ?? 1;
-  const participantById = new Map(next.participants.map((participant) => [participant.id, participant]));
-  const amountChanges = previous.participants
-    .map((participant) => {
-      const afterParticipant = participantById.get(participant.id);
-      const beforeAmount = participantAmount(previous, participant.id);
-      const afterAmount = participantAmount(next, participant.id);
-      return {
-        participantId: participant.id,
-        participantName: afterParticipant?.name ?? participant.name,
-        beforeAmount,
-        afterAmount
-      };
-    })
-    .filter((change) => change.beforeAmount !== change.afterAmount);
-
-  return {
-    id: crypto.randomUUID(),
-    version: previousVersion + 1,
-    previousVersion,
-    createdAt: new Date().toISOString(),
-    actor,
-    reason,
-    changeRequestNote,
-    amountChanges
-  };
-}
-
-function applyProposalRevision(previous: Proposal, next: Proposal, revision: ProposalRevision): Proposal {
-  return {
-    ...next,
-    version: revision.version,
-    revisionHistory: [...(previous.revisionHistory ?? []), revision]
-  };
-}
-
-function revisionDetails(revision: ProposalRevision): string[] {
-  return [
-    `Version: v${revision.previousVersion} -> v${revision.version}`,
-    `Reason: ${revision.reason}`,
-    ...(revision.changeRequestNote ? [`Participant note: ${revision.changeRequestNote}`] : []),
-    ...(
-      revision.amountChanges.length > 0
-        ? revision.amountChanges.map((change) => `${change.participantName}: ${formatKrw(change.beforeAmount)} -> ${formatKrw(change.afterAmount)}`)
-        : ["No participant amount changed."]
-    )
-  ];
-}
-
 function hydrateDerivedState(state: AppState): AppState {
   const groups = state.groups.length > 0 ? state.groups : [defaultGroup];
   const selectedGroupId = state.selectedGroupId && groups.some((group) => group.id === state.selectedGroupId) ? state.selectedGroupId : groups[0].id;
@@ -379,28 +325,6 @@ function appendArtifactsToChat(group: SplitFlowGroup, chatId: string, artifacts:
         : chat
     )
   };
-}
-
-function participantStatusesAfterSend(proposal: Proposal): Proposal {
-  return {
-    ...proposal,
-    status: "waiting_for_responses",
-    participants: proposal.participants.map((participant) => ({
-      ...participant,
-      status: participant.id === proposal.organizerId || participant.id === "you" ? "accepted" : participant.status === "not_sent" ? "pending" : participant.status,
-      paymentStatus: participant.id === proposal.organizerId || participant.id === "you" ? "review" : participant.paymentStatus
-    })),
-    updatedAt: new Date().toISOString()
-  };
-}
-
-function updateStatusFromParticipants(proposal: Proposal): Proposal {
-  const counts = countParticipants(proposal);
-  if (counts.changes > 0) return { ...proposal, status: "changes_requested" };
-  if (counts.optedOut > 0) return { ...proposal, status: "recalculation_needed" };
-  if (counts.needsReconfirmation > 0) return { ...proposal, status: "needs_reconfirmation" };
-  const next = deriveProposalStatus(proposal);
-  return { ...proposal, status: next === "waiting_for_responses" && counts.accepted > 0 ? "waiting_for_responses" : next };
 }
 
 function selectedIds(state: AppState) {
@@ -519,8 +443,38 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     // useChat owns network transport; group chat persistence is handled by recordChatUserMessage/applyAgentResponse.
   }, []);
 
-  const applyAgentResponse = useCallback((response: OrchestratorResponse, sourceMessage?: string, context?: AgentRunContext) => {
+  const applyAgentResponse = useCallback((response: OrchestratorResponse, sourceMessage?: string, context?: AgentRunContext, result?: WorkflowRunResult) => {
     setState((current) => {
+      if (result?.group) {
+        const groups = current.groups.some((group) => group.id === result.group.id)
+          ? current.groups.map((group) => (group.id === result.group.id ? result.group : group))
+          : [result.group, ...current.groups];
+        const artifactId = result.artifacts.find((artifactItem) => artifactItem.type === "parser_review" || artifactItem.type === "change_request_summary")?.id ?? result.artifacts[0]?.id;
+        return hydrateDerivedState({
+          ...current,
+          selectedGroupId: current.selectedGroupId,
+          groups,
+          workspacePanel:
+            artifactId && current.selectedGroupId === result.group.id
+              ? { type: "artifact", artifactId }
+              : current.workspacePanel,
+          agentRuns: [result.run, ...(current.agentRuns ?? []).filter((run) => run.id !== result.run.id)].slice(0, 20),
+          agentSteps:
+            result.run.events.filter((event) => event.type === "step_completed").length > 0
+              ? result.run.events
+                  .filter((event) => event.type === "step_completed")
+                  .map((event) => ({
+                    id: event.id,
+                    name: event.step,
+                    description: event.detail,
+                    status: "completed" as const,
+                    time: new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit" }).format(new Date(event.at))
+                  }))
+              : current.agentSteps,
+          aiUnavailable: false,
+          lastAiError: undefined
+        });
+      }
       const fallback = selectedIds(current);
       const group = context?.groupId ? current.groups.find((item) => item.id === context.groupId) ?? fallback.activeGroup : fallback.activeGroup;
       const chat = context?.chatId ? group.chats.find((item) => item.id === context.chatId) ?? fallback.activeChat : fallback.activeChat;
@@ -644,9 +598,50 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
+  const applyServerAction = useCallback((body: Record<string, unknown>) => {
+    void (async () => {
+      const response = await fetch("/api/agent/actions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body)
+      });
+      const result = (await response.json()) as WorkflowActionResult | { error?: string };
+      if (!response.ok || "error" in result) {
+        throw new Error("error" in result && result.error ? result.error : "Workflow action failed.");
+      }
+      const actionResult = result as WorkflowActionResult;
+      setState((current) => {
+        const groups = current.groups.some((group) => group.id === actionResult.group.id)
+          ? current.groups.map((group) => (group.id === actionResult.group.id ? actionResult.group : group))
+          : [actionResult.group, ...current.groups];
+        const artifactId = actionResult.artifacts[0]?.id;
+        return hydrateDerivedState({
+          ...current,
+          groups,
+          workspacePanel: artifactId && current.selectedGroupId === actionResult.group.id ? { type: "artifact", artifactId } : current.workspacePanel,
+          aiUnavailable: false,
+          lastAiError: undefined
+        });
+      });
+    })().catch((error) => {
+      setState((current) => ({
+        ...current,
+        aiUnavailable: true,
+        lastAiError: error instanceof Error ? error.message : "Workflow action failed."
+      }));
+    });
+  }, []);
+
   const sendProposal = useCallback((proposalId?: string) => {
-    updateProposalInActiveGroup(proposalId, (proposal) => appendTimeline(participantStatusesAfterSend(proposal), "Organizer", "Sent Your Share to friends for review."));
-  }, [updateProposalInActiveGroup]);
+    const targetId = proposalId ?? activeProposal.id;
+    applyServerAction({
+      type: "send_proposal",
+      groupId: activeGroup.id,
+      chatId: activeChat.id,
+      proposalId: targetId,
+      idempotencyKey: `send:${targetId}`
+    });
+  }, [activeChat.id, activeGroup.id, activeProposal.id, applyServerAction]);
 
   const reviewProposal = useCallback(() => {
     setState((current) => updateGroup(current, activeGroup.id, (group) => appendChatMessage(group, activeChat.id, createMessage("bot", "The Trip Split is ready. Open the panel to review the deterministic amounts before sending it to friends.", activeProposal.id))));
@@ -665,97 +660,29 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, [updateProposalInActiveGroup]);
 
   const respondAsParticipant = useCallback((participantId: string, status: Extract<ParticipantStatus, "accepted" | "opted_out" | "requested_changes">, note?: string, proposalId?: string) => {
-    updateProposalInActiveGroup(proposalId, (proposal) => {
-      const participants = proposal.participants.map((participant) =>
-        participant.id === participantId
-          ? {
-              ...participant,
-              status,
-              paymentStatus: status === "accepted" ? ("unpaid" as const) : ("review" as const),
-              changeRequestNote: status === "requested_changes" ? note || "Asked for a change." : participant.changeRequestNote,
-              lastRespondedAt: new Date().toISOString()
-            }
-          : participant
-      );
-      const withResponse = appendTimeline(
-        { ...proposal, participants, updatedAt: new Date().toISOString() },
-        proposal.participants.find((participant) => participant.id === participantId)?.name ?? participantId,
-        status === "accepted" ? "Tapped I'm In." : status === "opted_out" ? "Tapped I'm Out." : `Asked for a change: ${note ?? "No note provided."}`
-      );
-      if (status !== "opted_out") return updateStatusFromParticipants(withResponse);
-      return recalculateProposal(
-        {
-          ...withResponse,
-          costItems: withResponse.costItems.map((item) => ({
-            ...item,
-            excludedParticipantIds: Array.from(new Set([...(item.excludedParticipantIds ?? []), participantId]))
-          })),
-          status: "recalculation_needed"
-        },
-        "Participant opted out; recalculation is required."
-      );
+    const targetId = proposalId ?? activeProposal.id;
+    applyServerAction({
+      type: "participant_response",
+      groupId: activeGroup.id,
+      chatId: activeChat.id,
+      proposalId: targetId,
+      participantId,
+      status,
+      note,
+      idempotencyKey: `response:${targetId}:${participantId}:${status}:${note ?? ""}`
     });
-  }, [updateProposalInActiveGroup]);
+  }, [activeChat.id, activeGroup.id, activeProposal.id, applyServerAction]);
 
   const acceptRequestedChange = useCallback((proposalId?: string) => {
-    setState((current) => {
-      const { activeGroup: group, activeChat: chat } = selectedIds(current);
-      const targetId = proposalId ?? group.proposals[0]?.id;
-      if (!targetId) return current;
-
-      let changeArtifact: Artifact | undefined;
-      let revisedProposal: Proposal | undefined;
-
-      const nextState = updateGroup(current, group.id, (currentGroup) => {
-        const proposals = currentGroup.proposals.map((proposal) => {
-          if (proposal.id !== targetId) return proposal;
-          const requested = proposal.participants.find((participant) => participant.status === "requested_changes" && participant.changeRequestNote);
-          const recalculated = requested ? applyPrototypeAdjustment(proposal, requested.changeRequestNote ?? "") : { proposal, changed: false };
-          const next = recalculated.changed ? recalculated.proposal : recalculateProposal(proposal, "Reviewed requested change.");
-          const reconfirmationProposal = appendTimeline(
-            {
-              ...next,
-              status: "needs_reconfirmation",
-              participants: next.participants.map((participant) =>
-                participant.status === "accepted" || participant.status === "requested_changes"
-                  ? { ...participant, status: "needs_reconfirmation", paymentStatus: "review", changeRequestNote: undefined }
-                  : participant
-              )
-            },
-            "Organizer",
-            "Accepted requested change and requested reconfirmation."
-          );
-          const revision = createProposalRevision(
-            proposal,
-            reconfirmationProposal,
-            "Organizer",
-            "Accepted participant change request.",
-            requested?.changeRequestNote
-          );
-          revisedProposal = applyProposalRevision(proposal, reconfirmationProposal, revision);
-          changeArtifact = {
-            ...createArtifact(
-              "change_request_summary",
-              `${revisedProposal.title} v${revision.version} change summary`,
-              "Records the accepted participant change, affected shares, and reconfirmation requirement.",
-              revisedProposal.id,
-              revisionDetails(revision)
-            ),
-            proposalVersion: revision.version,
-            state: "staged"
-          };
-          return revisedProposal;
-        });
-
-        const nextGroup = { ...currentGroup, proposals };
-        return changeArtifact ? appendArtifactsToChat(nextGroup, chat.id, [changeArtifact]) : nextGroup;
-      });
-
-      return changeArtifact && revisedProposal
-        ? { ...nextState, workspacePanel: { type: "artifact", artifactId: changeArtifact.id } }
-        : nextState;
+    const targetId = proposalId ?? activeProposal.id;
+    applyServerAction({
+      type: "accept_change",
+      groupId: activeGroup.id,
+      chatId: activeChat.id,
+      proposalId: targetId,
+      idempotencyKey: `accept-change:${targetId}`
     });
-  }, []);
+  }, [activeChat.id, activeGroup.id, activeProposal.id, applyServerAction]);
 
   const requestReconfirmation = useCallback((proposalId?: string) => {
     updateProposalInActiveGroup(proposalId, (proposal) =>
@@ -778,20 +705,27 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, [updateProposalInActiveGroup]);
 
   const markPaid = useCallback((participantId: string, proposalId?: string) => {
-    updateProposalInActiveGroup(proposalId, (proposal) => {
-      const participants = proposal.participants.map((participant) =>
-        participant.id === participantId ? { ...participant, status: "paid" as const, paymentStatus: "paid" as const } : participant
-      );
-      const allPaid = participants
-        .filter((participant) => participant.status !== "opted_out")
-        .every((participant) => participant.paymentStatus === "paid" || participant.id === proposal.organizerId || participant.id === "you");
-      return appendTimeline({ ...proposal, participants, status: allPaid ? "settled" : "partially_paid" }, "Organizer", "Marked participant as paid.");
+    const targetId = proposalId ?? activeProposal.id;
+    applyServerAction({
+      type: "mark_paid",
+      groupId: activeGroup.id,
+      chatId: activeChat.id,
+      proposalId: targetId,
+      participantId,
+      idempotencyKey: `mark-paid:${targetId}:${participantId}`
     });
-  }, [updateProposalInActiveGroup]);
+  }, [activeChat.id, activeGroup.id, activeProposal.id, applyServerAction]);
 
   const markSettled = useCallback((proposalId?: string) => {
-    updateProposalInActiveGroup(proposalId, (proposal) => appendTimeline({ ...proposal, status: "settled" }, "Organizer", "Marked split collected."));
-  }, [updateProposalInActiveGroup]);
+    const targetId = proposalId ?? activeProposal.id;
+    applyServerAction({
+      type: "mark_settled",
+      groupId: activeGroup.id,
+      chatId: activeChat.id,
+      proposalId: targetId,
+      idempotencyKey: `mark-settled:${targetId}`
+    });
+  }, [activeChat.id, activeGroup.id, activeProposal.id, applyServerAction]);
 
   const archiveProposal = useCallback((proposalId?: string) => {
     updateProposalInActiveGroup(proposalId, (proposal) => appendTimeline({ ...proposal, status: "archived" }, "Organizer", "Archived proposal."));

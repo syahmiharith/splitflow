@@ -112,8 +112,8 @@ test("change request updates organizer ready check and requires reconfirmation",
   await expect(page.getByTestId("workspace-detail-panel")).toContainText("Alex asked for a change");
   await page.getByTestId("panel-accept-change").click();
   await expect(page.getByTestId("workspace-detail-panel")).toContainText("Check Again");
-  await expect(page.getByTestId("workspace-detail-panel")).toContainText("v2 change summary");
-  await expect(page.getByTestId("workspace-detail-panel")).toContainText("Version: v1 -> v2");
+  await expect(page.getByTestId("workspace-detail-panel")).toContainText("Accepted participant change request.");
+  await expect(page.getByTestId("workspace-detail-panel")).toContainText(/v\d+(?: to | -> )v\d+/);
 });
 
 test("creating a group and resetting data returns to canonical Jeju workspace", async ({ page }) => {

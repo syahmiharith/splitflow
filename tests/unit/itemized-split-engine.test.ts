@@ -101,12 +101,12 @@ describe("itemized split engine", () => {
     ).toThrow("no eligible participants");
   });
 
-  it("calculates the custom BBQ example", () => {
-    const bbqParticipants = [
+  it("calculates a custom trip lodging example", () => {
+    const tripParticipants = [
       { id: "syahmi", name: "Syahmi" },
       { id: "ali", name: "Ali" },
       { id: "sarah", name: "Sarah" },
-      { id: "daniel", name: "Daniel" },
+      { id: "alex", name: "Alex" },
       { id: "aiman", name: "Aiman" },
       { id: "amir", name: "Amir" },
       { id: "aisyah", name: "Aisyah" },
@@ -114,21 +114,20 @@ describe("itemized split engine", () => {
     ];
     const result = calculateItemizedSplit({
       currency: "KRW",
-      participants: bbqParticipants,
+      participants: tripParticipants,
       items: [
-        { id: "meat", label: "Meat", amount: 64000, paidByParticipantId: "syahmi", excludedParticipantIds: ["daniel"] },
-        { id: "drinks", label: "Drinks", amount: 24000, paidByParticipantId: "ali" },
-        { id: "charcoal", label: "Charcoal", amount: 10000, paidByParticipantId: "sarah" },
-        { id: "sides", label: "Sides", amount: 30000, paidByParticipantId: "syahmi" }
+        { id: "friday-airbnb", label: "Friday Airbnb", amount: 220000, paidByParticipantId: "syahmi", excludedParticipantIds: ["alex"] },
+        { id: "saturday-airbnb", label: "Saturday Airbnb", amount: 260000, paidByParticipantId: "ali" },
+        { id: "van-rental", label: "Van rental", amount: 90000, paidByParticipantId: "sarah" }
       ]
     });
 
-    expect(result.totalCost).toBe(128000);
-    expect(Object.values(result.totalPaidByParticipant).reduce((sum, amount) => sum + amount, 0)).toBe(128000);
-    expect(Object.values(result.fairShareByParticipant).reduce((sum, amount) => sum + amount, 0)).toBe(128000);
+    expect(result.totalCost).toBe(570000);
+    expect(Object.values(result.totalPaidByParticipant).reduce((sum, amount) => sum + amount, 0)).toBe(570000);
+    expect(Object.values(result.fairShareByParticipant).reduce((sum, amount) => sum + amount, 0)).toBe(570000);
     expect(Object.values(result.netBalanceByParticipant).reduce((sum, amount) => sum + amount, 0)).toBe(0);
-    expect(result.fairShareByParticipant.daniel).toBeLessThan(result.fairShareByParticipant.aiman);
-    expect(result.itemizedBreakdown.find((item) => item.itemId === "meat")?.shareByParticipant.daniel).toBeUndefined();
+    expect(result.fairShareByParticipant.alex).toBeLessThan(result.fairShareByParticipant.aiman);
+    expect(result.itemizedBreakdown.find((item) => item.itemId === "friday-airbnb")?.shareByParticipant.alex).toBeUndefined();
     expect(result.settlementInstructions.length).toBeGreaterThan(0);
     expectReconciled(result);
   });

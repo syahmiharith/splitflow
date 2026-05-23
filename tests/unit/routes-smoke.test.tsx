@@ -19,8 +19,8 @@ vi.mock("next/link", () => ({
 }));
 
 vi.mock("next/navigation", () => ({
-  useParams: () => ({ groupId: "bbq-crew" }),
-  usePathname: () => "/groups/bbq-crew/chat",
+  useParams: () => ({ groupId: "jeju-trip" }),
+  usePathname: () => "/groups/jeju-trip/chat",
   useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
   redirect: vi.fn()
 }));

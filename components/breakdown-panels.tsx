@@ -1,19 +1,19 @@
 "use client";
 
 import type { ComponentType } from "react";
-import { Beef, ChevronDown, CupSoda, FileText, Flame, Info, Salad, Users, WalletCards } from "lucide-react";
+import { Car, ChevronDown, FileText, Home, Info, Receipt, Sparkles, Users, WalletCards } from "lucide-react";
 import { formatKrw } from "@/lib/format";
 import type { CostItem, Proposal } from "@/lib/types";
 import { AppCard } from "@/components/ui/app-card";
 import { Table } from "@/components/ui/table";
 
-const itemIcons = [Beef, CupSoda, Flame, Salad];
+const itemIcons = [Home, Home, Receipt, Car, Sparkles];
 
 export function BreakdownPanels({ proposal }: { proposal: Proposal }) {
   return (
     <div className="grid gap-2 xl:grid-cols-[270px_minmax(0,1fr)]" data-testid="breakdown-panels">
-      <MobileAccordionRow icon={FileText} title="Cost Items" />
-      <MobileAccordionRow icon={Users} title="Participant Breakdown" />
+      <MobileAccordionRow icon={FileText} title="Split Details" />
+      <MobileAccordionRow icon={Users} title="Everyone's Share" />
       <div className="hidden xl:contents">
         <CostItemsPanel items={proposal.costItems} total={proposal.totalCost} />
         <ParticipantBreakdown proposal={proposal} />
@@ -23,7 +23,7 @@ export function BreakdownPanels({ proposal }: { proposal: Proposal }) {
           <AppCard className="overflow-hidden" data-testid="calculation-audit">
             <div className="flex items-center gap-2 border-b border-app-border px-5 py-3 text-base font-bold">
               <WalletCards className="h-5 w-5 text-app-blue" aria-hidden="true" />
-              Your calculation
+              Split math
             </div>
             <div className="grid gap-3 p-5 md:grid-cols-2">
               <div className="space-y-2">
@@ -76,7 +76,7 @@ function MobileAccordionRow({ icon: Icon, title }: { icon: ComponentType<{ class
 function CostItemsPanel({ items, total }: { items: CostItem[]; total: number }) {
   return (
     <AppCard className="overflow-hidden" data-testid="cost-items-panel">
-      <div className="border-b border-app-border px-5 py-3 text-base font-bold">Cost Items</div>
+      <div className="border-b border-app-border px-5 py-3 text-base font-bold">Split details</div>
       <div>
         <Table className="rounded-none border-0" minWidth="560px">
           <Table.Header>
@@ -89,7 +89,7 @@ function CostItemsPanel({ items, total }: { items: CostItem[]; total: number }) 
           </Table.Header>
           <Table.Body>
             {items.map((item, index) => {
-              const Icon = itemIcons[index] ?? Salad;
+              const Icon = itemIcons[index] ?? Sparkles;
               return (
                 <Table.Row key={item.id}>
                   <Table.Cell nowrap>
@@ -128,12 +128,12 @@ function ParticipantBreakdown({ proposal }: { proposal: Proposal }) {
 
   return (
     <AppCard className="overflow-hidden" data-testid="participant-breakdown-panel">
-      <div className="border-b border-app-border px-5 py-3 text-base font-bold">Participant Breakdown</div>
+      <div className="border-b border-app-border px-5 py-3 text-base font-bold">Everyone's share</div>
       <div>
         <Table className="rounded-none border-0" minWidth="640px">
           <Table.Header>
             <Table.Row>
-              <Table.Head>Participant</Table.Head>
+              <Table.Head>Friend</Table.Head>
               <Table.Head>Role</Table.Head>
               <Table.Head numeric>Fair share (KRW)</Table.Head>
               <Table.Head numeric>Paid upfront (KRW)</Table.Head>

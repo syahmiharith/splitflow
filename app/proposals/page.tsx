@@ -1,5 +1,5 @@
-import { LegacyGroupRedirect } from "@/components/legacy-group-redirect";
+import { redirect } from "next/navigation";
 
 export default function ProposalsRedirectPage() {
-  return <LegacyGroupRedirect target="proposals" />;
+  redirect("/groups/jeju-trip/proposals");
 }

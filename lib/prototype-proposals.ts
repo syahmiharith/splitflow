@@ -8,8 +8,6 @@ import { parseExpensePrompt } from "@/lib/parser/expense-parser";
 import type { AllocationStrategy, ParsedExpenseDraft, ParserResult } from "@/lib/parser/expense-types";
 import type { CostItem, Participant, ParticipantCredit, PaymentRecord, PaymentRecordStatus, Proposal, TimelineEvent } from "@/lib/types";
 
-const defaultNames = ["Syahmi", "Ali", "Sarah", "Daniel", "Aiman", "Amir", "Aisyah", "Mina"];
-
 function now(): string {
   return new Date().toISOString();
 }
@@ -81,7 +79,7 @@ export function recalculateProposal(proposal: Proposal, timelineText?: string): 
   };
 }
 
-export function createProposalFromPrompt(message: string, groupId = "bbq-crew"): { proposal?: Proposal; parserResult: ParserResult } {
+export function createProposalFromPrompt(message: string, groupId = "jeju-trip"): { proposal?: Proposal; parserResult: ParserResult } {
   const parserResult = parseExpensePrompt(message);
   if (parserResult.status !== "ready" || !parserResult.draft) return { parserResult };
   return { parserResult, proposal: createProposalFromParsedDraft(parserResult.draft, groupId) };
@@ -89,7 +87,7 @@ export function createProposalFromPrompt(message: string, groupId = "bbq-crew"):
 
 export function createProposalFromPromptWithAllocation(
   message: string,
-  groupId = "bbq-crew",
+  groupId = "jeju-trip",
   strategy: Extract<AllocationStrategy, "single_total_equal_items" | "unallocated_remainder">
 ): { proposal?: Proposal; parserResult: ParserResult } {
   const parserResult = parseExpensePrompt(message);
@@ -137,7 +135,7 @@ function resolveAllocationDraft(draft: ParsedExpenseDraft, strategy: Extract<All
   };
 }
 
-export function createProposalFromParsedDraft(draft: ParsedExpenseDraft, groupId = "bbq-crew"): Proposal {
+export function createProposalFromParsedDraft(draft: ParsedExpenseDraft, groupId = "jeju-trip"): Proposal {
   const createdAt = now();
   const participants = draft.participants.map((participant, index) => ({
     id: participant.id,
@@ -160,7 +158,7 @@ export function createProposalFromParsedDraft(draft: ParsedExpenseDraft, groupId
   const paymentRecords = draft.credits.map<PaymentRecord>((credit, index) => ({
     id: `credit-${idSeed}-${index + 1}`,
     groupId,
-    proposalId: draft.title === "BBQ Dinner" ? "bbq-dinner" : `proposal-${idSeed}`,
+    proposalId: `proposal-${idSeed}`,
     fromParticipantId: participantIdByName.get(credit.fromName) ?? slug(credit.fromName),
     toParticipantId: participantIdByName.get(credit.toName) ?? organizerId,
     amount: credit.amount,
@@ -172,10 +170,12 @@ export function createProposalFromParsedDraft(draft: ParsedExpenseDraft, groupId
     createdAt,
     sourceText: credit.note
   }));
-  const proposalId = draft.title === "BBQ Dinner" ? "bbq-dinner" : `proposal-${idSeed}-${Date.now()}`;
+  const proposalId = `proposal-${idSeed}-${Date.now()}`;
 
   const proposal: Proposal = {
     id: proposalId,
+    version: 1,
+    revisionHistory: [],
     title: draft.title,
     description: "Parsed from chat input.",
     groupId,
@@ -308,109 +308,13 @@ export function createSettlementLedgerLines(proposal: Proposal): string[] {
   return lines;
 }
 
-export function createBbqProposalFromPrompt(message: string): Proposal | undefined {
-  if (!/bbq|barbecue/i.test(message)) return undefined;
-
-  const countMatch = message.match(/for\s+(\d+)/i);
-  const count = countMatch ? Number(countMatch[1]) : 8;
-  const names = defaultNames.slice(0, Math.max(1, count));
-  const participants = names.map(participantFromName);
-  const byId = new Map(participants.map((participant) => [participant.name.toLowerCase(), participant.id]));
-  const syahmiId = byId.get("syahmi") ?? "you";
-  const aliId = byId.get("ali") ?? "ali";
-  const sarahId = byId.get("sarah") ?? "sarah";
-  const danielId = byId.get("daniel") ?? "daniel";
-
-  const items: CostItem[] = [
-    {
-      id: "meat",
-      label: "Meat",
-      amount: findAmountBeforeLabel(message, "meat") ?? 64000,
-      paidBy: "Syahmi",
-      paidByParticipantId: syahmiId,
-      excludedParticipantIds: /daniel.+(?:did not|didn't|didnt).+(?:beef|meat)|(?:beef|meat).+daniel/i.test(message) ? [danielId] : undefined
-    },
-    {
-      id: "drinks",
-      label: "Drinks",
-      amount: findAmountBeforeLabel(message, "drinks") ?? 24000,
-      paidBy: "Ali",
-      paidByParticipantId: aliId
-    },
-    {
-      id: "charcoal",
-      label: "Charcoal",
-      amount: findAmountBeforeLabel(message, "charcoal") ?? 10000,
-      paidBy: "Sarah",
-      paidByParticipantId: sarahId
-    },
-    {
-      id: "sides",
-      label: "Sides",
-      amount: findAmountBeforeLabel(message, "sides") ?? 30000,
-      paidBy: "Syahmi",
-      paidByParticipantId: syahmiId
-    }
-  ];
-
-  const createdAt = now();
-  const proposal: Proposal = {
-    id: "bbq-dinner",
-    title: "BBQ Dinner",
-    description: "Itemized BBQ split with payer reimbursement and item exclusions.",
-    groupId: "bbq-crew",
-    organizerId: syahmiId,
-    organizerName: "Syahmi",
-    totalCost: 0,
-    currency: "KRW",
-    splitMethod: "mixed_item_based",
-    deadline: "2026-05-24T14:30:00.000+09:00",
-    cancellationRule: "Participants should accept before the organizer treats the settlement as ready.",
-    participants,
-    costItems: items,
-    status: "draft",
-    isBooked: false,
-    createdAt,
-    updatedAt: createdAt,
-    fairnessNote: "Item costs are split only among eligible participants, then payer reimbursements are netted.",
-    recommendation: "Review the deterministic calculation and send the proposal for participant approval.",
-    timeline: [{ id: "created", at: createdAt, actor: "Organizer", text: "Created draft from chat input." }],
-    aiExplanation: "AI drafted the proposal structure; deterministic TypeScript calculated all amounts."
-  };
-
-  return recalculateProposal(proposal);
-}
-
 export function applyPrototypeAdjustment(proposal: Proposal, prompt: string): { proposal: Proposal; changed: boolean; before: Record<string, number> } {
   const before = Object.fromEntries(proposal.participants.map((participant) => [participant.id, participant.shareAmount]));
   let changed = false;
   let next = proposal;
 
-  if (isDanielBeefExclusion(prompt)) {
-    next = updateItemExclusion(next, "meat", "daniel", true);
-    changed = true;
-  }
-
-  if (/ali.+only.+drinks|only.+drinks.+ali/i.test(prompt)) {
-    next = {
-      ...next,
-      costItems: next.costItems.map((item) =>
-        item.id === "drinks"
-          ? { ...item, includedParticipantIds: ["ali"] }
-          : { ...item, excludedParticipantIds: Array.from(new Set([...(item.excludedParticipantIds ?? []), "ali"])) }
-      )
-    };
-    changed = true;
-  }
-
-  if (/meat.+(?:only\s+)?among\s+6|split meat only among 6/i.test(prompt)) {
-    const eligible = next.participants.filter((participant) => participant.id !== "daniel").slice(0, 6).map((participant) => participant.id);
-    next = { ...next, costItems: next.costItems.map((item) => (item.id === "meat" ? { ...item, includedParticipantIds: eligible } : item)) };
-    changed = true;
-  }
-
-  if (/sarah.+not pay.+charcoal|sarah.+brought.+charcoal/i.test(prompt)) {
-    next = updateItemExclusion(next, "charcoal", "sarah", true);
+  if (/alex.+(?:only.+saturday|join.+saturday|staying.+saturday)|(?:only.+saturday|join.+saturday|staying.+saturday).+alex/i.test(prompt)) {
+    next = updateItemExclusion(next, "friday-airbnb", "alex", true);
     changed = true;
   }
 
@@ -426,37 +330,47 @@ export function applyPrototypeAdjustment(proposal: Proposal, prompt: string): { 
   return { proposal: recalculated, changed, before };
 }
 
-function isDanielBeefExclusion(prompt: string): boolean {
-  return /daniel.+(?:did not|didn't|didnt).+(?:beef|meat)|(?:beef|meat).+daniel|(?:^|\b)i\s+(?:did not|didn't|didnt)\s+eat\s+(?:beef|meat)/i.test(prompt);
+export function loadTripDemoProposal(): Proposal {
+  return createJejuTripProposal("jeju-trip", "jeju-airbnb-trip");
 }
 
-export function loadTripDemoProposal(): Proposal {
+export function createJejuTripProposal(groupId = "jeju-trip", id = "jeju-airbnb-trip"): Proposal {
   const createdAt = now();
-  const participants = ["Syahmi", "Amir", "Aisyah", "Daniel"].map(participantFromName);
+  const participants = ["Syahmi", "Mina", "Daniel", "Alex", "Sarah", "Yuna"].map(participantFromName).map((participant) => {
+    if (participant.id === "mina") return { ...participant, roleNote: "Sharing a room with Daniel" };
+    if (participant.id === "daniel") return { ...participant, roleNote: "Sharing a room with Mina" };
+    if (participant.id === "alex") return { ...participant, roleNote: "Only staying Saturday night" };
+    return participant;
+  });
   const proposal: Proposal = {
-    id: `trip-${Date.now()}`,
-    title: "Weekend Trip",
-    description: "Simple trip demo with equal lodging and transport split.",
-    groupId: "trip",
+    id,
+    version: 1,
+    revisionHistory: [],
+    title: "Jeju Airbnb Trip Split",
+    description: "Airbnb booking split where the organizer needs friend confirmations before paying the host.",
+    groupId,
     organizerId: "you",
     organizerName: "Syahmi",
     totalCost: 0,
     currency: "KRW",
     splitMethod: "mixed_item_based",
-    deadline: "2026-05-30T14:30:00.000+09:00",
-    cancellationRule: "Confirm before booking.",
+    deadline: "2026-05-25T20:00:00.000+09:00",
+    cancellationRule: "Friends should tap I'm In before Syahmi books. If someone leaves, changed amounts need another check.",
     participants,
     costItems: [
-      { id: "lodging", label: "Lodging", amount: 280000, paidBy: "Syahmi", paidByParticipantId: "you" },
-      { id: "transport", label: "Transport", amount: 80000, paidBy: "Amir", paidByParticipantId: "amir" }
+      { id: "friday-airbnb", label: "Friday night Airbnb", amount: 210000, paidBy: "Syahmi", paidByParticipantId: "you", excludedParticipantIds: ["alex"] },
+      { id: "saturday-airbnb", label: "Saturday night Airbnb", amount: 210000, paidBy: "Syahmi", paidByParticipantId: "you" },
+      { id: "cleaning-fee", label: "Cleaning fee", amount: 60000, paidBy: "Syahmi", paidByParticipantId: "you" },
+      { id: "van-deposit", label: "Van deposit", amount: 90000, paidBy: "Sarah", paidByParticipantId: "sarah" }
     ],
     status: "draft",
     isBooked: false,
     createdAt,
     updatedAt: createdAt,
-    fairnessNote: "",
-    recommendation: "",
-    timeline: [{ id: "created", at: createdAt, actor: "Demo", text: "Loaded trip demo." }]
+    fairnessNote: "Alex is not included in Friday night because he only joins on Saturday.",
+    recommendation: "Send this trip split to friends and wait for confirmations before booking.",
+    timeline: [{ id: "created", at: createdAt, actor: "SplitFlow", text: "Built a trip split from messy booking details." }],
+    aiExplanation: "AI structures the trip details; deterministic TypeScript calculates shares and booking readiness."
   };
   return recalculateProposal(proposal);
 }
@@ -466,6 +380,8 @@ export function loadSubscriptionDemoProposal(): Proposal {
   const participants = ["Syahmi", "Ali", "Sarah", "Daniel", "Aiman"].map(participantFromName);
   const proposal: Proposal = {
     id: `subscription-${Date.now()}`,
+    version: 1,
+    revisionHistory: [],
     title: "Netflix Family",
     description: "Subscription demo with one payer and equal member split.",
     groupId: "subscription",
@@ -487,12 +403,6 @@ export function loadSubscriptionDemoProposal(): Proposal {
     timeline: [{ id: "created", at: createdAt, actor: "Demo", text: "Loaded subscription demo." }]
   };
   return recalculateProposal(proposal);
-}
-
-function findAmountBeforeLabel(message: string, label: string): number | undefined {
-  const pattern = new RegExp(`(?:₩|krw\\s*)?(\\d[\\d,]*)\\s+${label}`, "i");
-  const match = message.match(pattern);
-  return match ? Number(match[1].replace(/,/g, "")) : undefined;
 }
 
 function updateItemExclusion(proposal: Proposal, itemId: string, participantId: string, excluded: boolean): Proposal {

@@ -8,7 +8,7 @@ import type {
   ParsedPayer
 } from "@/lib/parser/expense-types";
 
-const stopNames = new Set(["BBQ", "KRW", "Total", "Split", "Round", "House", "Trip", "Movie", "Dinner", "Groceries"]);
+const stopNames = new Set(["KRW", "Total", "Split", "Round", "House", "Trip", "Movie", "Dinner", "Groceries"]);
 const knownItemAliases: Record<string, string[]> = {
   meat: ["beef", "meat", "chicken"],
   drinks: ["drink", "drinks", "drank"],
@@ -121,8 +121,8 @@ function excludeNonParticipants(names: string[], input: string, intent: ParsedEx
 }
 
 export function classifyExpenseIntent(input: string): ParsedExpenseIntent {
-  if (/bbq|barbecue|dinner|chicken|rice|dessert|drinks|groceries/i.test(input)) return "food";
   if (/trip|travel|airbnb|hotel|busan|jeju/i.test(input)) return "travel";
+  if (/dinner|chicken|rice|dessert|drinks|groceries/i.test(input)) return "food";
   if (/movie|ticket|snack/i.test(input)) return "movie";
   if (/gift|minji|present/i.test(input)) return "gift";
   if (/house|delivery|bill|utilities/i.test(input)) return "household";
@@ -130,7 +130,6 @@ export function classifyExpenseIntent(input: string): ParsedExpenseIntent {
 }
 
 function titleForIntent(intent: ParsedExpenseIntent, input: string): string {
-  if (/bbq|barbecue/i.test(input)) return "BBQ Dinner";
   if (/movie/i.test(input)) return "Movie Night";
   if (/gift/i.test(input)) return "Group Gift";
   if (/trip/i.test(input)) return "Trip Dinner";
@@ -151,7 +150,7 @@ function defaultItemLabel(intent: ParsedExpenseIntent): string {
 function extractParticipantCount(input: string): number | undefined {
   const match = input.match(/(?:for|between|among|joined|split between)?\s*(\d+)\s+(?:people|participants|pax|friends)\b/i);
   if (match) return Number(match[1]);
-  const shorthand = input.match(/\b(?:bbq|dinner|movie|trip|gift|house dinner)[^.]*\bfor\s+(\d+)(?:\.|$)/i);
+  const shorthand = input.match(/\b(?:dinner|movie|trip|gift|house dinner)[^.]*\bfor\s+(\d+)(?:\.|$)/i);
   return shorthand ? Number(shorthand[1]) : undefined;
 }
 
@@ -320,7 +319,7 @@ function extractReceiptItems(input: string, payers: ParsedPayer[]): ParsedExpens
   const items = new Map<string, ParsedExpenseItem>();
   for (const line of input.split(/\r?\n/)) {
     const trimmed = line.trim();
-    if (!trimmed || /^(total|subtotal|tax|vat|service|discount|change|cash|card|bbq crew)$/i.test(trimmed)) continue;
+    if (!trimmed || /^(total|subtotal|tax|vat|service|discount|change|cash|card)$/i.test(trimmed)) continue;
     if (/\b\d+\s+(people|participants|pax|friends)\b/i.test(trimmed)) continue;
     const match = trimmed.match(/^([A-Za-z][A-Za-z\s&-]{1,40})\s+(?:₩\s*|KRW\s*)?(\d+(?:,\d{3})*|\d+)\s*(k|K|won|KRW|krw)?$/i);
     if (!match) continue;

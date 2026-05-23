@@ -1,6 +1,6 @@
 "use client";
 
-import { CreditCard, Map, RotateCcw, Utensils } from "lucide-react";
+import { CreditCard, Map, RotateCcw } from "lucide-react";
 import { useSplitFlow } from "@/lib/store";
 
 type DemoToolbarProps = {
@@ -15,9 +15,8 @@ export function DemoToolbar({ compact = false, showLoaders = true }: DemoToolbar
     <div className={`flex flex-wrap gap-2 rounded-2xl border border-app-border bg-white p-2 md:rounded-lg ${compact ? "mb-4" : ""}`} data-testid="demo-toolbar">
       {showLoaders ? (
         <>
-          <DemoButton icon={Utensils} label="Load BBQ Demo" onClick={() => loadDemo("bbq")} />
-          <DemoButton icon={Map} label="Load Trip Demo" onClick={() => loadDemo("trip")} />
-          <DemoButton icon={CreditCard} label="Load Subscription Demo" onClick={() => loadDemo("subscription")} />
+          <DemoButton icon={Map} label="Load Jeju Trip" onClick={() => loadDemo("trip")} />
+          <DemoButton icon={CreditCard} label="Load Subscription Split" onClick={() => loadDemo("subscription")} />
         </>
       ) : null}
       <DemoButton icon={RotateCcw} label="Reset Demo Data" onClick={resetDemo} testId="reset-demo-data" />
@@ -25,7 +24,7 @@ export function DemoToolbar({ compact = false, showLoaders = true }: DemoToolbar
   );
 }
 
-function DemoButton({ icon: Icon, label, onClick, testId }: { icon: typeof Utensils; label: string; onClick: () => void; testId?: string }) {
+function DemoButton({ icon: Icon, label, onClick, testId }: { icon: typeof Map; label: string; onClick: () => void; testId?: string }) {
   return (
     <button
       type="button"

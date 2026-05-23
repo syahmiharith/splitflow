@@ -4,7 +4,7 @@ import { useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useSplitFlow } from "@/lib/store";
 
-export default function LegacyProposalDetailRedirectPage() {
+export default function ProposalDetailShortcutPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
   const { state, activeGroup } = useSplitFlow();
@@ -16,7 +16,7 @@ export default function LegacyProposalDetailRedirectPage() {
 
   return (
     <div className="px-4 py-5 text-sm text-app-muted md:p-6" data-testid="proposal-detail-redirect">
-      Opening proposal detail...
+      Opening split details...
     </div>
   );
 }

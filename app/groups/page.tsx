@@ -63,7 +63,7 @@ export default function GroupsPage() {
                         <Users className="h-4 w-4" />
                         {group.members.length} members
                       </span>
-                      <span>{summary.activeProposals} active proposals</span>
+                      <span>{summary.activeProposals} active splits</span>
                       <span className="basis-full inline-flex items-center gap-1.5">
                         <Clock3 className="h-4 w-4" />
                         Updated {new Date(group.updatedAt).toLocaleDateString()}
@@ -93,7 +93,7 @@ export default function GroupsPage() {
             <Table.Row>
               <Table.Head>Group</Table.Head>
               <Table.Head>Members</Table.Head>
-              <Table.Head>Active proposals</Table.Head>
+              <Table.Head>Active splits</Table.Head>
               <Table.Head numeric>Outstanding</Table.Head>
               <Table.Head>Status</Table.Head>
               <Table.Head align="right">Action</Table.Head>

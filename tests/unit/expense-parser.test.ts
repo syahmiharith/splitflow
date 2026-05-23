@@ -3,9 +3,9 @@ import { parseExpensePrompt } from "@/lib/parser/expense-parser";
 import { createProposalFromPrompt } from "@/lib/prototype-proposals";
 
 describe("prototype-grade expense parser", () => {
-  it("parses BBQ itemized costs with Daniel beef exclusion", () => {
+  it("parses itemized dinner costs with Daniel beef exclusion", () => {
     const result = parseExpensePrompt(
-      "BBQ for 8 people. I paid 128,000 won. Meat was 80k, drinks 20k, charcoal 10k, sides 18k. Daniel doesn't eat beef so don't charge him for meat."
+      "Dinner for 8 people. I paid 128,000 won. Meat was 80k, drinks 20k, dessert 10k, sides 18k. Daniel doesn't eat beef so don't charge him for meat."
     );
 
     expect(result.status).toBe("ready");
@@ -13,7 +13,7 @@ describe("prototype-grade expense parser", () => {
     expect(result.draft?.items.map((item) => [item.label, item.amount])).toEqual([
       ["Meat", 80000],
       ["Drinks", 20000],
-      ["Charcoal", 10000],
+      ["Dessert", 10000],
       ["Sides", 18000]
     ]);
     expect(result.draft?.participants).toHaveLength(8);
@@ -71,7 +71,7 @@ describe("prototype-grade expense parser", () => {
   });
 
   it("asks clarification for mismatched stated total and items", () => {
-    const result = parseExpensePrompt("BBQ for 8 people. Total was 128,000 won. Meat was 80k and drinks 20k.");
+    const result = parseExpensePrompt("Dinner for 8 people. Total was 128,000 won. Meat was 80k and drinks 20k.");
 
     expect(result.status).toBe("needs_clarification");
     expect(result.clarificationQuestions[0].question).toContain("itemized costs add up");

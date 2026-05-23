@@ -5,12 +5,12 @@ import type { OrchestratorResponse } from "@/lib/agents/agent-types";
 import { deriveGroupAnalytics } from "@/lib/analytics";
 import type { Proposal as DomainProposal } from "@/lib/domain/proposal-types";
 import { defaultGroup, initialState } from "@/lib/demo-data";
+import { formatKrw } from "@/lib/format";
 import { createGroupParticipant } from "@/lib/group-participant";
 import { countParticipants, deriveProposalStatus } from "@/lib/split";
 import { getDemoState, resetDemoData, saveDemoState } from "@/lib/prototype-persistence";
 import {
   applyPrototypeAdjustment,
-  createBbqProposalFromPrompt,
   createProposalFromPrompt,
   createProposalFromPromptWithAllocation,
   createSettlementLedgerLines,
@@ -20,12 +20,16 @@ import {
   updatePaymentRecordStatus
 } from "@/lib/prototype-proposals";
 import type {
+  AgentRun,
+  AgentRunContext,
+  AgentRunEvent,
   AppState,
   Artifact,
   BotMessage,
   ChatSession,
   ParticipantStatus,
   Proposal,
+  ProposalRevision,
   SplitFlowGroup,
   UserMode
 } from "@/lib/types";
@@ -47,10 +51,11 @@ type StoreContextValue = {
   ensureDefaultGroup: () => void;
   createChat: (groupId?: string) => string;
   selectChat: (chatId: string, groupId?: string) => void;
-  recordChatUserMessage: (message: string, groupId?: string) => void;
+  recordChatUserMessage: (message: string, context?: AgentRunContext) => void;
   setActiveProposal: (proposalId: string) => void;
   sendChatMessage: (message: string) => Promise<void>;
-  applyAgentResponse: (response: OrchestratorResponse, sourceMessage?: string) => void;
+  applyAgentResponse: (response: OrchestratorResponse, sourceMessage?: string, context?: AgentRunContext) => void;
+  failAgentRun: (runId: string, error: string) => void;
   sendProposal: (proposalId?: string) => void;
   reviewProposal: () => void;
   askAiToAdjust: () => void;
@@ -73,7 +78,7 @@ type StoreContextValue = {
   openProposalPanel: (proposalId: string) => void;
   openGroupSettings: () => void;
   closePanel: () => void;
-  loadDemo: (kind: "bbq" | "trip" | "subscription") => void;
+  loadDemo: (kind: "trip" | "subscription") => void;
   resetDemo: () => void;
 };
 
@@ -86,6 +91,62 @@ function createMessage(sender: BotMessage["sender"], content: string, relatedPro
     content,
     createdAt: new Date().toISOString(),
     relatedProposalId
+  };
+}
+
+function createRunEvent(runId: string, type: AgentRunEvent["type"], detail: string, extra?: Partial<AgentRunEvent>): AgentRunEvent {
+  return {
+    id: crypto.randomUUID(),
+    runId,
+    at: new Date().toISOString(),
+    type,
+    detail,
+    ...extra
+  } as AgentRunEvent;
+}
+
+function createAgentRun(context: AgentRunContext, sourceMessageId: string): AgentRun {
+  const started = createRunEvent(context.runId, "run_started", "Organizer message sent to the SplitFlow workflow.");
+  return {
+    id: context.runId,
+    groupId: context.groupId,
+    chatId: context.chatId,
+    sourceMessageId,
+    status: "running",
+    startedAt: started.at,
+    eventIds: [started.id],
+    events: [started]
+  };
+}
+
+function completeAgentRun(run: AgentRun, response: OrchestratorResponse, artifacts: Artifact[]): AgentRun {
+  const traceEvents = response.trace.map((step) =>
+    createRunEvent(run.id, "step_completed", step.detail, { step: step.agent })
+  );
+  const artifactEvents = artifacts.map((artifact) =>
+    createRunEvent(run.id, "artifact_staged", `Staged ${artifact.title}.`, { artifactId: artifact.id })
+  );
+  const completed = createRunEvent(run.id, "run_completed", "SplitFlow workflow response applied to the originating chat.");
+  const events = [...run.events, ...traceEvents, ...artifactEvents, completed];
+  return {
+    ...run,
+    status: "completed",
+    endedAt: completed.at,
+    eventIds: events.map((event) => event.id),
+    events
+  };
+}
+
+function failRun(run: AgentRun, error: string): AgentRun {
+  const failed = createRunEvent(run.id, "run_failed", error);
+  const events = [...run.events, failed];
+  return {
+    ...run,
+    status: "failed",
+    endedAt: failed.at,
+    error,
+    eventIds: events.map((event) => event.id),
+    events
   };
 }
 
@@ -107,7 +168,7 @@ function createEmptyChat(title = "New chat"): ChatSession {
   return {
     id: crypto.randomUUID(),
     title,
-    messages: [createMessage("bot", "Describe the group expense and I’ll create proposal artifacts for this group.")],
+    messages: [createMessage("bot", "Describe the shared cost, who is involved, and what needs to be decided.")],
     artifactIds: [],
     createdAt: now,
     updatedAt: now
@@ -195,6 +256,60 @@ function appendTimeline(proposal: Proposal, actor: string, text: string): Propos
   };
 }
 
+function participantAmount(proposal: Proposal, participantId: string): number {
+  return proposal.calculationResult?.fairShareByParticipant[participantId] ?? proposal.participants.find((participant) => participant.id === participantId)?.shareAmount ?? 0;
+}
+
+function createProposalRevision(previous: Proposal, next: Proposal, actor: string, reason: string, changeRequestNote?: string): ProposalRevision {
+  const previousVersion = previous.version ?? 1;
+  const participantById = new Map(next.participants.map((participant) => [participant.id, participant]));
+  const amountChanges = previous.participants
+    .map((participant) => {
+      const afterParticipant = participantById.get(participant.id);
+      const beforeAmount = participantAmount(previous, participant.id);
+      const afterAmount = participantAmount(next, participant.id);
+      return {
+        participantId: participant.id,
+        participantName: afterParticipant?.name ?? participant.name,
+        beforeAmount,
+        afterAmount
+      };
+    })
+    .filter((change) => change.beforeAmount !== change.afterAmount);
+
+  return {
+    id: crypto.randomUUID(),
+    version: previousVersion + 1,
+    previousVersion,
+    createdAt: new Date().toISOString(),
+    actor,
+    reason,
+    changeRequestNote,
+    amountChanges
+  };
+}
+
+function applyProposalRevision(previous: Proposal, next: Proposal, revision: ProposalRevision): Proposal {
+  return {
+    ...next,
+    version: revision.version,
+    revisionHistory: [...(previous.revisionHistory ?? []), revision]
+  };
+}
+
+function revisionDetails(revision: ProposalRevision): string[] {
+  return [
+    `Version: v${revision.previousVersion} -> v${revision.version}`,
+    `Reason: ${revision.reason}`,
+    ...(revision.changeRequestNote ? [`Participant note: ${revision.changeRequestNote}`] : []),
+    ...(
+      revision.amountChanges.length > 0
+        ? revision.amountChanges.map((change) => `${change.participantName}: ${formatKrw(change.beforeAmount)} -> ${formatKrw(change.afterAmount)}`)
+        : ["No participant amount changed."]
+    )
+  ];
+}
+
 function hydrateDerivedState(state: AppState): AppState {
   const groups = state.groups.length > 0 ? state.groups : [defaultGroup];
   const selectedGroupId = state.selectedGroupId && groups.some((group) => group.id === state.selectedGroupId) ? state.selectedGroupId : groups[0].id;
@@ -205,10 +320,13 @@ function hydrateDerivedState(state: AppState): AppState {
   }
   return {
     ...state,
+    schemaVersion: state.schemaVersion ?? initialState.schemaVersion,
+    migrationLog: state.migrationLog ?? [],
     selectedGroupId,
     selectedChatIdByGroupId,
     groups: groups.map((group) => ({ ...group, analyticsSummary: deriveGroupAnalytics(group) })),
-    agentSteps: state.agentSteps.length > 0 ? state.agentSteps : initialState.agentSteps
+    agentSteps: state.agentSteps.length > 0 ? state.agentSteps : initialState.agentSteps,
+    agentRuns: state.agentRuns ?? []
   };
 }
 
@@ -378,11 +496,18 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     );
   }, [activeGroup.id]);
 
-  const recordChatUserMessage = useCallback((message: string, groupId?: string) => {
-    const targetGroupId = groupId ?? activeGroup.id;
+  const recordChatUserMessage = useCallback((message: string, context?: AgentRunContext) => {
+    const targetGroupId = context?.groupId ?? activeGroup.id;
     setState((current) => {
-      const { activeChat: selectedChat } = selectedIds(current);
-      return updateGroup(current, targetGroupId, (group) => appendChatMessage(group, selectedChat.id, createMessage("user", message)));
+      const group = current.groups.find((item) => item.id === targetGroupId);
+      const targetChatId = context?.chatId ?? group?.chats[0]?.id ?? selectedIds(current).activeChat.id;
+      const userMessage = createMessage("user", message);
+      const nextState = updateGroup(current, targetGroupId, (currentGroup) => appendChatMessage(currentGroup, targetChatId, userMessage));
+      if (!context) return nextState;
+      return {
+        ...nextState,
+        agentRuns: [createAgentRun(context, userMessage.id), ...(nextState.agentRuns ?? [])].slice(0, 20)
+      };
     });
   }, [activeGroup.id]);
 
@@ -394,9 +519,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     // useChat owns network transport; group chat persistence is handled by recordChatUserMessage/applyAgentResponse.
   }, []);
 
-  const applyAgentResponse = useCallback((response: OrchestratorResponse, sourceMessage?: string) => {
+  const applyAgentResponse = useCallback((response: OrchestratorResponse, sourceMessage?: string, context?: AgentRunContext) => {
     setState((current) => {
-      const { activeGroup: group, activeChat: chat } = selectedIds(current);
+      const fallback = selectedIds(current);
+      const group = context?.groupId ? current.groups.find((item) => item.id === context.groupId) ?? fallback.activeGroup : fallback.activeGroup;
+      const chat = context?.chatId ? group.chats.find((item) => item.id === context.chatId) ?? fallback.activeChat : fallback.activeChat;
       const previous = group.proposals[0] ?? defaultGroup.proposals[0];
       const parsed = sourceMessage ? createProposalFromPrompt(sourceMessage, group.id) : undefined;
       const adjusted = !parsed?.proposal && sourceMessage ? applyPrototypeAdjustment(previous, sourceMessage) : undefined;
@@ -422,11 +549,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         : [];
       const artifacts = proposal
         ? [
-            createArtifact("parser_review", `${proposal.title} parser review`, "Review extracted items, participants, payers, exclusions, credits, assumptions, and confidence before sending.", proposal.id, parserDetails),
-            createArtifact("proposal_draft", `${proposal.title} proposal`, "Draft proposal created from parsed expense structure.", proposal.id, parserDetails),
-            createArtifact("itemized_breakdown", `${proposal.title} itemized math`, "Deterministic itemized calculation and eligibility rules.", proposal.id, proposal.calculationResult?.auditExplanation),
-            createArtifact("settlement_plan", `${proposal.title} settlement plan`, "Debtor-to-creditor settlement instructions.", proposal.id, proposal.calculationResult?.settlementInstructions.map((instruction) => instruction.text)),
-            createArtifact("settlement_ledger", `${proposal.title} settlement ledger`, "Proof-aware ledger for claimed and confirmed payments.", proposal.id, createSettlementLedgerLines(proposal))
+            createArtifact("parser_review", `${proposal.title} split details`, "Review extracted costs, friends, payers, exclusions, credits, assumptions, and confidence before sending.", proposal.id, parserDetails),
+            createArtifact("proposal_draft", `${proposal.title}`, "Trip Split preview created from the parsed expense details.", proposal.id, parserDetails),
+            createArtifact("itemized_breakdown", `${proposal.title} split math`, "Deterministic itemized calculation and who is included in each cost.", proposal.id, proposal.calculationResult?.auditExplanation),
+            createArtifact("settlement_plan", `${proposal.title} ready check`, "Shows who should pay whom and whether booking is ready.", proposal.id, proposal.calculationResult?.settlementInstructions.map((instruction) => instruction.text)),
+            createArtifact("settlement_ledger", `${proposal.title} payment notes`, "Proof-aware notes for claimed and confirmed payments.", proposal.id, createSettlementLedgerLines(proposal))
           ]
         : parsed?.parserResult.issues.some((issue) => issue.code === "allocation_required")
           ? [
@@ -446,24 +573,28 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         : [];
       const parserReply =
         parsed?.parserResult.status === "needs_clarification"
-          ? `I found a likely split, but need clarification before creating a proposal:\n${parsed.parserResult.clarificationQuestions.map((question) => `- ${question.question}`).join("\n")}`
+          ? `I found a likely split, but need clarification before creating a Trip Split:\n${parsed.parserResult.clarificationQuestions.map((question) => `- ${question.question}`).join("\n")}`
           : parsed?.parserResult.status === "unsupported"
             ? parsed.parserResult.normalizedSummary
             : response.message;
 
-      return updateGroup(
+      const completedRunId = context?.runId;
+      const nextState = updateGroup(
         {
           ...current,
-          workspacePanel: artifacts[0] ? { type: "artifact", artifactId: artifacts[0].id } : current.workspacePanel,
+          workspacePanel:
+            artifacts[0] && current.selectedGroupId === group.id
+              ? { type: "artifact", artifactId: artifacts[0].id }
+              : current.workspacePanel,
           agentSteps:
             parsed?.parserResult
               ? [
-                  { id: "parser-read", name: "Reading expense request", description: "Identified the shared-cost scenario.", status: "completed", time: new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit" }).format(new Date()) },
-                  { id: "parser-items", name: "Extracting items and participants", description: parsed.parserResult.normalizedSummary, status: "completed", time: new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit" }).format(new Date()) },
-                  { id: "parser-rules", name: "Checking exclusions and credits", description: `${parsed.parserResult.draft?.exclusions.length ?? 0} rules and ${parsed.parserResult.draft?.credits.length ?? 0} credits detected.`, status: "completed", time: new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit" }).format(new Date()) },
-                  { id: "parser-validation", name: "Validating totals", description: parsed.parserResult.issues.length > 0 ? parsed.parserResult.issues.map((issue) => issue.message).join(" ") : "No blocking validation issues.", status: "completed", time: new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit" }).format(new Date()) },
-                  { id: "parser-engine", name: "Running deterministic split engine", description: proposal ? "Final amounts computed by deterministic TypeScript." : "Waiting for clarification before calculating final amounts.", status: proposal ? "completed" : "pending", time: new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit" }).format(new Date()) },
-                  { id: "parser-artifact", name: "Creating proposal artifact", description: proposal ? "Proposal artifacts are ready for review." : "No artifact created until clarification is resolved.", status: proposal ? "completed" : "pending", time: new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit" }).format(new Date()) }
+                  { id: "parser-read", name: "Understood", description: "Identified the shared-cost scenario.", status: "completed", time: new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit" }).format(new Date()) },
+                  { id: "parser-items", name: "Costs", description: parsed.parserResult.normalizedSummary, status: "completed", time: new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit" }).format(new Date()) },
+                  { id: "parser-rules", name: "Rules", description: `${parsed.parserResult.draft?.exclusions.length ?? 0} rules and ${parsed.parserResult.draft?.credits.length ?? 0} credits detected.`, status: "completed", time: new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit" }).format(new Date()) },
+                  { id: "parser-validation", name: "Ready Check", description: parsed.parserResult.issues.length > 0 ? parsed.parserResult.issues.map((issue) => issue.message).join(" ") : "No blocking validation issues.", status: "completed", time: new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit" }).format(new Date()) },
+                  { id: "parser-engine", name: "Shares", description: proposal ? "Final amounts computed by deterministic TypeScript." : "Waiting for clarification before calculating final amounts.", status: proposal ? "completed" : "pending", time: new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit" }).format(new Date()) },
+                  { id: "parser-artifact", name: "Send", description: proposal ? "Trip Split is ready for review." : "No preview created until clarification is resolved.", status: proposal ? "completed" : "pending", time: new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit" }).format(new Date()) }
                 ]
               : response.trace.length > 0
               ? response.trace.map((step, index) => ({
@@ -484,7 +615,21 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           return appendArtifactsToChat(nextGroup, chat.id, artifacts);
         }
       );
+      if (!completedRunId) return nextState;
+      return {
+        ...nextState,
+        agentRuns: (nextState.agentRuns ?? []).map((run) => (run.id === completedRunId ? completeAgentRun(run, response, artifacts) : run))
+      };
     });
+  }, []);
+
+  const failAgentRun = useCallback((runId: string, error: string) => {
+    setState((current) => ({
+      ...current,
+      aiUnavailable: true,
+      lastAiError: error,
+      agentRuns: (current.agentRuns ?? []).map((run) => (run.id === runId ? failRun(run, error) : run))
+    }));
   }, []);
 
   const updateProposalInActiveGroup = useCallback((proposalId: string | undefined, updater: (proposal: Proposal) => Proposal) => {
@@ -500,15 +645,15 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const sendProposal = useCallback((proposalId?: string) => {
-    updateProposalInActiveGroup(proposalId, (proposal) => appendTimeline(participantStatusesAfterSend(proposal), "Organizer", "Sent proposal to participants for review."));
+    updateProposalInActiveGroup(proposalId, (proposal) => appendTimeline(participantStatusesAfterSend(proposal), "Organizer", "Sent Your Share to friends for review."));
   }, [updateProposalInActiveGroup]);
 
   const reviewProposal = useCallback(() => {
-    setState((current) => updateGroup(current, activeGroup.id, (group) => appendChatMessage(group, activeChat.id, createMessage("bot", "The proposal artifact is ready for review. Open the right panel to inspect deterministic math.", activeProposal.id))));
+    setState((current) => updateGroup(current, activeGroup.id, (group) => appendChatMessage(group, activeChat.id, createMessage("bot", "The Trip Split is ready. Open the panel to review the deterministic amounts before sending it to friends.", activeProposal.id))));
   }, [activeChat.id, activeGroup.id, activeProposal.id]);
 
   const askAiToAdjust = useCallback(() => {
-    setState((current) => updateGroup(current, activeGroup.id, (group) => appendChatMessage(group, activeChat.id, createMessage("bot", "Describe the adjustment, for example: Daniel did not eat beef.", activeProposal.id))));
+    setState((current) => updateGroup(current, activeGroup.id, (group) => appendChatMessage(group, activeChat.id, createMessage("bot", "Describe the change, for example: Alex is only joining Saturday night.", activeProposal.id))));
   }, [activeChat.id, activeGroup.id, activeProposal.id]);
 
   const applyAdjustment = useCallback((prompt: string, proposalId?: string) => {
@@ -527,7 +672,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
               ...participant,
               status,
               paymentStatus: status === "accepted" ? ("unpaid" as const) : ("review" as const),
-              changeRequestNote: status === "requested_changes" ? note || "Requested a proposal change." : participant.changeRequestNote,
+              changeRequestNote: status === "requested_changes" ? note || "Asked for a change." : participant.changeRequestNote,
               lastRespondedAt: new Date().toISOString()
             }
           : participant
@@ -535,7 +680,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       const withResponse = appendTimeline(
         { ...proposal, participants, updatedAt: new Date().toISOString() },
         proposal.participants.find((participant) => participant.id === participantId)?.name ?? participantId,
-        status === "accepted" ? "Accepted the proposal." : status === "opted_out" ? "Opted out of the proposal." : `Requested change: ${note ?? "No note provided."}`
+        status === "accepted" ? "Tapped I'm In." : status === "opted_out" ? "Tapped I'm Out." : `Asked for a change: ${note ?? "No note provided."}`
       );
       if (status !== "opted_out") return updateStatusFromParticipants(withResponse);
       return recalculateProposal(
@@ -553,25 +698,64 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, [updateProposalInActiveGroup]);
 
   const acceptRequestedChange = useCallback((proposalId?: string) => {
-    updateProposalInActiveGroup(proposalId, (proposal) => {
-      const requested = proposal.participants.find((participant) => participant.status === "requested_changes" && participant.changeRequestNote);
-      const recalculated = requested ? applyPrototypeAdjustment(proposal, requested.changeRequestNote ?? "") : { proposal, changed: false };
-      const next = recalculated.changed ? recalculated.proposal : recalculateProposal(proposal, "Reviewed requested change.");
-      return appendTimeline(
-        {
-          ...next,
-          status: "needs_reconfirmation",
-          participants: next.participants.map((participant) =>
-            participant.status === "accepted" || participant.status === "requested_changes"
-              ? { ...participant, status: "needs_reconfirmation", paymentStatus: "review", changeRequestNote: undefined }
-              : participant
-          )
-        },
-        "Organizer",
-        "Accepted requested change and requested reconfirmation."
-      );
+    setState((current) => {
+      const { activeGroup: group, activeChat: chat } = selectedIds(current);
+      const targetId = proposalId ?? group.proposals[0]?.id;
+      if (!targetId) return current;
+
+      let changeArtifact: Artifact | undefined;
+      let revisedProposal: Proposal | undefined;
+
+      const nextState = updateGroup(current, group.id, (currentGroup) => {
+        const proposals = currentGroup.proposals.map((proposal) => {
+          if (proposal.id !== targetId) return proposal;
+          const requested = proposal.participants.find((participant) => participant.status === "requested_changes" && participant.changeRequestNote);
+          const recalculated = requested ? applyPrototypeAdjustment(proposal, requested.changeRequestNote ?? "") : { proposal, changed: false };
+          const next = recalculated.changed ? recalculated.proposal : recalculateProposal(proposal, "Reviewed requested change.");
+          const reconfirmationProposal = appendTimeline(
+            {
+              ...next,
+              status: "needs_reconfirmation",
+              participants: next.participants.map((participant) =>
+                participant.status === "accepted" || participant.status === "requested_changes"
+                  ? { ...participant, status: "needs_reconfirmation", paymentStatus: "review", changeRequestNote: undefined }
+                  : participant
+              )
+            },
+            "Organizer",
+            "Accepted requested change and requested reconfirmation."
+          );
+          const revision = createProposalRevision(
+            proposal,
+            reconfirmationProposal,
+            "Organizer",
+            "Accepted participant change request.",
+            requested?.changeRequestNote
+          );
+          revisedProposal = applyProposalRevision(proposal, reconfirmationProposal, revision);
+          changeArtifact = {
+            ...createArtifact(
+              "change_request_summary",
+              `${revisedProposal.title} v${revision.version} change summary`,
+              "Records the accepted participant change, affected shares, and reconfirmation requirement.",
+              revisedProposal.id,
+              revisionDetails(revision)
+            ),
+            proposalVersion: revision.version,
+            state: "staged"
+          };
+          return revisedProposal;
+        });
+
+        const nextGroup = { ...currentGroup, proposals };
+        return changeArtifact ? appendArtifactsToChat(nextGroup, chat.id, [changeArtifact]) : nextGroup;
+      });
+
+      return changeArtifact && revisedProposal
+        ? { ...nextState, workspacePanel: { type: "artifact", artifactId: changeArtifact.id } }
+        : nextState;
     });
-  }, [updateProposalInActiveGroup]);
+  }, []);
 
   const requestReconfirmation = useCallback((proposalId?: string) => {
     updateProposalInActiveGroup(proposalId, (proposal) =>
@@ -606,7 +790,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, [updateProposalInActiveGroup]);
 
   const markSettled = useCallback((proposalId?: string) => {
-    updateProposalInActiveGroup(proposalId, (proposal) => appendTimeline({ ...proposal, status: "settled" }, "Organizer", "Marked proposal settled."));
+    updateProposalInActiveGroup(proposalId, (proposal) => appendTimeline({ ...proposal, status: "settled" }, "Organizer", "Marked split collected."));
   }, [updateProposalInActiveGroup]);
 
   const archiveProposal = useCallback((proposalId?: string) => {
@@ -622,17 +806,17 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       const { proposal, parserResult } = createProposalFromPromptWithAllocation(artifact.sourceText, group.id, strategy);
       if (!proposal) return current;
       const artifacts = [
-        createArtifact("parser_review", `${proposal.title} parser review`, "Allocation was resolved by organizer choice before deterministic calculation.", proposal.id, [
+        createArtifact("parser_review", `${proposal.title} split details`, "Allocation was resolved by organizer choice before deterministic calculation.", proposal.id, [
           parserResult.normalizedSummary,
           `Allocation: ${strategy}`,
           ...(parserResult.draft?.assumptions ?? []).map((assumption) => `Assumption: ${assumption}`)
         ]),
-        createArtifact("proposal_draft", `${proposal.title} proposal`, "Draft proposal created after allocation resolution.", proposal.id),
-        createArtifact("settlement_ledger", `${proposal.title} settlement ledger`, "Proof-aware ledger for claimed and confirmed payments.", proposal.id, createSettlementLedgerLines(proposal))
+        createArtifact("proposal_draft", `${proposal.title}`, "Trip Split preview created after allocation resolution.", proposal.id),
+        createArtifact("settlement_ledger", `${proposal.title} payment notes`, "Proof-aware notes for claimed and confirmed payments.", proposal.id, createSettlementLedgerLines(proposal))
       ];
       return updateGroup({ ...current, workspacePanel: { type: "artifact", artifactId: artifacts[0].id } }, group.id, (currentGroup) => {
         let nextGroup = upsertProposal(currentGroup, proposal);
-        nextGroup = appendChatMessage(nextGroup, chat.id, createMessage("bot", `Resolved allocation using ${strategy.replaceAll("_", " ")}. Deterministic proposal artifacts are ready.`, proposal.id));
+        nextGroup = appendChatMessage(nextGroup, chat.id, createMessage("bot", `Resolved allocation using ${strategy.replaceAll("_", " ")}. The Trip Split is ready for review.`, proposal.id));
         return appendArtifactsToChat(nextGroup, chat.id, artifacts);
       });
     });
@@ -666,13 +850,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setState((current) => ({ ...current, workspacePanel: null }));
   }, []);
 
-  const loadDemo = useCallback((kind: "bbq" | "trip" | "subscription") => {
+  const loadDemo = useCallback((kind: "trip" | "subscription") => {
     const proposal =
       kind === "trip"
         ? loadTripDemoProposal()
-        : kind === "subscription"
-          ? loadSubscriptionDemoProposal()
-          : createBbqProposalFromPrompt("BBQ dinner for 8. Syahmi paid ₩64,000 meat, Ali paid ₩24,000 drinks, Sarah paid ₩10,000 charcoal, sides were ₩30,000. Daniel did not eat beef.") ?? defaultGroup.proposals[0];
+        : loadSubscriptionDemoProposal();
     setState((current) => updateGroup(current, activeGroup.id, (group) => upsertProposal(group, { ...proposal, groupId: group.id })));
   }, [activeGroup.id]);
 
@@ -700,6 +882,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       setActiveProposal,
       sendChatMessage,
       applyAgentResponse,
+      failAgentRun,
       sendProposal,
       reviewProposal,
       askAiToAdjust,
@@ -739,6 +922,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       setActiveProposal,
       sendChatMessage,
       applyAgentResponse,
+      failAgentRun,
       sendProposal,
       reviewProposal,
       askAiToAdjust,

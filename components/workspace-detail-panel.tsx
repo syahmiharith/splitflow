@@ -32,6 +32,7 @@ export function WorkspaceDetailPanel({
   } = useSplitFlow();
   const proposal = selectedPanelProposal ?? (selectedArtifact?.proposalId ? activeGroup.proposals.find((item) => item.id === selectedArtifact.proposalId) : undefined) ?? fallbackProposal;
   const claimedCredit = proposal?.paymentRecords?.find((record) => record.status === "claimed");
+  const payableParticipant = proposal?.participants.find((participant) => participant.id !== proposal.organizerId && participant.id !== "you" && participant.status !== "opted_out");
   const isOpen = Boolean(state.workspacePanel || fallbackProposal);
 
   if (!isOpen && !desktopPersistent) return null;
@@ -45,7 +46,7 @@ export function WorkspaceDetailPanel({
       <div className="sticky top-0 z-10 flex items-start gap-3 border-b border-app-border bg-white px-5 py-4">
         <div className="min-w-0 flex-1">
           <div className="text-xs font-semibold uppercase tracking-wide text-app-muted">
-            {selectedArtifact ? humanStatus(selectedArtifact.type) : "Proposal detail"}
+            {selectedArtifact ? humanStatus(selectedArtifact.type) : "Trip Split"}
           </div>
           <h2 className="mt-1 text-lg font-bold text-app-text">{selectedArtifact?.title ?? proposal?.title ?? "Workspace detail"}</h2>
           {proposal ? (
@@ -68,9 +69,9 @@ export function WorkspaceDetailPanel({
           <ProposalPanelBody proposal={proposal} />
         ) : (
           <div className="rounded-lg border border-dashed border-app-border bg-slate-50 px-4 py-5">
-            <p className="text-sm font-semibold text-app-text">Select a proposal or artifact</p>
+            <p className="text-sm font-semibold text-app-text">Select a split or detail</p>
             <p className="mt-2 text-sm leading-6 text-app-muted">
-              Desktop keeps this workspace panel open so calculation details, settlement instructions, and next actions stay visible while you review the chat or proposal list.
+              Desktop keeps this panel open so split details, payment notes, and next actions stay visible while you review the chat.
             </p>
           </div>
         )}
@@ -86,7 +87,7 @@ export function WorkspaceDetailPanel({
             onVoidCredit={() => claimedCredit ? updateCreditStatus(claimedCredit.id, "void") : undefined}
             onSendProposal={() => sendProposal(proposal.id)}
             onAcceptChange={() => acceptRequestedChange(proposal.id)}
-            onMarkPaid={() => markPaid("daniel", proposal.id)}
+            onMarkPaid={() => payableParticipant ? markPaid(payableParticipant.id, proposal.id) : undefined}
             onMarkSettled={() => markSettled(proposal.id)}
           />
         ) : selectedArtifact?.type === "allocation_resolution" ? (
@@ -135,12 +136,12 @@ function ProposalPanelActions({
   if (claimedCredit) {
     return (
       <>
-        <PanelAction testId="panel-confirm-credit" icon={Check} label="Confirm claimed credit" onClick={onConfirmCredit} primary />
-        <PanelAction testId="panel-dispute-credit" icon={X} label="Dispute claimed credit" onClick={onDisputeCredit} />
+        <PanelAction testId="panel-confirm-credit" icon={Check} label="Confirm payment note" onClick={onConfirmCredit} primary />
+        <PanelAction testId="panel-dispute-credit" icon={X} label="Dispute payment note" onClick={onDisputeCredit} />
         <OverflowActions open={moreOpen} onToggle={() => setMoreOpen((current) => !current)}>
           <PanelAction testId="panel-void-credit" icon={X} label="Void claimed credit" onClick={onVoidCredit} />
-          <PanelAction testId="panel-send-proposal" icon={Send} label="Send proposal" onClick={onSendProposal} />
-          <PanelAction testId="panel-mark-settled" icon={CreditCard} label="Mark settled" onClick={onMarkSettled} />
+          <PanelAction testId="panel-send-proposal" icon={Send} label="Send to friends" onClick={onSendProposal} />
+          <PanelAction testId="panel-mark-settled" icon={CreditCard} label="Mark collected" onClick={onMarkSettled} />
         </OverflowActions>
       </>
     );
@@ -149,11 +150,11 @@ function ProposalPanelActions({
   if (shouldSend) {
     return (
       <>
-        <PanelAction testId="panel-send-proposal" icon={Send} label="Send proposal" onClick={onSendProposal} primary />
-        <PanelAction testId="panel-mark-settled" icon={CreditCard} label="Mark settled" onClick={onMarkSettled} />
+        <PanelAction testId="panel-send-proposal" icon={Send} label="Send to friends" onClick={onSendProposal} primary />
+        <PanelAction testId="panel-mark-settled" icon={CreditCard} label="Mark collected" onClick={onMarkSettled} />
         <OverflowActions open={moreOpen} onToggle={() => setMoreOpen((current) => !current)}>
-          <PanelAction testId="panel-accept-change" icon={Check} label="Accept change" onClick={onAcceptChange} />
-          <PanelAction testId="panel-mark-paid" icon={CreditCard} label="Mark Daniel paid" onClick={onMarkPaid} />
+          <PanelAction testId="panel-accept-change" icon={Check} label="Use change" onClick={onAcceptChange} />
+          <PanelAction testId="panel-mark-paid" icon={CreditCard} label="Mark friend paid" onClick={onMarkPaid} />
         </OverflowActions>
       </>
     );
@@ -162,11 +163,11 @@ function ProposalPanelActions({
   if (needsOrganizerDecision) {
     return (
       <>
-        <PanelAction testId="panel-accept-change" icon={Check} label="Accept change" onClick={onAcceptChange} primary />
-        <PanelAction testId="panel-mark-settled" icon={CreditCard} label="Mark settled" onClick={onMarkSettled} />
+        <PanelAction testId="panel-accept-change" icon={Check} label="Use change" onClick={onAcceptChange} primary />
+        <PanelAction testId="panel-mark-settled" icon={CreditCard} label="Mark collected" onClick={onMarkSettled} />
         <OverflowActions open={moreOpen} onToggle={() => setMoreOpen((current) => !current)}>
-          <PanelAction testId="panel-send-proposal" icon={Send} label="Send proposal" onClick={onSendProposal} />
-          <PanelAction testId="panel-mark-paid" icon={CreditCard} label="Mark Daniel paid" onClick={onMarkPaid} />
+          <PanelAction testId="panel-send-proposal" icon={Send} label="Send to friends" onClick={onSendProposal} />
+          <PanelAction testId="panel-mark-paid" icon={CreditCard} label="Mark friend paid" onClick={onMarkPaid} />
         </OverflowActions>
       </>
     );
@@ -174,11 +175,11 @@ function ProposalPanelActions({
 
   return (
     <>
-      <PanelAction testId="panel-mark-settled" icon={CreditCard} label="Mark settled" onClick={onMarkSettled} primary />
-      <PanelAction testId="panel-send-proposal" icon={Send} label="Send proposal" onClick={onSendProposal} />
+      <PanelAction testId="panel-mark-settled" icon={CreditCard} label="Mark collected" onClick={onMarkSettled} primary />
+      <PanelAction testId="panel-send-proposal" icon={Send} label="Send to friends" onClick={onSendProposal} />
       <OverflowActions open={moreOpen} onToggle={() => setMoreOpen((current) => !current)}>
-        <PanelAction testId="panel-accept-change" icon={Check} label="Accept change" onClick={onAcceptChange} />
-        <PanelAction testId="panel-mark-paid" icon={CreditCard} label="Mark Daniel paid" onClick={onMarkPaid} />
+        <PanelAction testId="panel-accept-change" icon={Check} label="Use change" onClick={onAcceptChange} />
+        <PanelAction testId="panel-mark-paid" icon={CreditCard} label="Mark friend paid" onClick={onMarkPaid} />
       </OverflowActions>
     </>
   );

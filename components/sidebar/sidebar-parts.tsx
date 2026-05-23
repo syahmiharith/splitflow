@@ -45,10 +45,10 @@ export function WorkspaceNav({
   testId: TestId;
 }) {
   const navItems = [
-    { href: "/", label: "Home", icon: Home },
-    { href: groupBase, label: "Overview", icon: Grid2X2 },
-    { href: `${groupBase}/proposals`, label: "Proposals", icon: FileText },
-    { href: `${groupBase}/inbox`, label: "Notifications", icon: Bell }
+    { href: "/", label: "Home", testIdLabel: "home", icon: Home },
+    { href: groupBase, label: "Overview", testIdLabel: "overview", icon: Grid2X2 },
+    { href: `${groupBase}/proposals`, label: "Splits", testIdLabel: "proposals", icon: FileText },
+    { href: `${groupBase}/inbox`, label: "Your Share", testIdLabel: "notifications", icon: Bell }
   ];
 
   return (
@@ -67,7 +67,7 @@ export function WorkspaceNav({
             key={item.href}
             href={item.href}
             onClick={onNavigate}
-            data-testid={testId(`nav-${item.label.toLowerCase()}`)}
+            data-testid={testId(`nav-${item.testIdLabel}`)}
             className={`relative flex h-12 items-center gap-3 rounded-lg px-5 text-sm font-semibold transition ${
               active ? "bg-blue-50 text-app-blue" : "text-app-text hover:bg-slate-50"
             }`}

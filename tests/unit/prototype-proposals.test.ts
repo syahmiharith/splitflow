@@ -1,33 +1,34 @@
 import { describe, expect, it } from "vitest";
-import { applyPrototypeAdjustment, createBbqProposalFromPrompt } from "@/lib/prototype-proposals";
-
-const bbqPrompt =
-  "BBQ dinner for 8. Syahmi paid ₩64,000 meat, Ali paid ₩24,000 drinks, Sarah paid ₩10,000 charcoal, sides were ₩30,000.";
+import { applyPrototypeAdjustment, createJejuTripProposal, recalculateProposal } from "@/lib/prototype-proposals";
 
 describe("prototype proposal recalculation", () => {
-  it("excludes Daniel from beef after an accepted change request", () => {
-    const proposal = createBbqProposalFromPrompt(bbqPrompt)!;
-    const beforeDanielShare = proposal.calculationResult?.itemizedBreakdown.find((item) => item.itemId === "meat")?.shareByParticipant.daniel;
+  it("excludes Alex from Friday lodging after an accepted change request", () => {
+    const base = createJejuTripProposal();
+    const proposal = recalculateProposal({
+      ...base,
+      costItems: base.costItems.map((item) => (item.id === "friday-airbnb" ? { ...item, excludedParticipantIds: undefined } : item))
+    });
+    const beforeAlexShare = proposal.calculationResult?.itemizedBreakdown.find((item) => item.itemId === "friday-airbnb")?.shareByParticipant.alex;
 
     const adjusted = applyPrototypeAdjustment(
       {
         ...proposal,
         status: "changes_requested",
         participants: proposal.participants.map((participant) =>
-          participant.id === "daniel" ? { ...participant, status: "requested_changes", changeRequestNote: "I did not eat beef" } : participant
+          participant.id === "alex" ? { ...participant, status: "requested_changes", changeRequestNote: "Alex is only joining Saturday night" } : participant
         )
       },
-      "I did not eat beef"
+      "Alex is only joining Saturday night"
     );
 
-    const meat = adjusted.proposal.calculationResult?.itemizedBreakdown.find((item) => item.itemId === "meat");
+    const fridayAirbnb = adjusted.proposal.calculationResult?.itemizedBreakdown.find((item) => item.itemId === "friday-airbnb");
 
-    expect(beforeDanielShare).toBeGreaterThan(0);
+    expect(beforeAlexShare).toBeGreaterThan(0);
     expect(adjusted.changed).toBe(true);
-    expect(meat?.eligibleParticipantIds).not.toContain("daniel");
-    expect(meat?.shareByParticipant.daniel).toBeUndefined();
-    expect(adjusted.proposal.calculationResult?.fairShareByParticipant.daniel).toBeLessThan(
-      adjusted.proposal.calculationResult?.fairShareByParticipant.aiman ?? 0
+    expect(fridayAirbnb?.eligibleParticipantIds).not.toContain("alex");
+    expect(fridayAirbnb?.shareByParticipant.alex).toBeUndefined();
+    expect(adjusted.proposal.calculationResult?.fairShareByParticipant.alex).toBeLessThan(
+      adjusted.proposal.calculationResult?.fairShareByParticipant.mina ?? 0
     );
   });
 });

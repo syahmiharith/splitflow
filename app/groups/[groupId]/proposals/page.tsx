@@ -40,7 +40,7 @@ export default function GroupProposalsPage() {
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             className="min-w-0 flex-1 bg-transparent text-base outline-none placeholder:text-app-muted"
-            placeholder={`Search ${activeGroup.name} proposals...`}
+            placeholder={`Search ${activeGroup.name} splits...`}
           />
         </label>
 
@@ -62,7 +62,7 @@ export default function GroupProposalsPage() {
 
         {visibleProposals.length === 0 ? (
           <AppCard className="p-5 text-sm text-app-muted" data-testid="proposal-empty-state">
-            No proposals match this search and filter.
+            No splits match this search and filter.
           </AppCard>
         ) : null}
 
@@ -105,7 +105,7 @@ export default function GroupProposalsPage() {
           <Table minWidth="860px">
               <Table.Header>
                 <Table.Row>
-                  <Table.Head>Proposal</Table.Head>
+                  <Table.Head>Split</Table.Head>
                   <Table.Head>Status</Table.Head>
                   <Table.Head numeric>Total</Table.Head>
                   <Table.Head>Members</Table.Head>

@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { defaultGroup, initialState } from "@/lib/demo-data";
-import { getDemoState, getProposalById, getProposals, resetDemoData, saveDemoState, saveProposal, SPLITFLOW_STORAGE_KEY, updateParticipantResponse } from "@/lib/prototype-persistence";
-import { createBbqProposalFromPrompt } from "@/lib/prototype-proposals";
-import type { ChatSession, SplitFlowGroup } from "@/lib/types";
+import { CURRENT_SCHEMA_VERSION, getDemoState, getProposalById, getProposals, resetDemoData, saveDemoState, saveProposal, SPLITFLOW_STORAGE_KEY, updateParticipantResponse } from "@/lib/prototype-persistence";
+import { createJejuTripProposal } from "@/lib/prototype-proposals";
+import type { AgentRun, ChatSession, SplitFlowGroup } from "@/lib/types";
 
 describe("prototype persistence helpers", () => {
   beforeEach(() => {
@@ -11,26 +11,21 @@ describe("prototype persistence helpers", () => {
   });
 
   it("saves and loads proposals", () => {
-    const proposal = createBbqProposalFromPrompt(
-      "BBQ dinner for 8. Syahmi paid ₩64,000 meat, Ali paid ₩24,000 drinks, Sarah paid ₩10,000 charcoal, sides were ₩30,000. Daniel did not eat beef."
-    );
-    expect(proposal).toBeDefined();
-    saveProposal(proposal!);
+    const proposal = createJejuTripProposal("test-group", "jeju-test-trip");
+    saveProposal(proposal);
 
-    expect(getProposalById(proposal!.id)?.title).toBe("BBQ Dinner");
-    expect(getProposals()[0].id).toBe(proposal!.id);
+    expect(getProposalById(proposal.id)?.title).toBe("Jeju Airbnb Trip Split");
+    expect(getProposals()[0].id).toBe(proposal.id);
   });
 
   it("updates participant responses", () => {
-    const proposal = createBbqProposalFromPrompt(
-      "BBQ dinner for 8. Syahmi paid ₩64,000 meat, Ali paid ₩24,000 drinks, Sarah paid ₩10,000 charcoal, sides were ₩30,000. Daniel did not eat beef."
-    )!;
+    const proposal = createJejuTripProposal("test-group", "jeju-test-trip");
     saveProposal(proposal);
 
-    const updated = updateParticipantResponse(proposal.id, "daniel", "requested_changes", "I did not eat beef");
+    const updated = updateParticipantResponse(proposal.id, "alex", "requested_changes", "I can only join Saturday night.");
 
-    expect(updated?.participants.find((participant) => participant.id === "daniel")?.status).toBe("requested_changes");
-    expect(getProposalById(proposal.id)?.participants.find((participant) => participant.id === "daniel")?.changeRequestNote).toBe("I did not eat beef");
+    expect(updated?.participants.find((participant) => participant.id === "alex")?.status).toBe("requested_changes");
+    expect(getProposalById(proposal.id)?.participants.find((participant) => participant.id === "alex")?.changeRequestNote).toBe("I can only join Saturday night.");
   });
 
   it("resets demo state", () => {
@@ -38,19 +33,40 @@ describe("prototype persistence helpers", () => {
     window.localStorage.setItem("splitflow.demoState.v2", JSON.stringify({ proposals: [] }));
     window.localStorage.setItem("splitflow.demoState.v3", JSON.stringify({ proposals: [] }));
     resetDemoData();
-    expect(getProposals()[0].id).toBe("bbq-dinner");
+    expect(getProposals()[0].id).toBe("jeju-airbnb-trip");
     expect(window.localStorage.getItem("splitflow.demoState.v1")).toBeNull();
     expect(window.localStorage.getItem("splitflow.demoState.v2")).toBeNull();
     expect(window.localStorage.getItem("splitflow.demoState.v3")).toBeNull();
-    expect(window.localStorage.getItem(SPLITFLOW_STORAGE_KEY)).toContain("bbq-crew");
+    expect(window.localStorage.getItem(SPLITFLOW_STORAGE_KEY)).toContain("jeju-trip");
+    expect(getDemoState().schemaVersion).toBe(CURRENT_SCHEMA_VERSION);
+  });
+
+  it("migrates legacy state without schema metadata", () => {
+    const legacyState = { ...initialState };
+    delete (legacyState as Partial<typeof legacyState>).schemaVersion;
+    delete (legacyState as Partial<typeof legacyState>).migrationLog;
+
+    window.localStorage.setItem(SPLITFLOW_STORAGE_KEY, JSON.stringify(legacyState));
+
+    const loaded = getDemoState();
+    expect(loaded.schemaVersion).toBe(CURRENT_SCHEMA_VERSION);
+    expect(loaded.migrationLog).toContain("Migrated local state from schema v4 to v5.");
+  });
+
+  it("writes the current schema when saving older state", () => {
+    saveDemoState({ ...initialState, schemaVersion: 4, migrationLog: ["legacy"] });
+
+    const raw = JSON.parse(window.localStorage.getItem(SPLITFLOW_STORAGE_KEY) ?? "{}") as { schemaVersion?: number; migrationLog?: string[] };
+    expect(raw.schemaVersion).toBe(CURRENT_SCHEMA_VERSION);
+    expect(raw.migrationLog).toEqual(["legacy"]);
   });
 
   it("falls back to canonical data when persisted state is invalid", () => {
     window.localStorage.setItem(SPLITFLOW_STORAGE_KEY, JSON.stringify({ proposals: [{ id: "bad", title: "Bad" }] }));
 
-    expect(getProposals()[0].id).toBe("bbq-dinner");
-    expect(getDemoState().selectedGroupId).toBe("bbq-crew");
-    expect(getDemoState().groups[0].name).toBe("BBQ Crew");
+    expect(getProposals()[0].id).toBe("jeju-airbnb-trip");
+    expect(getDemoState().selectedGroupId).toBe("jeju-trip");
+    expect(getDemoState().groups[0].name).toBe("Jeju Trip");
   });
 
   it("ignores stale global proposal and message mirrors", () => {
@@ -65,13 +81,11 @@ describe("prototype persistence helpers", () => {
 
     expect("proposals" in getDemoState()).toBe(false);
     expect("messages" in getDemoState()).toBe(false);
-    expect(getProposals()[0].id).toBe("bbq-dinner");
+    expect(getProposals()[0].id).toBe("jeju-airbnb-trip");
   });
 
   it("recalculates valid persisted proposals on load", () => {
-    const proposal = createBbqProposalFromPrompt(
-      "BBQ dinner for 8. Syahmi paid ₩64,000 meat, Ali paid ₩24,000 drinks, Sarah paid ₩10,000 charcoal, sides were ₩30,000. Daniel did not eat beef."
-    )!;
+    const proposal = createJejuTripProposal(defaultGroup.id, "jeju-test-trip");
     const current = getDemoState();
     window.localStorage.setItem(
       SPLITFLOW_STORAGE_KEY,
@@ -81,14 +95,14 @@ describe("prototype persistence helpers", () => {
       })
     );
 
-    expect(getProposals()[0].totalCost).toBe(128000);
+    expect(getProposals()[0].totalCost).toBe(570000);
   });
 
   it("persists selected user-created groups ahead of the fallback group", () => {
     const customGroup: SplitFlowGroup = {
       ...defaultGroup,
-      id: "jeju-trip",
-      name: "Jeju Trip",
+      id: "busan-trip",
+      name: "Busan Trip",
       description: "Trip planning workspace",
       proposals: [],
       chats: defaultGroup.chats.map((chat) => ({ ...chat, id: "jeju-chat" })),
@@ -100,8 +114,8 @@ describe("prototype persistence helpers", () => {
     saveDemoState({ ...initialState, groups: [customGroup, defaultGroup], selectedGroupId: customGroup.id });
 
     const loaded = getDemoState();
-    expect(loaded.selectedGroupId).toBe("jeju-trip");
-    expect(loaded.groups.map((group) => group.id)).toEqual(["jeju-trip", "bbq-crew"]);
+    expect(loaded.selectedGroupId).toBe("busan-trip");
+    expect(loaded.groups.map((group) => group.id)).toEqual(["busan-trip", "jeju-trip"]);
   });
 
   it("keeps only the newest three chats per persisted group", () => {
@@ -116,5 +130,36 @@ describe("prototype persistence helpers", () => {
     window.localStorage.setItem(SPLITFLOW_STORAGE_KEY, JSON.stringify({ ...initialState, groups: [{ ...defaultGroup, chats }], selectedGroupId: defaultGroup.id }));
 
     expect(getDemoState().groups[0].chats.map((chat) => chat.id)).toEqual(["chat-2", "chat-3", "chat-4"]);
+  });
+
+  it("preserves valid agent runs for chat correlation", () => {
+    const agentRun: AgentRun = {
+      id: "run-jeju-1",
+      groupId: defaultGroup.id,
+      chatId: defaultGroup.chats[0].id,
+      sourceMessageId: "m2",
+      status: "completed",
+      startedAt: "2026-05-22T10:22:00.000+09:00",
+      endedAt: "2026-05-22T10:22:01.000+09:00",
+      eventIds: ["event-1"],
+      events: [
+        {
+          id: "event-1",
+          runId: "run-jeju-1",
+          at: "2026-05-22T10:22:01.000+09:00",
+          type: "run_completed",
+          detail: "Applied to originating chat."
+        }
+      ]
+    };
+
+    window.localStorage.setItem(SPLITFLOW_STORAGE_KEY, JSON.stringify({ ...initialState, agentRuns: [agentRun] }));
+
+    expect(getDemoState().agentRuns[0]).toMatchObject({
+      id: "run-jeju-1",
+      groupId: defaultGroup.id,
+      chatId: defaultGroup.chats[0].id,
+      status: "completed"
+    });
   });
 });

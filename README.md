@@ -16,9 +16,9 @@ SplitFlow is not just an AI bill splitter. It is an agreement workflow system. A
 - `/groups/[groupId]/inbox` is the simulated participant review surface for reviewer testing.
 - `/groups/[groupId]/settings` manages group context.
 
-Legacy `/chat`, `/dashboard`, `/proposals`, and `/inbox` routes only redirect into the selected/default group. They are compatibility routes, not the canonical product flow.
+Shortcut `/chat`, `/dashboard`, `/proposals`, and `/inbox` routes redirect into the default group. They are compatibility routes, not the canonical product flow.
 
-If localStorage is empty, stale, or invalid, SplitFlow recreates and selects the canonical `BBQ Crew` demo group.
+If localStorage is empty, stale, or invalid, SplitFlow recreates and selects the canonical `Jeju Trip` demo group.
 
 ## Reviewer Walkthrough
 
@@ -28,7 +28,7 @@ If localStorage is empty, stale, or invalid, SplitFlow recreates and selects the
 4. Enter a realistic prompt, for example:
 
 ```text
-BBQ for 8 people. I paid 128,000 won. Meat was 80k, drinks 20k, charcoal 10k, sides 18k. Daniel doesn’t eat beef so don’t charge him for meat.
+Jeju Airbnb is 570,000 won for 7 friends. Friday night is 220k, Saturday night is 260k, van rental is 90k. Alex only joins Saturday.
 ```
 
 5. Watch the agent progress steps.
@@ -52,7 +52,7 @@ app/
   groups/[groupId]/settings/page.tsx
   chat/, dashboard/, inbox/, proposals/  Compatibility redirects
   api/agent/route.ts               Primary structured orchestrator API
-  api/ai/split-agent/route.ts      Server-side split-agent route with schema validation and proposal normalization
+  api/ai/split-agent/route.ts      Deprecated compatibility route; product flow uses /api/agent
 
 components/
   top-header.tsx                   Header group switcher and group creation
@@ -63,8 +63,8 @@ components/
 
 lib/
   store.tsx                        Group-scoped local state and workflow actions
-  prototype-persistence.ts         localStorage key, validation, fallback, reset
-  demo-data.ts                     Canonical BBQ group and seeded artifacts
+  prototype-persistence.ts         localStorage schema, migrations, validation, fallback, reset
+  demo-data.ts                     Canonical Jeju trip group and seeded artifacts
   analytics.ts                     Derived group/global analytics
   parser/*                         Prototype natural-language and receipt-text parser
   domain/itemized-split-engine.ts  Deterministic itemized split and settlement engine
@@ -178,7 +178,7 @@ pnpm test:e2e
 
 ## Persistence
 
-Prototype state is stored in browser localStorage under one canonical key from `lib/prototype-persistence.ts`. Reset Demo Data clears old known keys and restores the canonical BBQ group.
+Prototype state is stored in browser localStorage under one canonical key from `lib/prototype-persistence.ts`. Reset Demo Data clears old known keys and restores the canonical Jeju trip group.
 
 No production database is used.
 

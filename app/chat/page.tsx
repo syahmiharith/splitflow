@@ -1,5 +1,5 @@
-import { LegacyGroupRedirect } from "@/components/legacy-group-redirect";
+import { redirect } from "next/navigation";
 
 export default function ChatRedirectPage() {
-  return <LegacyGroupRedirect target="chat" />;
+  redirect("/groups/jeju-trip/chat");
 }

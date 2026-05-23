@@ -1,8 +1,10 @@
 import type { OrchestratorResponse } from "@/lib/agents/agent-types";
+import type { AgentRunContext } from "@/lib/types";
 import type { ChatTransport, UIMessage, UIMessageChunk } from "ai";
 
 export type SplitFlowChatTransportOptions = {
-  onResponse?: (response: OrchestratorResponse, sourceMessage: string) => void;
+  getRunContext?: () => AgentRunContext | undefined;
+  onResponse?: (response: OrchestratorResponse, sourceMessage: string, context?: AgentRunContext) => void;
 };
 
 function getMessageText(message: UIMessage): string {
@@ -28,16 +30,17 @@ function chunkStream(text: string): ReadableStream<UIMessageChunk> {
   });
 }
 
-export function createSplitFlowChatTransport({ onResponse }: SplitFlowChatTransportOptions = {}): ChatTransport<UIMessage> {
+export function createSplitFlowChatTransport({ getRunContext, onResponse }: SplitFlowChatTransportOptions = {}): ChatTransport<UIMessage> {
   return {
     async sendMessages({ messages, abortSignal }) {
       const lastUserMessage = [...messages].reverse().find((message) => message.role === "user");
       const message = lastUserMessage ? getMessageText(lastUserMessage) : "";
+      const context = getRunContext?.();
 
       const response = await fetch("/api/agent", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ type: "user_message", message }),
+        body: JSON.stringify({ type: "user_message", message, workflowId: context?.runId }),
         signal: abortSignal
       });
 
@@ -47,7 +50,7 @@ export function createSplitFlowChatTransport({ onResponse }: SplitFlowChatTransp
       }
 
       const result = payload as OrchestratorResponse;
-      onResponse?.(result, message);
+      onResponse?.(result, message, context);
       return chunkStream(result.message);
     },
 

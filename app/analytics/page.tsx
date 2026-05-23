@@ -40,7 +40,7 @@ export default function AnalyticsPage() {
           <h2 className="text-2xl font-bold">Friction Signals</h2>
         </div>
         <Signal icon={Edit3} text="Daniel requested changes 3 times" tone="amber" />
-        <Signal icon={ClockIcon} text="BBQ Crew responds slowly" tone="red" />
+        <Signal icon={ClockIcon} text="Trip groups respond slowly" tone="red" />
         <Signal icon={Scale} text="Equal split causes most disputes" tone="violet" />
       </AppCard>
 

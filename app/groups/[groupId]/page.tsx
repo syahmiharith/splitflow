@@ -5,24 +5,29 @@ import { AlertTriangle, FileText, MessageCircle, Users, WalletCards } from "luci
 import { useParams } from "next/navigation";
 import { deriveGroupAnalytics } from "@/lib/analytics";
 import { formatKrw } from "@/lib/format";
+import { deriveActionQueue } from "@/lib/readiness";
 import { useSplitFlow } from "@/lib/store";
 import { GroupRouteSync } from "@/components/group-route-sync";
+import { ActionQueueList } from "@/components/readiness-widgets";
 import { AppCard } from "@/components/ui/app-card";
 
 export default function GroupOverviewPage() {
   const params = useParams<{ groupId: string }>();
   const { activeGroup } = useSplitFlow();
   const summary = deriveGroupAnalytics(activeGroup);
+  const queue = deriveActionQueue(activeGroup);
 
   return (
     <div className="space-y-4 px-4 py-5 md:p-6" data-testid="group-overview-route">
       <GroupRouteSync groupId={params.groupId} />
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-3">
         <Metric icon={Users} label="Members" value={String(activeGroup.members.length)} tone="blue" />
-        <Metric icon={FileText} label="Open proposals" value={String(summary.activeProposals)} tone="blue" />
+        <Metric icon={FileText} label="Open splits" value={String(summary.activeProposals)} tone="blue" />
         <Metric icon={AlertTriangle} label="Change requests" value={String(summary.openChangeRequests)} tone="amber" />
         <Metric icon={WalletCards} label="Still owed" value={formatKrw(summary.stillOwed)} tone="green" />
       </div>
+
+      <ActionQueueList items={queue} groupId={activeGroup.id} />
 
       <AppCard className="p-5">
         <h2 className="text-xl font-bold">{activeGroup.name}</h2>
@@ -34,7 +39,7 @@ export default function GroupOverviewPage() {
           </Link>
           <Link href={`/groups/${activeGroup.id}/proposals`} className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-app-border px-3 text-sm font-semibold text-app-text">
             <FileText className="h-4 w-4" aria-hidden="true" />
-            View proposals
+            View splits
           </Link>
         </div>
       </AppCard>

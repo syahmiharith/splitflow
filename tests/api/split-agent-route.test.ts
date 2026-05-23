@@ -20,6 +20,8 @@ describe("/api/ai/split-agent", () => {
     delete process.env.OPENAI_API_KEY;
     const response = await POST(request({ message: "Create a split" }));
     expect(response.status).toBe(503);
+    expect(response.headers.get("X-SplitFlow-Route-Status")).toBe("deprecated");
+    expect(response.headers.get("X-SplitFlow-Replacement")).toBe("/api/agent");
   });
 
   it("rejects invalid request payload", async () => {

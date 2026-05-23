@@ -29,7 +29,7 @@ export default function GroupSettingsPage() {
           <div>
             <h1 className="text-2xl font-bold text-app-text">Group settings</h1>
             <p className="mt-2 max-w-2xl text-sm leading-6 text-app-muted">
-              Manage the selected workspace context used by chat sessions, proposals, participant review, and settlement artifacts.
+              Manage the selected workspace context used by chat sessions, trip splits, friend review, and payment notes.
             </p>
           </div>
           <button

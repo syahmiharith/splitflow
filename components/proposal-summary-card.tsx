@@ -18,7 +18,7 @@ export function ProposalSummaryCard({ proposal, onReview, onAdjust, onSend }: Pr
     ["Intake Agent", "completed"],
     ["Cost Agent", "completed"],
     ["Split Agent", "completed"],
-    ["Fairness Agent", "completed"],
+    ["Risk Agent", "completed"],
     ["Participant Agent", proposal.status === "draft" ? "pending" : "completed"]
   ] as const;
 
@@ -28,14 +28,14 @@ export function ProposalSummaryCard({ proposal, onReview, onAdjust, onSend }: Pr
         <span className="grid h-9 w-9 place-items-center rounded-lg bg-blue-50 text-app-blue md:h-auto md:w-auto md:bg-transparent md:text-app-text">
           <FileText className="h-5 w-5" aria-hidden="true" />
         </span>
-        <h2 className="min-w-0 flex-1 text-lg font-bold text-app-text md:text-base">Draft Split Proposal</h2>
+        <h2 className="min-w-0 flex-1 text-lg font-bold text-app-text md:text-base">Draft Trip Split</h2>
         <ChevronDown className="h-5 w-5 text-app-muted md:hidden" aria-hidden="true" />
       </div>
 
       <div className="grid grid-cols-5 divide-x divide-app-border border-b border-app-border">
         <SummaryCell label="Event" value={proposal.title} />
         <SummaryCell label="Total" value={formatKrw(proposal.totalCost)} />
-        <SummaryCell label="Participants" value={String(proposal.participants.length)} />
+        <SummaryCell label="Friends" value={String(proposal.participants.length)} />
         <SummaryCell label="Split method" value={humanStatus(proposal.splitMethod)} className="md:col-span-1" />
         <div className="min-w-0 px-2 py-3 md:px-5 md:py-2.5">
           <div className="text-xs text-app-muted">Status</div>
@@ -52,7 +52,7 @@ export function ProposalSummaryCard({ proposal, onReview, onAdjust, onSend }: Pr
 
       <div className="border-b border-app-border px-5 py-4 md:py-3">
         <div className="mb-3 rounded-lg border border-green-100 bg-green-50 px-3 py-2 text-sm font-semibold text-app-green">
-          Deterministic calculation: {formatKrw(proposal.calculationResult?.totalCost ?? proposal.totalCost)} reconciled across payer balances.
+          Deterministic split: {formatKrw(proposal.calculationResult?.totalCost ?? proposal.totalCost)} reconciled across payer balances.
         </div>
         <div className="grid grid-cols-[72px_minmax(0,1fr)] items-center gap-2 md:block">
           <div className="text-sm font-medium text-app-muted md:text-xs md:text-app-text">Agents</div>
@@ -79,7 +79,7 @@ export function ProposalSummaryCard({ proposal, onReview, onAdjust, onSend }: Pr
           className="inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-app-blue px-4 text-base font-semibold text-white hover:bg-blue-700 md:h-10 md:rounded-md md:text-sm"
         >
           <FileText className="h-4 w-4" aria-hidden="true" />
-          Review Proposal
+          Review Trip Split
         </button>
         <button
           type="button"
@@ -88,7 +88,7 @@ export function ProposalSummaryCard({ proposal, onReview, onAdjust, onSend }: Pr
           className="inline-flex h-12 items-center justify-center gap-2 rounded-xl border border-app-border bg-white px-4 text-base font-semibold text-app-text hover:bg-slate-50 md:h-10 md:rounded-md md:text-sm"
         >
           <Sparkles className="h-4 w-4" aria-hidden="true" />
-          Ask AI to Adjust
+          Ask AI to Change
         </button>
         <button
           type="button"
@@ -97,7 +97,7 @@ export function ProposalSummaryCard({ proposal, onReview, onAdjust, onSend }: Pr
           className="inline-flex h-12 items-center justify-center gap-2 rounded-xl border border-app-border bg-white px-4 text-base font-semibold text-app-text hover:bg-slate-50 md:h-10 md:rounded-md md:text-sm"
         >
           <Send className="h-4 w-4" aria-hidden="true" />
-          Send Proposal
+          Send to Friends
         </button>
       </div>
     </AppCard>
@@ -126,7 +126,7 @@ function mobileAgentLabel(label: string) {
     "Intake Agent": "Data Collector",
     "Cost Agent": "Rule Builder",
     "Split Agent": "Calculator",
-    "Fairness Agent": "Explainer",
+    "Risk Agent": "Ready?",
     "Participant Agent": "Reviewer"
   };
   return labels[label] ?? label;

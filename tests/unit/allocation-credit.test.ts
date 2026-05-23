@@ -9,21 +9,20 @@ import {
 
 describe("allocation and proof-aware credit mitigation", () => {
   it("classifies pasted receipt-like text and creates deterministic items", () => {
-    const input = `BBQ Crew
-Meat 64,000
-Drinks 24,000
-Charcoal 10,000
-Sides 30,000
-Total 128,000
-8 people
-Daniel no beef`;
+    const input = `Jeju Crew
+Friday stay 180,000
+Saturday stay 260,000
+Van rental 90,000
+Total 530,000
+7 people
+Alex no Friday`;
 
-    const { proposal, parserResult } = createProposalFromPrompt(input, "bbq-crew");
+    const { proposal, parserResult } = createProposalFromPrompt(input, "jeju-trip");
 
     expect(parserResult.status).toBe("ready");
     expect(parserResult.mode).toBe("receipt_text");
-    expect(proposal?.calculationResult?.totalCost).toBe(128000);
-    expect(proposal?.calculationResult?.itemizedBreakdown.find((item) => item.itemId === "meat")?.eligibleParticipantIds).not.toContain("daniel");
+    expect(proposal?.calculationResult?.totalCost).toBe(530000);
+    expect(proposal?.calculationResult?.itemizedBreakdown.find((item) => item.itemId === "friday-stay")?.eligibleParticipantIds).not.toContain("alex");
   });
 
   it("requires allocation resolution for grouped items with item-level exclusion", () => {

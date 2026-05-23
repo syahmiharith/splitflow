@@ -86,6 +86,24 @@ export type TimelineEvent = {
   text: string;
 };
 
+export type ProposalRevisionChange = {
+  participantId: string;
+  participantName: string;
+  beforeAmount: number;
+  afterAmount: number;
+};
+
+export type ProposalRevision = {
+  id: string;
+  version: number;
+  previousVersion: number;
+  createdAt: string;
+  actor: string;
+  reason: string;
+  changeRequestNote?: string;
+  amountChanges: ProposalRevisionChange[];
+};
+
 export type SettlementInstruction = {
   fromParticipantId: string;
   toParticipantId: string;
@@ -120,6 +138,8 @@ export type ProposalCalculationResult = {
 
 export type Proposal = {
   id: string;
+  version?: number;
+  revisionHistory?: ProposalRevision[];
   title: string;
   description: string;
   groupId?: string;
@@ -174,6 +194,9 @@ export type Artifact = {
   title: string;
   summary: string;
   proposalId?: string;
+  proposalVersion?: number;
+  state?: "staged" | "superseded";
+  supersedesArtifactId?: string;
   details?: string[];
   sourceText?: string;
   createdAt: string;
@@ -186,6 +209,34 @@ export type ChatSession = {
   artifactIds: string[];
   createdAt: string;
   updatedAt: string;
+};
+
+export type AgentRunStatus = "running" | "completed" | "failed";
+
+export type AgentRunEvent =
+  | { id: string; runId: string; at: string; type: "run_started"; detail: string }
+  | { id: string; runId: string; at: string; type: "step_completed"; step: string; detail: string }
+  | { id: string; runId: string; at: string; type: "artifact_staged"; artifactId: string }
+  | { id: string; runId: string; at: string; type: "run_completed"; detail: string }
+  | { id: string; runId: string; at: string; type: "run_failed"; detail: string };
+
+export type AgentRun = {
+  id: string;
+  groupId: string;
+  chatId: string;
+  sourceMessageId: string;
+  status: AgentRunStatus;
+  startedAt: string;
+  endedAt?: string;
+  eventIds: string[];
+  events: AgentRunEvent[];
+  error?: string;
+};
+
+export type AgentRunContext = {
+  runId: string;
+  groupId: string;
+  chatId: string;
 };
 
 export type GroupAnalyticsSummary = {
@@ -241,6 +292,8 @@ export type AgentStep = {
 export type UserMode = string;
 
 export type AppState = {
+  schemaVersion: number;
+  migrationLog: string[];
   currentUser: UserMode;
   selectedGroupId?: string;
   selectedChatIdByGroupId?: Record<string, string>;
@@ -248,6 +301,7 @@ export type AppState = {
   workspacePanel?: WorkspacePanel;
   globalNotifications?: Notification[];
   agentSteps: AgentStep[];
+  agentRuns: AgentRun[];
   aiUnavailable: boolean;
   lastAiError?: string;
 };

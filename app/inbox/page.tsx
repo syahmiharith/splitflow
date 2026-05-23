@@ -1,5 +1,5 @@
-import { LegacyGroupRedirect } from "@/components/legacy-group-redirect";
+import { redirect } from "next/navigation";
 
 export default function InboxRedirectPage() {
-  return <LegacyGroupRedirect target="inbox" />;
+  redirect("/groups/jeju-trip/inbox");
 }

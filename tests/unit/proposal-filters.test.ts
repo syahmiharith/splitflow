@@ -21,7 +21,7 @@ describe("proposal filters", () => {
     const proposals = [demoProposal];
 
     expect(filterProposals(proposals, "active", "daniel")).toHaveLength(1);
-    expect(filterProposals(proposals, "active", "meat")).toHaveLength(1);
+    expect(filterProposals(proposals, "active", "airbnb")).toHaveLength(1);
     expect(filterProposals(proposals, "active", "draft")).toHaveLength(1);
     expect(filterProposals(proposals, "active", "not-a-match")).toHaveLength(0);
   });

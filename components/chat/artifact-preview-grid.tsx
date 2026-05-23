@@ -29,6 +29,9 @@ export function ArtifactPreviewGrid({
           </div>
           <div className="mt-2 text-xs font-semibold uppercase tracking-wide text-app-muted">{humanStatus(artifact.type)}</div>
           <p className="mt-2 text-sm leading-6 text-app-muted">{artifact.summary}</p>
+          <div className="mt-3 text-sm font-semibold text-app-blue">
+            {artifact.type === "proposal_draft" ? "Review Trip Split" : "Open Details"}
+          </div>
         </button>
       ))}
     </div>

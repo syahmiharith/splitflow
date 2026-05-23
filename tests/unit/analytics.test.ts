@@ -8,7 +8,7 @@ describe("derived analytics", () => {
     const summary = deriveGroupAnalytics(defaultGroup);
 
     expect(summary.activeProposals).toBe(1);
-    expect(summary.openChangeRequests).toBeGreaterThan(0);
+    expect(summary.openChangeRequests).toBe(0);
     expect(summary.pendingResponses).toBeGreaterThan(0);
     expect(summary.stillOwed).toBeGreaterThan(0);
   });

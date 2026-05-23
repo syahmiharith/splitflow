@@ -26,7 +26,7 @@ function extractParticipantCount(message: string): number | undefined {
 
 function inferExpenseType(message: string): ExpenseType {
   if (/airbnb|hotel|stay|trip|travel|night/i.test(message)) return "travel_accommodation";
-  if (/dinner|meal|lunch|breakfast|bbq|restaurant/i.test(message)) return "meal";
+  if (/dinner|meal|lunch|breakfast|restaurant/i.test(message)) return "meal";
   if (/gift/i.test(message)) return "gift";
   if (/subscription|netflix|spotify/i.test(message)) return "subscription";
   if (/bill|rent|utility|electric/i.test(message)) return "bill";

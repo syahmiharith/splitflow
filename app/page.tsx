@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { AlertTriangle, Check, FileText, Plus, Users, WalletCards } from "lucide-react";
 import { deriveGlobalAnalytics } from "@/lib/analytics";
-import { formatKrw } from "@/lib/format";
+import { formatKrw, humanStatus } from "@/lib/format";
 import { useSplitFlow } from "@/lib/store";
 import { AppCard } from "@/components/ui/app-card";
 
@@ -16,7 +16,7 @@ export default function HomePage() {
     <div className="space-y-4 px-4 py-5 md:p-6" data-testid="home-route">
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-3">
         <Metric icon={Users} label="Active groups" value={String(summary.activeGroups)} tone="blue" />
-        <Metric icon={FileText} label="Open proposals" value={String(summary.openProposals)} tone="blue" />
+        <Metric icon={FileText} label="Open splits" value={String(summary.openProposals)} tone="blue" />
         <Metric icon={AlertTriangle} label="Urgent changes" value={String(summary.unresolvedChangeRequests)} tone="amber" />
         <Metric icon={WalletCards} label="Still owed" value={formatKrw(summary.stillOwed)} tone="green" />
       </div>
@@ -25,7 +25,7 @@ export default function HomePage() {
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h2 className="text-xl font-bold">Start with a group workspace</h2>
-            <p className="mt-1 text-sm text-app-muted">Chat, proposals, artifacts, and participant responses are scoped to the selected group.</p>
+            <p className="mt-1 text-sm text-app-muted">Chat, trip splits, friend replies, and booking readiness stay scoped to the selected group.</p>
           </div>
           <Link href={`/groups/${activeGroup.id}/chat`} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-app-blue px-4 text-sm font-semibold text-white">
             <Plus className="h-4 w-4" aria-hidden="true" />
@@ -44,7 +44,7 @@ export default function HomePage() {
               </div>
               <div className="min-w-0 flex-1">
                 <div className="truncate font-semibold">{proposal.title}</div>
-                <div className="text-sm text-app-muted">{group.name} · {proposal.status.replaceAll("_", " ")}</div>
+                <div className="text-sm text-app-muted">{group.name} · {humanStatus(proposal.status)}</div>
               </div>
               <span className="font-semibold">{formatKrw(proposal.totalCost)}</span>
             </Link>

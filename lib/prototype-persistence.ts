@@ -3,9 +3,10 @@
 import { defaultGroup, initialState } from "@/lib/demo-data";
 import { deriveGroupAnalytics } from "@/lib/analytics";
 import { recalculateProposal } from "@/lib/prototype-proposals";
-import type { AppState, ChatSession, ParticipantStatus, Proposal, SplitFlowGroup } from "@/lib/types";
+import type { AgentRun, AppState, ChatSession, ParticipantStatus, Proposal, SplitFlowGroup } from "@/lib/types";
 
 export const SPLITFLOW_STORAGE_KEY = "splitflow.demoState.v4";
+export const CURRENT_SCHEMA_VERSION = 5;
 const STALE_STORAGE_KEYS = ["splitflow.demoState.v1", "splitflow.demoState.v2", "splitflow.demoState.v3"];
 
 function canUseStorage(): boolean {
@@ -27,7 +28,14 @@ export function getDemoState(): AppState {
 
 export function saveDemoState(state: AppState): void {
   if (!canUseStorage()) return;
-  window.localStorage.setItem(SPLITFLOW_STORAGE_KEY, JSON.stringify(state));
+  window.localStorage.setItem(
+    SPLITFLOW_STORAGE_KEY,
+    JSON.stringify({
+      ...state,
+      schemaVersion: CURRENT_SCHEMA_VERSION,
+      migrationLog: Array.isArray(state.migrationLog) ? state.migrationLog : []
+    })
+  );
 }
 
 export function getProposals(): Proposal[] {
@@ -94,9 +102,9 @@ export function resetDemoData(): AppState {
   if (canUseStorage()) {
     clearStaleStorageKeys();
     window.localStorage.removeItem(SPLITFLOW_STORAGE_KEY);
-    window.localStorage.setItem(SPLITFLOW_STORAGE_KEY, JSON.stringify(initialState));
+    window.localStorage.setItem(SPLITFLOW_STORAGE_KEY, JSON.stringify({ ...initialState, schemaVersion: CURRENT_SCHEMA_VERSION }));
   }
-  return initialState;
+  return { ...initialState, schemaVersion: CURRENT_SCHEMA_VERSION };
 }
 
 function clearStaleStorageKeys(): void {
@@ -108,8 +116,15 @@ function clearStaleStorageKeys(): void {
 
 function normalizePersistedState(value: unknown): AppState {
   if (!isRecord(value)) return initialState;
+  const schemaVersion = typeof value.schemaVersion === "number" ? value.schemaVersion : 4;
+  if (schemaVersion > CURRENT_SCHEMA_VERSION) return initialState;
   const groups = Array.isArray(value.groups) ? value.groups.map(normalizePersistedGroup).filter((group): group is SplitFlowGroup => Boolean(group)) : [];
   if (groups.length === 0) return initialState;
+  const migrationLog = Array.isArray(value.migrationLog) ? value.migrationLog.filter((entry): entry is string => typeof entry === "string") : [];
+  const nextMigrationLog =
+    schemaVersion === CURRENT_SCHEMA_VERSION
+      ? migrationLog
+      : [...migrationLog, `Migrated local state from schema v${schemaVersion} to v${CURRENT_SCHEMA_VERSION}.`];
 
   const selectedGroupId =
     typeof value.selectedGroupId === "string" && groups.some((group) => group.id === value.selectedGroupId)
@@ -121,6 +136,8 @@ function normalizePersistedState(value: unknown): AppState {
     selectedChatIdByGroupId[selectedGroupId] = activeGroup.chats[0].id;
   }
   return {
+    schemaVersion: CURRENT_SCHEMA_VERSION,
+    migrationLog: nextMigrationLog,
     currentUser: typeof value.currentUser === "string" ? (value.currentUser as AppState["currentUser"]) : initialState.currentUser,
     selectedGroupId,
     selectedChatIdByGroupId,
@@ -128,6 +145,7 @@ function normalizePersistedState(value: unknown): AppState {
     workspacePanel: null,
     globalNotifications: Array.isArray(value.globalNotifications) ? value.globalNotifications : initialState.globalNotifications,
     agentSteps: Array.isArray(value.agentSteps) ? value.agentSteps : initialState.agentSteps,
+    agentRuns: Array.isArray(value.agentRuns) ? value.agentRuns.filter(isAgentRun).slice(-20) : [],
     aiUnavailable: typeof value.aiUnavailable === "boolean" ? value.aiUnavailable : false,
     lastAiError: typeof value.lastAiError === "string" ? value.lastAiError : undefined
   };
@@ -164,7 +182,11 @@ function normalizePersistedProposal(value: unknown): Proposal | undefined {
   if (!Array.isArray(value.costItems) || value.costItems.length === 0) return undefined;
 
   try {
-    return recalculateProposal(value as Proposal);
+    return recalculateProposal({
+      ...(value as Proposal),
+      version: typeof value.version === "number" ? value.version : 1,
+      revisionHistory: Array.isArray(value.revisionHistory) ? value.revisionHistory as Proposal["revisionHistory"] : []
+    });
   } catch {
     return undefined;
   }
@@ -172,6 +194,18 @@ function normalizePersistedProposal(value: unknown): Proposal | undefined {
 
 function isChatSession(value: unknown): value is ChatSession {
   return isRecord(value) && typeof value.id === "string" && typeof value.title === "string" && Array.isArray(value.messages);
+}
+
+function isAgentRun(value: unknown): value is AgentRun {
+  return (
+    isRecord(value) &&
+    typeof value.id === "string" &&
+    typeof value.groupId === "string" &&
+    typeof value.chatId === "string" &&
+    typeof value.sourceMessageId === "string" &&
+    (value.status === "running" || value.status === "completed" || value.status === "failed") &&
+    Array.isArray(value.events)
+  );
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

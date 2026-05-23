@@ -1,5 +1,5 @@
 import { aiResponseJsonSchema, aiResponseSchema, type AiRequest, type AiResponse } from "@/lib/ai/schemas";
-import { getDefaultRuntimeModel } from "@/lib/ai/model-policy";
+import { getModelForSplitAgentRequest } from "@/lib/ai/model-policy";
 
 type ResponsesApiOutput = {
   output_text?: string;
@@ -31,7 +31,7 @@ export async function callSplitAgent(input: AiRequest): Promise<AiResponse> {
     throw new Error("OPENAI_API_KEY is not configured.");
   }
 
-  const model = process.env.OPENAI_MODEL || getDefaultRuntimeModel();
+  const model = getModelForSplitAgentRequest(input);
 
   const response = await fetch("https://api.openai.com/v1/responses", {
     method: "POST",

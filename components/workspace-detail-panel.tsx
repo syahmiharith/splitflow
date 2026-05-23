@@ -1,12 +1,22 @@
 "use client";
 
-import { Check, CreditCard, Send, X } from "lucide-react";
+import { Check, CreditCard, MoreHorizontal, Send, X } from "lucide-react";
+import { useState, type ReactNode } from "react";
 import { formatKrw, humanStatus } from "@/lib/format";
 import { useSplitFlow } from "@/lib/store";
-import type { Artifact, Proposal } from "@/lib/types";
+import type { PaymentRecord, Proposal } from "@/lib/types";
+import { ArtifactSummary } from "@/components/workspace-detail/artifact-summary";
+import { PanelAction } from "@/components/workspace-detail/panel-action";
+import { ProposalPanelBody } from "@/components/workspace-detail/proposal-panel-body";
 import { StatusBadge } from "@/components/ui/status-badge";
 
-export function WorkspaceDetailPanel({ fallbackProposal }: { fallbackProposal?: Proposal }) {
+export function WorkspaceDetailPanel({
+  fallbackProposal,
+  desktopPersistent = false
+}: {
+  fallbackProposal?: Proposal;
+  desktopPersistent?: boolean;
+}) {
   const {
     state,
     activeGroup,
@@ -22,176 +32,176 @@ export function WorkspaceDetailPanel({ fallbackProposal }: { fallbackProposal?: 
   } = useSplitFlow();
   const proposal = selectedPanelProposal ?? (selectedArtifact?.proposalId ? activeGroup.proposals.find((item) => item.id === selectedArtifact.proposalId) : undefined) ?? fallbackProposal;
   const claimedCredit = proposal?.paymentRecords?.find((record) => record.status === "claimed");
+  const isOpen = Boolean(state.workspacePanel || fallbackProposal);
 
-  if (!state.workspacePanel && !fallbackProposal) return null;
+  if (!isOpen && !desktopPersistent) return null;
 
   return (
-    <aside className="flex min-h-[520px] w-full flex-col border-t border-app-border bg-white lg:w-[420px] lg:border-l lg:border-t-0" data-testid="workspace-detail-panel">
-      <div className="flex items-start gap-3 border-b border-app-border px-5 py-4">
+    <aside
+      className={`${isOpen ? "fixed inset-0 z-40 h-[100dvh]" : "hidden"} flex min-h-0 w-full flex-col border-t border-app-border bg-white lg:static lg:z-auto lg:flex lg:h-auto lg:min-h-[520px] lg:w-[420px] lg:border-l lg:border-t-0`}
+      data-testid="workspace-detail-panel"
+      aria-hidden={!isOpen && desktopPersistent}
+    >
+      <div className="sticky top-0 z-10 flex items-start gap-3 border-b border-app-border bg-white px-5 py-4">
         <div className="min-w-0 flex-1">
           <div className="text-xs font-semibold uppercase tracking-wide text-app-muted">
             {selectedArtifact ? humanStatus(selectedArtifact.type) : "Proposal detail"}
           </div>
           <h2 className="mt-1 text-lg font-bold text-app-text">{selectedArtifact?.title ?? proposal?.title ?? "Workspace detail"}</h2>
-          {proposal ? <div className="mt-2"><StatusBadge status={proposal.status} /></div> : null}
+          {proposal ? (
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <StatusBadge status={proposal.status} />
+              <span className="rounded-md bg-slate-50 px-2 py-1 text-xs font-bold text-app-text">{formatKrw(proposal.calculationResult?.totalCost ?? proposal.totalCost)}</span>
+            </div>
+          ) : null}
         </div>
-        <button type="button" onClick={closePanel} className="grid h-9 w-9 place-items-center rounded-lg border border-app-border text-app-muted hover:bg-slate-50" aria-label="Close panel">
-          <X className="h-4 w-4" aria-hidden="true" />
-        </button>
+        {isOpen ? (
+          <button type="button" onClick={closePanel} className="grid h-9 w-9 place-items-center rounded-lg border border-app-border text-app-muted hover:bg-slate-50" aria-label="Close panel">
+            <X className="h-4 w-4" aria-hidden="true" />
+          </button>
+        ) : null}
       </div>
 
       <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-5 py-4">
         {selectedArtifact ? <ArtifactSummary artifact={selectedArtifact} /> : null}
-        {proposal ? <ProposalPanelBody proposal={proposal} /> : <p className="text-sm text-app-muted">Select an artifact or proposal to inspect details.</p>}
+        {proposal ? (
+          <ProposalPanelBody proposal={proposal} />
+        ) : (
+          <div className="rounded-lg border border-dashed border-app-border bg-slate-50 px-4 py-5">
+            <p className="text-sm font-semibold text-app-text">Select a proposal or artifact</p>
+            <p className="mt-2 text-sm leading-6 text-app-muted">
+              Desktop keeps this workspace panel open so calculation details, settlement instructions, and next actions stay visible while you review the chat or proposal list.
+            </p>
+          </div>
+        )}
       </div>
 
-      <div className="sticky bottom-[calc(5.5rem+env(safe-area-inset-bottom))] grid gap-2 border-t border-app-border bg-white p-4 lg:bottom-0" data-testid="workspace-panel-footer">
+      <div className="sticky bottom-0 grid gap-2 border-t border-app-border bg-white p-4" data-testid="workspace-panel-footer">
         {proposal ? (
-          <>
-            {claimedCredit ? (
-              <>
-                <PanelAction testId="panel-confirm-credit" icon={Check} label="Confirm claimed credit" onClick={() => updateCreditStatus(claimedCredit.id, "confirmed")} />
-                <PanelAction testId="panel-dispute-credit" icon={X} label="Dispute claimed credit" onClick={() => updateCreditStatus(claimedCredit.id, "disputed")} />
-                <PanelAction testId="panel-void-credit" icon={X} label="Void claimed credit" onClick={() => updateCreditStatus(claimedCredit.id, "void")} />
-              </>
-            ) : null}
-            <PanelAction testId="panel-send-proposal" icon={Send} label="Send proposal" onClick={() => sendProposal(proposal.id)} />
-            <PanelAction testId="panel-accept-change" icon={Check} label="Accept change" onClick={() => acceptRequestedChange(proposal.id)} />
-            <PanelAction testId="panel-mark-paid" icon={CreditCard} label="Mark Daniel paid" onClick={() => markPaid("daniel", proposal.id)} />
-            <PanelAction testId="panel-mark-settled" icon={CreditCard} label="Mark settled" onClick={() => markSettled(proposal.id)} primary />
-          </>
+          <ProposalPanelActions
+            proposal={proposal}
+            claimedCredit={claimedCredit}
+            onConfirmCredit={() => claimedCredit ? updateCreditStatus(claimedCredit.id, "confirmed") : undefined}
+            onDisputeCredit={() => claimedCredit ? updateCreditStatus(claimedCredit.id, "disputed") : undefined}
+            onVoidCredit={() => claimedCredit ? updateCreditStatus(claimedCredit.id, "void") : undefined}
+            onSendProposal={() => sendProposal(proposal.id)}
+            onAcceptChange={() => acceptRequestedChange(proposal.id)}
+            onMarkPaid={() => markPaid("daniel", proposal.id)}
+            onMarkSettled={() => markSettled(proposal.id)}
+          />
         ) : selectedArtifact?.type === "allocation_resolution" ? (
           <>
             <PanelAction testId="panel-use-equal-allocation" icon={Check} label="Use equal item allocation" onClick={() => resolveAllocation("single_total_equal_items")} primary />
             <PanelAction testId="panel-combine-allocation" icon={CreditCard} label="Combine as one shared item" onClick={() => resolveAllocation("unallocated_remainder")} />
             <PanelAction testId="panel-close" icon={X} label="Cancel" onClick={closePanel} />
           </>
-        ) : (
+        ) : isOpen ? (
           <PanelAction testId="panel-close" icon={X} label="Close panel" onClick={closePanel} />
+        ) : (
+          <div className="rounded-lg border border-app-border bg-slate-50 px-3 py-3 text-sm text-app-muted">
+            No active review selected.
+          </div>
         )}
       </div>
     </aside>
   );
 }
 
-function ArtifactSummary({ artifact }: { artifact: Artifact }) {
-  return (
-    <section className="rounded-lg border border-blue-100 bg-blue-50 p-3">
-      <div className="text-sm font-semibold text-app-blue">Artifact preview</div>
-      <p className="mt-2 text-sm leading-6 text-app-text">{artifact.summary}</p>
-      {artifact.details && artifact.details.length > 0 ? (
-        <ul className="mt-3 space-y-1 text-sm leading-6 text-app-text">
-          {artifact.details.map((detail) => (
-            <li key={detail} className="rounded-md bg-white/70 px-2 py-1">
-              {detail}
-            </li>
-          ))}
-        </ul>
-      ) : null}
-    </section>
-  );
-}
+function ProposalPanelActions({
+  proposal,
+  claimedCredit,
+  onConfirmCredit,
+  onDisputeCredit,
+  onVoidCredit,
+  onSendProposal,
+  onAcceptChange,
+  onMarkPaid,
+  onMarkSettled
+}: {
+  proposal: Proposal;
+  claimedCredit?: PaymentRecord;
+  onConfirmCredit: () => void;
+  onDisputeCredit: () => void;
+  onVoidCredit: () => void;
+  onSendProposal: () => void;
+  onAcceptChange: () => void;
+  onMarkPaid: () => void;
+  onMarkSettled: () => void;
+}) {
+  const [moreOpen, setMoreOpen] = useState(false);
+  const needsOrganizerDecision = proposal.status === "changes_requested" || proposal.status === "recalculation_needed";
+  const shouldSend = proposal.status === "draft";
 
-function ProposalPanelBody({ proposal }: { proposal: Proposal }) {
-  const calculation = proposal.calculationResult;
+  if (claimedCredit) {
+    return (
+      <>
+        <PanelAction testId="panel-confirm-credit" icon={Check} label="Confirm claimed credit" onClick={onConfirmCredit} primary />
+        <PanelAction testId="panel-dispute-credit" icon={X} label="Dispute claimed credit" onClick={onDisputeCredit} />
+        <OverflowActions open={moreOpen} onToggle={() => setMoreOpen((current) => !current)}>
+          <PanelAction testId="panel-void-credit" icon={X} label="Void claimed credit" onClick={onVoidCredit} />
+          <PanelAction testId="panel-send-proposal" icon={Send} label="Send proposal" onClick={onSendProposal} />
+          <PanelAction testId="panel-mark-settled" icon={CreditCard} label="Mark settled" onClick={onMarkSettled} />
+        </OverflowActions>
+      </>
+    );
+  }
+
+  if (shouldSend) {
+    return (
+      <>
+        <PanelAction testId="panel-send-proposal" icon={Send} label="Send proposal" onClick={onSendProposal} primary />
+        <PanelAction testId="panel-mark-settled" icon={CreditCard} label="Mark settled" onClick={onMarkSettled} />
+        <OverflowActions open={moreOpen} onToggle={() => setMoreOpen((current) => !current)}>
+          <PanelAction testId="panel-accept-change" icon={Check} label="Accept change" onClick={onAcceptChange} />
+          <PanelAction testId="panel-mark-paid" icon={CreditCard} label="Mark Daniel paid" onClick={onMarkPaid} />
+        </OverflowActions>
+      </>
+    );
+  }
+
+  if (needsOrganizerDecision) {
+    return (
+      <>
+        <PanelAction testId="panel-accept-change" icon={Check} label="Accept change" onClick={onAcceptChange} primary />
+        <PanelAction testId="panel-mark-settled" icon={CreditCard} label="Mark settled" onClick={onMarkSettled} />
+        <OverflowActions open={moreOpen} onToggle={() => setMoreOpen((current) => !current)}>
+          <PanelAction testId="panel-send-proposal" icon={Send} label="Send proposal" onClick={onSendProposal} />
+          <PanelAction testId="panel-mark-paid" icon={CreditCard} label="Mark Daniel paid" onClick={onMarkPaid} />
+        </OverflowActions>
+      </>
+    );
+  }
+
   return (
     <>
-      <section className="grid grid-cols-2 gap-2">
-        <Metric label="Total" value={formatKrw(calculation?.totalCost ?? proposal.totalCost)} />
-        <Metric label="Participants" value={String(proposal.participants.length)} />
-      </section>
-
-      <section>
-        <h3 className="text-sm font-bold">Itemized costs</h3>
-        <div className="mt-2 space-y-2">
-          {proposal.costItems.map((item) => (
-            <div key={item.id} className="flex items-center justify-between rounded-lg border border-app-border px-3 py-2 text-sm">
-              <span>{item.label}</span>
-              <span className="font-semibold">{formatKrw(item.amount)}</span>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      <section>
-        <h3 className="text-sm font-bold">Participant balances</h3>
-        <div className="mt-2 space-y-2">
-          {proposal.participants.map((participant) => {
-            const net = calculation?.netBalanceByParticipant[participant.id] ?? -participant.shareAmount;
-            return (
-              <div key={participant.id} className="rounded-lg border border-app-border px-3 py-2 text-sm">
-                <div className="flex items-center justify-between gap-2">
-                  <span className="font-medium">{participant.name}</span>
-                  <span className={net >= 0 ? "font-bold text-app-green" : "font-bold text-app-red"}>{formatKrw(net)}</span>
-                </div>
-                <div className="mt-1 text-xs text-app-muted">{humanStatus(participant.status)}</div>
-              </div>
-            );
-          })}
-        </div>
-      </section>
-
-      <section>
-        <h3 className="text-sm font-bold">Settlement plan</h3>
-        <div className="mt-2 space-y-2">
-          {calculation?.settlementInstructions.map((instruction) => (
-            <div key={`${instruction.fromParticipantId}-${instruction.toParticipantId}-${instruction.amount}`} className="rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-sm">
-              {instruction.text}
-            </div>
-          ))}
-        </div>
-      </section>
-
-      {proposal.paymentRecords && proposal.paymentRecords.length > 0 ? (
-        <section>
-          <h3 className="text-sm font-bold">Settlement ledger</h3>
-          <div className="mt-2 space-y-2">
-            {proposal.paymentRecords.map((record) => (
-              <div key={record.id} className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm">
-                <div className="font-semibold">{humanStatus(record.status)} paid: {formatKrw(record.amount)}</div>
-                <div className="mt-1 text-app-muted">{record.proofNote ?? "No proof note attached."}</div>
-              </div>
-            ))}
-          </div>
-        </section>
-      ) : null}
-
-      <section>
-        <h3 className="text-sm font-bold">Timeline</h3>
-        <div className="mt-2 space-y-2">
-          {(proposal.timeline ?? []).map((event) => (
-            <div key={event.id} className="rounded-lg border border-app-border px-3 py-2 text-sm">
-              <div className="font-medium">{event.actor}</div>
-              <div className="text-app-muted">{event.text}</div>
-            </div>
-          ))}
-        </div>
-      </section>
+      <PanelAction testId="panel-mark-settled" icon={CreditCard} label="Mark settled" onClick={onMarkSettled} primary />
+      <PanelAction testId="panel-send-proposal" icon={Send} label="Send proposal" onClick={onSendProposal} />
+      <OverflowActions open={moreOpen} onToggle={() => setMoreOpen((current) => !current)}>
+        <PanelAction testId="panel-accept-change" icon={Check} label="Accept change" onClick={onAcceptChange} />
+        <PanelAction testId="panel-mark-paid" icon={CreditCard} label="Mark Daniel paid" onClick={onMarkPaid} />
+      </OverflowActions>
     </>
   );
 }
 
-function Metric({ label, value }: { label: string; value: string }) {
+function OverflowActions({ children, open, onToggle }: { children: ReactNode; open: boolean; onToggle: () => void }) {
   return (
-    <div className="rounded-lg border border-app-border bg-slate-50 px-3 py-2">
-      <div className="text-xs text-app-muted">{label}</div>
-      <div className="mt-1 font-bold">{value}</div>
+    <div className="relative">
+      <button
+        type="button"
+        data-testid="workspace-panel-more-actions"
+        onClick={onToggle}
+        className="inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-lg border border-app-border bg-white px-3 text-sm font-semibold text-app-text hover:bg-slate-50"
+        aria-expanded={open}
+      >
+        <MoreHorizontal className="h-4 w-4 text-app-blue" aria-hidden="true" />
+        More actions
+      </button>
+      {open ? (
+        <div className="mt-2 grid gap-2 rounded-lg border border-app-border bg-slate-50 p-2" data-testid="workspace-panel-overflow-actions">
+          {children}
+        </div>
+      ) : null}
     </div>
-  );
-}
-
-function PanelAction({ icon: Icon, label, onClick, testId, primary = false }: { icon: typeof Send; label: string; onClick: () => void; testId: string; primary?: boolean }) {
-  return (
-    <button
-      type="button"
-      data-testid={testId}
-      onClick={onClick}
-      className={`inline-flex min-h-10 items-center justify-center gap-2 rounded-lg px-3 text-sm font-semibold ${
-        primary ? "bg-app-blue text-white hover:bg-blue-700" : "border border-app-border bg-white text-app-text hover:bg-slate-50"
-      }`}
-    >
-      <Icon className="h-4 w-4" aria-hidden="true" />
-      {label}
-    </button>
   );
 }

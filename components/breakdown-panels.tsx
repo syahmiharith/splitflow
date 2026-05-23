@@ -5,6 +5,7 @@ import { Beef, ChevronDown, CupSoda, FileText, Flame, Info, Salad, Users, Wallet
 import { formatKrw } from "@/lib/format";
 import type { CostItem, Proposal } from "@/lib/types";
 import { AppCard } from "@/components/ui/app-card";
+import { Table } from "@/components/ui/table";
 
 const itemIcons = [Beef, CupSoda, Flame, Salad];
 
@@ -76,39 +77,41 @@ function CostItemsPanel({ items, total }: { items: CostItem[]; total: number }) 
   return (
     <AppCard className="overflow-hidden" data-testid="cost-items-panel">
       <div className="border-b border-app-border px-5 py-3 text-base font-bold">Cost Items</div>
-      <div className="overflow-x-auto">
-        <table className="min-w-full text-sm">
-          <thead className="bg-slate-50 text-xs text-app-muted">
-            <tr>
-              <th className="px-5 py-2 text-left font-semibold">Item</th>
-              <th className="px-5 py-2 text-left font-semibold">Paid by</th>
-              <th className="px-5 py-2 text-left font-semibold">Excluded</th>
-              <th className="px-5 py-2 text-right font-semibold">Amount (KRW)</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-app-border">
+      <div>
+        <Table className="rounded-none border-0" minWidth="560px">
+          <Table.Header>
+            <Table.Row>
+              <Table.Head>Item</Table.Head>
+              <Table.Head>Paid by</Table.Head>
+              <Table.Head>Excluded</Table.Head>
+              <Table.Head numeric>Amount (KRW)</Table.Head>
+            </Table.Row>
+          </Table.Header>
+          <Table.Body>
             {items.map((item, index) => {
               const Icon = itemIcons[index] ?? Salad;
               return (
-                <tr key={item.id}>
-                  <td className="whitespace-nowrap px-5 py-2.5">
+                <Table.Row key={item.id}>
+                  <Table.Cell nowrap>
                     <span className="inline-flex items-center gap-2">
                       <Icon className="h-4 w-4 text-app-muted" aria-hidden="true" />
                       {item.label}
                     </span>
-                  </td>
-                  <td className="whitespace-nowrap px-5 py-2.5 text-app-muted">{item.paidBy ?? item.paidByParticipantId ?? "-"}</td>
-                  <td className="whitespace-nowrap px-5 py-2.5 text-app-muted">{item.excludedParticipantIds?.join(", ") || "-"}</td>
-                  <td className="whitespace-nowrap px-5 py-2.5 text-right font-medium">{formatKrw(item.amount)}</td>
-                </tr>
+                  </Table.Cell>
+                  <Table.Cell muted nowrap>{item.paidBy ?? item.paidByParticipantId ?? "-"}</Table.Cell>
+                  <Table.Cell muted nowrap>{item.excludedParticipantIds?.join(", ") || "-"}</Table.Cell>
+                  <Table.Cell numeric nowrap className="font-medium">{formatKrw(item.amount)}</Table.Cell>
+                </Table.Row>
               );
             })}
-            <tr className="font-bold">
-              <td className="px-5 py-2.5" colSpan={3}>Total</td>
-              <td className="px-5 py-2.5 text-right">{formatKrw(total)}</td>
-            </tr>
-          </tbody>
-        </table>
+          </Table.Body>
+          <Table.Footer>
+            <Table.Row>
+              <Table.Cell colSpan={3}>Total</Table.Cell>
+              <Table.Cell numeric>{formatKrw(total)}</Table.Cell>
+            </Table.Row>
+          </Table.Footer>
+        </Table>
       </div>
     </AppCard>
   );
@@ -126,44 +129,46 @@ function ParticipantBreakdown({ proposal }: { proposal: Proposal }) {
   return (
     <AppCard className="overflow-hidden" data-testid="participant-breakdown-panel">
       <div className="border-b border-app-border px-5 py-3 text-base font-bold">Participant Breakdown</div>
-      <div className="overflow-x-auto">
-        <table className="min-w-[640px] text-sm">
-          <thead className="bg-slate-50 text-xs text-app-muted">
-            <tr>
-              <th className="px-5 py-2 text-left font-semibold">Participant</th>
-              <th className="px-5 py-2 text-left font-semibold">Role</th>
-              <th className="px-5 py-2 text-right font-semibold">Fair share (KRW)</th>
-              <th className="px-5 py-2 text-right font-semibold">Paid upfront (KRW)</th>
-              <th className="px-5 py-2 text-right font-semibold">Net (KRW)</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-app-border">
+      <div>
+        <Table className="rounded-none border-0" minWidth="640px">
+          <Table.Header>
+            <Table.Row>
+              <Table.Head>Participant</Table.Head>
+              <Table.Head>Role</Table.Head>
+              <Table.Head numeric>Fair share (KRW)</Table.Head>
+              <Table.Head numeric>Paid upfront (KRW)</Table.Head>
+              <Table.Head numeric>Net (KRW)</Table.Head>
+            </Table.Row>
+          </Table.Header>
+          <Table.Body>
             {participants.map((participant) => (
-              <tr key={participant.id} data-testid={`participant-breakdown-${participant.id}`}>
-                <td className="px-5 py-2.5 font-medium">{participant.name}</td>
-                <td className="px-5 py-2.5">
+              <Table.Row key={participant.id} data-testid={`participant-breakdown-${participant.id}`}>
+                <Table.Cell className="font-medium">{participant.name}</Table.Cell>
+                <Table.Cell>
                   <span className="rounded-md border border-blue-100 bg-blue-50 px-2 py-1 text-xs font-medium text-app-blue">
                     {participant.roleNote ?? "Participant"}
                   </span>
-                </td>
-                <td className="px-5 py-2.5 text-right font-medium">{formatKrw(calculation?.fairShareByParticipant[participant.id] ?? participant.shareAmount)}</td>
-                <td className="px-5 py-2.5 text-right text-app-muted">{formatKrw(calculation?.totalPaidByParticipant[participant.id] ?? 0)}</td>
-                <td className={`px-5 py-2.5 text-right font-bold ${(calculation?.netBalanceByParticipant[participant.id] ?? -participant.shareAmount) >= 0 ? "text-app-green" : "text-app-red"}`}>
+                </Table.Cell>
+                <Table.Cell numeric className="font-medium">{formatKrw(calculation?.fairShareByParticipant[participant.id] ?? participant.shareAmount)}</Table.Cell>
+                <Table.Cell numeric muted>{formatKrw(calculation?.totalPaidByParticipant[participant.id] ?? 0)}</Table.Cell>
+                <Table.Cell numeric className={`font-bold ${(calculation?.netBalanceByParticipant[participant.id] ?? -participant.shareAmount) >= 0 ? "text-app-green" : "text-app-red"}`}>
                   {formatKrw(calculation?.netBalanceByParticipant[participant.id] ?? -participant.shareAmount)}
-                </td>
-              </tr>
+                </Table.Cell>
+              </Table.Row>
             ))}
-            <tr className="font-bold">
-              <td className="px-5 py-2.5">Total</td>
-              <td />
-              <td className="px-5 py-2.5 text-right">{formatKrw(fairShareTotal)}</td>
-              <td className="px-5 py-2.5 text-right">{formatKrw(paidTotal)}</td>
-              <td className={`px-5 py-2.5 text-right ${netTotal === 0 ? "text-app-text" : netTotal > 0 ? "text-app-green" : "text-app-red"}`}>
+          </Table.Body>
+          <Table.Footer>
+            <Table.Row>
+              <Table.Cell>Total</Table.Cell>
+              <Table.Cell />
+              <Table.Cell numeric>{formatKrw(fairShareTotal)}</Table.Cell>
+              <Table.Cell numeric>{formatKrw(paidTotal)}</Table.Cell>
+              <Table.Cell numeric className={netTotal === 0 ? "text-app-text" : netTotal > 0 ? "text-app-green" : "text-app-red"}>
                 {formatKrw(netTotal)}
-              </td>
-            </tr>
-          </tbody>
-        </table>
+              </Table.Cell>
+            </Table.Row>
+          </Table.Footer>
+        </Table>
       </div>
     </AppCard>
   );

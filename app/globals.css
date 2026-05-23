@@ -2,8 +2,25 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  color-scheme: light;
+@layer base {
+  :root {
+    color-scheme: light;
+    --ds-gray-1000: #18212f;
+    --ds-gray-900: hsla(0, 0%, 40%, 1);
+    --ds-gray-alpha-400: hsla(0, 0%, 0%, 0.08);
+    --ds-background: #f8fafc;
+    --ds-background-100: hsla(0, 0%, 100%, 1);
+    --ds-background-200: hsla(0, 0%, 98%, 1);
+  }
+
+  .dark {
+    --ds-gray-1000: hsla(0, 0%, 93%, 1);
+    --ds-gray-900: hsla(0, 0%, 63%, 1);
+    --ds-gray-alpha-400: hsla(0, 0%, 100%, 0.14);
+    --ds-background: hsla(0, 0%, 4%, 1);
+    --ds-background-100: hsla(0, 0%, 4%, 1);
+    --ds-background-200: hsla(0, 0%, 0%, 1);
+  }
 }
 
 * {

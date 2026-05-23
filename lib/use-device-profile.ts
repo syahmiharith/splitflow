@@ -26,7 +26,7 @@ const desktopQuery = "(min-width: 1024px)";
 const touchQuery = "(pointer: coarse)";
 
 function getDeviceProfile(): DeviceProfile {
-  if (typeof window === "undefined") {
+  if (typeof window === "undefined" || typeof window.matchMedia !== "function") {
     return unknownDeviceProfile;
   }
 
@@ -55,6 +55,8 @@ export function useDeviceProfile(): DeviceProfile {
   const [profile, setProfile] = useState<DeviceProfile>(unknownDeviceProfile);
 
   useEffect(() => {
+    if (typeof window.matchMedia !== "function") return;
+
     const queries = [mobileQuery, tabletQuery, desktopQuery, touchQuery].map((query) => window.matchMedia(query));
     const updateProfile = () => setProfile(getDeviceProfile());
 

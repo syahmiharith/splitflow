@@ -7,6 +7,7 @@ import { AgentStep as AgentStepItem } from "@/components/ui/agent-step";
 import { AppCard } from "@/components/ui/app-card";
 import { KpiChip } from "@/components/ui/kpi-chip";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { Table } from "@/components/ui/table";
 
 export function RightWorkflowPanel({ proposal, agentSteps }: { proposal: Proposal; agentSteps: AgentStep[] }) {
   const counts = countParticipants(proposal);
@@ -33,26 +34,26 @@ export function RightWorkflowPanel({ proposal, agentSteps }: { proposal: Proposa
             <KpiChip label="Paid" value={counts.paid} tone="blue" />
           </div>
         </div>
-        <div className="mt-3 overflow-x-auto">
-          <table className="min-w-full text-sm">
-            <thead className="border-y border-app-border bg-slate-50 text-xs text-app-muted">
-              <tr>
-                <th className="px-4 py-2 text-left font-semibold">Participant</th>
-                <th className="px-4 py-2 text-left font-semibold">Status</th>
-                <th className="px-4 py-2 text-left font-semibold">Next Action</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-app-border">
+        <div className="mt-3">
+          <Table className="rounded-none border-x-0" minWidth="360px">
+            <Table.Header className="border-y">
+              <Table.Row>
+                <Table.Head className="px-4 py-2">Participant</Table.Head>
+                <Table.Head className="px-4 py-2">Status</Table.Head>
+                <Table.Head className="px-4 py-2">Next Action</Table.Head>
+              </Table.Row>
+            </Table.Header>
+            <Table.Body>
               {previewParticipants.map((participant) => (
-                <tr key={participant.id} data-testid={`status-row-${participant.id}`}>
-                  <td className="px-4 py-2.5 font-medium">{participant.name}</td>
-                  <td className="px-4 py-2.5">
+                <Table.Row key={participant.id} data-testid={`status-row-${participant.id}`}>
+                  <Table.Cell className="px-4 font-medium">{participant.name}</Table.Cell>
+                  <Table.Cell className="px-4">
                     <StatusBadge
                       status={participant.status}
                       label={participant.status === "requested_changes" ? "Requested edit" : undefined}
                     />
-                  </td>
-                  <td className="px-4 py-2.5">
+                  </Table.Cell>
+                  <Table.Cell className="px-4">
                     <span className="rounded-md border border-app-border bg-slate-50 px-2 py-1 text-xs font-medium text-app-text">
                       {participant.paymentStatus === "paid"
                         ? "Paid"
@@ -62,11 +63,11 @@ export function RightWorkflowPanel({ proposal, agentSteps }: { proposal: Proposa
                             ? "Remind"
                             : "Unpaid"}
                     </span>
-                  </td>
-                </tr>
+                  </Table.Cell>
+                </Table.Row>
               ))}
-            </tbody>
-          </table>
+            </Table.Body>
+          </Table>
         </div>
       </AppCard>
 

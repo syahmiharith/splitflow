@@ -1,6 +1,8 @@
 import type {
   AgentRun,
+  AgentRunEvent,
   Artifact,
+  ArtifactLifecycleState,
   ArtifactRecord,
   BotMessage,
   Proposal,
@@ -60,4 +62,51 @@ export type WorkflowActionResult = {
   group: SplitFlowGroup;
   proposal?: Proposal;
   artifacts: Artifact[];
+};
+
+export type ProposalHistoryVersionSummary = {
+  id: string;
+  version: number;
+  parentVersionId?: string;
+  transitionType: ProposalVersion["transitionType"];
+  actor: string;
+  reason: string;
+  amountChanges: number;
+  createdAt: string;
+};
+
+export type ProposalHistoryArtifactSummary = {
+  id: string;
+  title: string;
+  kind: ArtifactRecord["kind"];
+  state: Exclude<ArtifactLifecycleState, "staged">;
+  recordState: ArtifactRecord["state"];
+  active: boolean;
+  runId?: string;
+  proposalId?: string;
+  proposalVersionId?: string;
+  supersedesArtifactId?: string;
+  supersededByArtifactId?: string;
+  createdAt: string;
+};
+
+export type ProposalHistoryRunSummary = {
+  id: string;
+  groupId: string;
+  chatId: string;
+  sourceMessageId: string;
+  status: AgentRun["status"];
+  retryCount: number;
+  createdAt: string;
+  startedAt: string;
+  endedAt?: string;
+  error?: string;
+  events: AgentRunEvent[];
+};
+
+export type ProposalHistoryResult = {
+  proposalRecord: ProposalRecord;
+  versions: ProposalHistoryVersionSummary[];
+  artifacts: ProposalHistoryArtifactSummary[];
+  runs: ProposalHistoryRunSummary[];
 };

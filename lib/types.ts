@@ -188,6 +188,8 @@ export type ArtifactType =
   | "change_request_summary"
   | "risk_summary";
 
+export type ArtifactLifecycleState = "staged" | "review_required" | "ready" | "published" | "superseded" | "archived";
+
 export type Artifact = {
   id: string;
   type: ArtifactType;
@@ -195,7 +197,7 @@ export type Artifact = {
   summary: string;
   proposalId?: string;
   proposalVersion?: number;
-  state?: "staged" | "superseded";
+  state?: ArtifactLifecycleState;
   supersedesArtifactId?: string;
   details?: string[];
   sourceText?: string;
@@ -288,7 +290,7 @@ export type ArtifactRecord = {
   proposalId?: string;
   proposalVersionId?: string;
   kind: ArtifactType;
-  state: "active" | "superseded";
+  state: "active" | "superseded" | "archived";
   supersedesArtifactId?: string;
   supersededByArtifactId?: string;
   createdAt: string;

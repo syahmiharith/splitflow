@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import path from "node:path";
 import { POST as createRun } from "@/app/api/agent/runs/route";
+import { GET as getRun } from "@/app/api/agent/runs/[runId]/route";
 import { GET as getEvents } from "@/app/api/agent/runs/[runId]/events/route";
 import { POST as retryRun } from "@/app/api/agent/runs/[runId]/retry/route";
 
@@ -32,10 +33,11 @@ describe("/api/agent/runs", () => {
 
     const first = await createRun(request(body));
     const second = await createRun(request(body));
-    const firstPayload = (await first.json()) as { run: { id: string } };
+    const firstPayload = (await first.json()) as { run: { id: string; status: string } };
     const secondPayload = (await second.json()) as { run: { id: string } };
 
     expect(first.status).toBe(200);
+    expect(firstPayload.run.status).toBe("running");
     expect(secondPayload.run.id).toBe(firstPayload.run.id);
   });
 
@@ -57,7 +59,36 @@ describe("/api/agent/runs", () => {
 
     expect(eventResponse.headers.get("Content-Type")).toContain("text/event-stream");
     expect(text).toContain("event: run_started");
+    expect(text).toContain("event: text_delta");
     expect(text).toContain("event: run_completed");
+
+    const snapshotResponse = await getRun(new Request(`http://localhost/api/agent/runs/${payload.run.id}`), {
+      params: Promise.resolve({ runId: payload.run.id })
+    });
+    const snapshot = (await snapshotResponse.json()) as { run: { status: string }; proposal?: unknown };
+    expect(snapshot.run.status).toBe("completed");
+    expect(snapshot.proposal).toBeDefined();
+  });
+
+  it("persists terminal failure events without leaking internal details", async () => {
+    const response = await createRun(
+      request({
+        groupId: "jeju-trip",
+        chatId: "chat-jeju-intake",
+        message: "SPLITFLOW_FORCE_RUN_FAILURE",
+        idempotencyKey: "failed-run-key"
+      })
+    );
+    const payload = (await response.json()) as { run: { id: string } };
+
+    const eventResponse = await getEvents(new Request(`http://localhost/api/agent/runs/${payload.run.id}/events`), {
+      params: Promise.resolve({ runId: payload.run.id })
+    });
+    const text = await eventResponse.text();
+
+    expect(text).toContain("event: run_failed");
+    expect(text).toContain("Workflow run failed safely.");
+    expect(text).not.toContain("Forced workflow failure");
   });
 
   it("retries an existing run with a new attempt", async () => {

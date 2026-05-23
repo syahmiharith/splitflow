@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { runWorkflow } from "@/lib/workflow/workflow-service";
+import { createWorkflowRun } from "@/lib/workflow/workflow-service";
+import { getWorkflowQueue } from "@/lib/workflow/workflow-queue";
 
 export const runtime = "nodejs";
 
@@ -21,7 +22,8 @@ export async function POST(request: Request) {
   }
 
   try {
-    const result = await runWorkflow(parsed.data);
+    const result = await createWorkflowRun(parsed.data);
+    getWorkflowQueue().enqueueRun(result.run.id);
     return NextResponse.json(result);
   } catch {
     return NextResponse.json({ error: "Workflow run failed safely." }, { status: 500 });

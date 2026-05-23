@@ -1,4 +1,4 @@
-import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { initialState } from "@/lib/demo-data";
 import { deriveGroupAnalytics } from "@/lib/analytics";
@@ -123,37 +123,64 @@ function normalizeState(value: unknown): WorkflowServerState {
 }
 
 export class FileWorkflowRepository {
-  private writeQueue: Promise<unknown> = Promise.resolve();
+  private static writeQueues = new Map<string, Promise<unknown>>();
 
   constructor(private readonly filePath = defaultStatePath()) {}
 
-  async read(): Promise<WorkflowServerState> {
+  private get writeQueue(): Promise<unknown> {
+    return FileWorkflowRepository.writeQueues.get(this.filePath) ?? Promise.resolve();
+  }
+
+  private set writeQueue(queue: Promise<unknown>) {
+    FileWorkflowRepository.writeQueues.set(this.filePath, queue);
+  }
+
+  private async readFromDisk(): Promise<WorkflowServerState> {
     try {
       const raw = await readFile(this.filePath, "utf8");
       return normalizeState(JSON.parse(raw));
     } catch {
       const state = seedState();
-      await this.write(state);
+      await this.writeToDisk(state);
       return state;
     }
   }
 
-  async write(state: WorkflowServerState): Promise<WorkflowServerState> {
+  private async writeToDisk(state: WorkflowServerState): Promise<WorkflowServerState> {
     const next = normalizeState({ ...state, updatedAt: now() });
-    this.writeQueue = this.writeQueue.then(async () => {
-      await mkdir(path.dirname(this.filePath), { recursive: true });
-      const tempPath = `${this.filePath}.${process.pid}.${Date.now()}.tmp`;
-      await writeFile(tempPath, JSON.stringify(next, null, 2), "utf8");
-      await rename(tempPath, this.filePath);
-    });
-    await this.writeQueue;
+    await mkdir(path.dirname(this.filePath), { recursive: true });
+    const tempPath = `${this.filePath}.${process.pid}.${Date.now()}.tmp`;
+    await writeFile(tempPath, JSON.stringify(next, null, 2), "utf8");
+    await rm(this.filePath, { force: true });
+    await rename(tempPath, this.filePath);
     return next;
   }
 
+  async read(): Promise<WorkflowServerState> {
+    await this.writeQueue;
+    return this.readFromDisk();
+  }
+
+  async write(state: WorkflowServerState): Promise<WorkflowServerState> {
+    let written: WorkflowServerState | undefined;
+    this.writeQueue = this.writeQueue.then(async () => {
+      written = await this.writeToDisk(state);
+    });
+    await this.writeQueue;
+    if (!written) throw new Error("Workflow state write failed.");
+    return written;
+  }
+
   async update(updater: (state: WorkflowServerState) => WorkflowServerState | Promise<WorkflowServerState>): Promise<WorkflowServerState> {
-    const state = await this.read();
-    const next = await updater(state);
-    return this.write(next);
+    let written: WorkflowServerState | undefined;
+    this.writeQueue = this.writeQueue.then(async () => {
+      const state = await this.readFromDisk();
+      const next = await updater(state);
+      written = await this.writeToDisk(next);
+    });
+    await this.writeQueue;
+    if (!written) throw new Error("Workflow state update failed.");
+    return written;
   }
 
   async getRun(runId: string): Promise<AgentRun | undefined> {

@@ -8,7 +8,7 @@ describe("SplitFlow chat transport", () => {
     vi.restoreAllMocks();
   });
 
-  it("sends workflow id and returns the same run context with the response", async () => {
+  it("sends workflow id, streams SSE events, and returns the same run context with the response", async () => {
     const context: AgentRunContext = { runId: "run-123", groupId: "group-a", chatId: "chat-a" };
     const payload: WorkflowRunResult = {
       run: {
@@ -21,7 +21,7 @@ describe("SplitFlow chat transport", () => {
         createdAt: "2026-05-22T10:22:00.000+09:00",
         startedAt: "2026-05-22T10:22:00.000+09:00",
         endedAt: "2026-05-22T10:22:01.000+09:00",
-        eventIds: ["event-1"],
+        eventIds: ["event-1", "event-2"],
         events: [
           {
             id: "event-1",
@@ -30,6 +30,13 @@ describe("SplitFlow chat transport", () => {
             type: "text_delta",
             delta: "Proposal ready.",
             detail: "Prepared response."
+          },
+          {
+            id: "event-2",
+            runId: "run-123",
+            at: "2026-05-22T10:22:01.000+09:00",
+            type: "run_completed",
+            detail: "Completed."
           }
         ]
       },
@@ -47,16 +54,36 @@ describe("SplitFlow chat transport", () => {
       },
       artifacts: []
     };
-    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify(payload), { status: 200 }));
+    const runningPayload: WorkflowRunResult = { ...payload, run: { ...payload.run, status: "running", events: [], eventIds: [], endedAt: undefined } };
+    const sse = [
+      "id: event-1",
+      "event: text_delta",
+      `data: ${JSON.stringify(payload.run.events[0])}`,
+      "",
+      "id: event-2",
+      "event: run_completed",
+      `data: ${JSON.stringify(payload.run.events[1])}`,
+      "",
+      ""
+    ].join("\n");
+    const fetchMock = vi.fn((input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url === "/api/agent/runs") return Promise.resolve(new Response(JSON.stringify(runningPayload), { status: 200 }));
+      if (url === "/api/agent/runs/run-123/events") return Promise.resolve(new Response(sse, { status: 200 }));
+      if (url === "/api/agent/runs/run-123") return Promise.resolve(new Response(JSON.stringify(payload), { status: 200 }));
+      return Promise.resolve(new Response(JSON.stringify({ error: "unexpected url" }), { status: 404 }));
+    });
     vi.stubGlobal("fetch", fetchMock);
     const onResponse = vi.fn();
+    const onRunEvent = vi.fn();
 
     const transport = createSplitFlowChatTransport({
       getRunContext: () => context,
-      onResponse
+      onResponse,
+      onRunEvent
     });
 
-    await transport.sendMessages({
+    const stream = await transport.sendMessages({
       messages: [
         {
           id: "message-1",
@@ -66,6 +93,13 @@ describe("SplitFlow chat transport", () => {
       ],
       abortSignal: undefined
     } as never);
+    const reader = stream.getReader();
+    const chunks = [];
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      chunks.push(value);
+    }
 
     expect(fetchMock).toHaveBeenCalledWith(
       "/api/agent/runs",
@@ -79,6 +113,8 @@ describe("SplitFlow chat transport", () => {
         })
       })
     );
+    expect(chunks).toContainEqual(expect.objectContaining({ type: "text-delta", delta: "Proposal ready." }));
+    expect(onRunEvent).toHaveBeenCalledWith(payload.run.events[0], context);
     expect(onResponse).toHaveBeenCalledWith(expect.objectContaining({ message: "Proposal ready." }), "Split dinner four ways.", context, payload);
   });
 });

@@ -22,6 +22,7 @@ export function ChatWorkspace() {
     state,
     recordChatUserMessage,
     applyAgentResponse,
+    applyAgentRunEvent,
     failAgentRun,
     openArtifact
   } = useSplitFlow();
@@ -36,7 +37,8 @@ export function ChatWorkspace() {
     })),
     transport: createSplitFlowChatTransport({
       getRunContext: () => pendingRunRef.current,
-      onResponse: applyAgentResponse
+      onResponse: applyAgentResponse,
+      onRunEvent: applyAgentRunEvent
     })
   });
   const submitting = status === "submitted" || status === "streaming";

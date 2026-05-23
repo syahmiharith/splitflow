@@ -1,14 +1,24 @@
 "use client";
 
 import { Check, CreditCard, MoreHorizontal, Send, X } from "lucide-react";
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { formatKrw, humanStatus } from "@/lib/format";
 import { useSplitFlow } from "@/lib/store";
 import type { PaymentRecord, Proposal } from "@/lib/types";
+import type { ProposalHistoryResult } from "@/lib/workflow/schema";
 import { ArtifactSummary } from "@/components/workspace-detail/artifact-summary";
 import { PanelAction } from "@/components/workspace-detail/panel-action";
 import { ProposalPanelBody } from "@/components/workspace-detail/proposal-panel-body";
 import { StatusBadge } from "@/components/ui/status-badge";
+
+type HistoryTab = "review" | "versions" | "artifacts" | "run";
+
+const historyTabs: Array<{ id: HistoryTab; label: string }> = [
+  { id: "review", label: "Review" },
+  { id: "versions", label: "Versions" },
+  { id: "artifacts", label: "Artifacts" },
+  { id: "run", label: "Run" }
+];
 
 export function WorkspaceDetailPanel({
   fallbackProposal,
@@ -34,6 +44,36 @@ export function WorkspaceDetailPanel({
   const claimedCredit = proposal?.paymentRecords?.find((record) => record.status === "claimed");
   const payableParticipant = proposal?.participants.find((participant) => participant.id !== proposal.organizerId && participant.id !== "you" && participant.status !== "opted_out");
   const isOpen = Boolean(state.workspacePanel || fallbackProposal);
+  const [activeTab, setActiveTab] = useState<HistoryTab>("review");
+  const [history, setHistory] = useState<ProposalHistoryResult | undefined>();
+  const [historyError, setHistoryError] = useState<string | undefined>();
+
+  useEffect(() => {
+    if (!proposal?.id || !isOpen) {
+      setHistory(undefined);
+      setHistoryError(undefined);
+      setActiveTab("review");
+      return;
+    }
+
+    let cancelled = false;
+    setHistoryError(undefined);
+    fetch(`/api/workflow/proposals/${proposal.id}/history?groupId=${activeGroup.id}`)
+      .then(async (response) => {
+        if (!response.ok) throw new Error("Proposal history unavailable.");
+        return response.json() as Promise<ProposalHistoryResult>;
+      })
+      .then((payload) => {
+        if (!cancelled) setHistory(payload);
+      })
+      .catch((error) => {
+        if (!cancelled) setHistoryError(error instanceof Error ? error.message : "Proposal history unavailable.");
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeGroup.id, isOpen, proposal?.id, proposal?.status, proposal?.updatedAt, proposal?.version]);
 
   if (!isOpen && !desktopPersistent) return null;
 
@@ -64,9 +104,27 @@ export function WorkspaceDetailPanel({
       </div>
 
       <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-5 py-4">
-        {selectedArtifact ? <ArtifactSummary artifact={selectedArtifact} /> : null}
         {proposal ? (
-          <ProposalPanelBody proposal={proposal} />
+          <>
+            <HistoryTabs activeTab={activeTab} onChange={setActiveTab} />
+            {historyError ? (
+              <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-app-text">
+                {historyError}
+              </div>
+            ) : null}
+            {activeTab === "review" ? (
+              <>
+                {selectedArtifact ? <ArtifactSummary artifact={selectedArtifact} /> : null}
+                <ProposalPanelBody proposal={proposal} />
+              </>
+            ) : activeTab === "versions" ? (
+              <VersionHistoryPanel history={history} />
+            ) : activeTab === "artifacts" ? (
+              <ArtifactHistoryPanel history={history} />
+            ) : (
+              <RunTimelinePanel history={history} />
+            )}
+          </>
         ) : (
           <div className="rounded-lg border border-dashed border-app-border bg-slate-50 px-4 py-5">
             <p className="text-sm font-semibold text-app-text">Select a split or detail</p>
@@ -106,6 +164,130 @@ export function WorkspaceDetailPanel({
       </div>
     </aside>
   );
+}
+
+function HistoryTabs({ activeTab, onChange }: { activeTab: HistoryTab; onChange: (tab: HistoryTab) => void }) {
+  return (
+    <div className="grid grid-cols-4 rounded-lg border border-app-border bg-slate-50 p-1" data-testid="proposal-history-tabs">
+      {historyTabs.map((tab) => (
+        <button
+          key={tab.id}
+          type="button"
+          onClick={() => onChange(tab.id)}
+          className={`min-h-9 rounded-md px-2 text-xs font-bold ${activeTab === tab.id ? "bg-white text-app-blue shadow-sm" : "text-app-muted hover:text-app-text"}`}
+          aria-pressed={activeTab === tab.id}
+        >
+          {tab.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function VersionHistoryPanel({ history }: { history?: ProposalHistoryResult }) {
+  if (!history) return <PanelEmptyState text="Loading immutable proposal versions..." />;
+
+  return (
+    <div className="space-y-3" data-testid="proposal-version-history">
+      {history.versions.map((version) => (
+        <div key={version.id} className="rounded-lg border border-app-border bg-white p-3">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-sm font-bold text-app-text">v{version.version} {humanStatus(version.transitionType)}</p>
+              <p className="mt-1 break-words text-sm leading-5 text-app-muted">{version.reason}</p>
+            </div>
+            <span className="shrink-0 rounded-md bg-slate-50 px-2 py-1 text-xs font-bold text-app-text">
+              {version.amountChanges} changes
+            </span>
+          </div>
+          <div className="mt-3 grid gap-1 text-xs font-semibold text-app-muted">
+            <span>Actor: {version.actor}</span>
+            <span>Parent: {version.parentVersionId ?? "none"}</span>
+            <span>{formatDate(version.createdAt)}</span>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function ArtifactHistoryPanel({ history }: { history?: ProposalHistoryResult }) {
+  if (!history) return <PanelEmptyState text="Loading artifact lifecycle..." />;
+
+  const activeArtifacts = history.artifacts.filter((artifact) => artifact.active);
+  const historicalArtifacts = history.artifacts.filter((artifact) => !artifact.active);
+  const artifacts = [...activeArtifacts, ...historicalArtifacts];
+
+  if (artifacts.length === 0) return <PanelEmptyState text="No proposal artifacts recorded yet." />;
+
+  return (
+    <div className="space-y-3" data-testid="artifact-history-list">
+      {artifacts.map((artifact) => (
+        <div key={artifact.id} className="rounded-lg border border-app-border bg-white p-3">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="break-words text-sm font-bold text-app-text">{artifact.title}</p>
+              <p className="mt-1 text-xs font-semibold uppercase text-app-muted">{humanStatus(artifact.kind)}</p>
+            </div>
+            <span className={`shrink-0 rounded-md px-2 py-1 text-xs font-bold ${artifact.active ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-app-muted"}`}>
+              {humanStatus(artifact.state)}
+            </span>
+          </div>
+          <div className="mt-3 grid gap-1 text-xs font-semibold text-app-muted">
+            <span>Run: {shortId(artifact.runId)}</span>
+            <span>Version: {artifact.proposalVersionId ?? "unlinked"}</span>
+            {artifact.supersedesArtifactId ? <span>Supersedes: {shortId(artifact.supersedesArtifactId)}</span> : null}
+            {artifact.supersededByArtifactId ? <span>Superseded by: {shortId(artifact.supersededByArtifactId)}</span> : null}
+            <span>{formatDate(artifact.createdAt)}</span>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function RunTimelinePanel({ history }: { history?: ProposalHistoryResult }) {
+  if (!history) return <PanelEmptyState text="Loading run events..." />;
+  const events = history.runs.flatMap((run) => run.events.map((event) => ({ ...event, status: run.status, retryCount: run.retryCount })));
+  if (events.length === 0) return <PanelEmptyState text="No persisted run events are linked to this proposal yet." />;
+
+  return (
+    <div className="space-y-2" data-testid="run-event-timeline">
+      {events.map((event) => (
+        <div key={event.id} className="rounded-lg border border-app-border bg-white px-3 py-2" data-testid={`run-event-row-${event.id}`}>
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-sm font-bold text-app-text">{humanStatus(event.type)}</p>
+              <p className="mt-1 break-words text-sm leading-5 text-app-muted">{eventDetail(event)}</p>
+            </div>
+            <span className="shrink-0 rounded-md bg-slate-50 px-2 py-1 text-xs font-bold text-app-text">{formatDate(event.at)}</span>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function PanelEmptyState({ text }: { text: string }) {
+  return (
+    <div className="rounded-lg border border-dashed border-app-border bg-slate-50 px-4 py-5 text-sm font-semibold text-app-muted">
+      {text}
+    </div>
+  );
+}
+
+function eventDetail(event: ProposalHistoryResult["runs"][number]["events"][number]): string {
+  if ("detail" in event && event.detail) return event.detail;
+  if (event.type === "artifact_staged") return `Artifact ${shortId(event.artifactId)} staged.`;
+  return humanStatus(event.type);
+}
+
+function formatDate(value: string): string {
+  return new Intl.DateTimeFormat("en", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }).format(new Date(value));
+}
+
+function shortId(value?: string): string {
+  return value ? value.slice(0, 8) : "none";
 }
 
 function ProposalPanelActions({

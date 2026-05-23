@@ -53,6 +53,7 @@ type StoreContextValue = {
   setActiveProposal: (proposalId: string) => void;
   sendChatMessage: (message: string) => Promise<void>;
   applyAgentResponse: (response: OrchestratorResponse, sourceMessage?: string, context?: AgentRunContext, result?: WorkflowRunResult) => void;
+  applyAgentRunEvent: (event: AgentRunEvent) => void;
   failAgentRun: (runId: string, error: string) => void;
   sendProposal: (proposalId?: string) => void;
   reviewProposal: () => void;
@@ -146,6 +147,19 @@ function failRun(run: AgentRun, error: string): AgentRun {
     endedAt: failed.at,
     error,
     eventIds: events.map((event) => event.id),
+    events
+  };
+}
+
+function applyRunEvent(run: AgentRun, event: AgentRunEvent): AgentRun {
+  if (run.events.some((item) => item.id === event.id)) return run;
+  const events = [...run.events, event];
+  return {
+    ...run,
+    status: event.type === "run_completed" ? "completed" : event.type === "run_failed" ? "failed" : run.status,
+    endedAt: event.type === "run_completed" || event.type === "run_failed" ? event.at : run.endedAt,
+    error: event.type === "run_failed" ? event.detail : run.error,
+    eventIds: events.map((item) => item.id),
     events
   };
 }
@@ -577,6 +591,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
+  const applyAgentRunEvent = useCallback((event: AgentRunEvent) => {
+    setState((current) => ({
+      ...current,
+      agentRuns: (current.agentRuns ?? []).map((run) => (run.id === event.runId ? applyRunEvent(run, event) : run))
+    }));
+  }, []);
+
   const failAgentRun = useCallback((runId: string, error: string) => {
     setState((current) => ({
       ...current,
@@ -816,6 +837,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       setActiveProposal,
       sendChatMessage,
       applyAgentResponse,
+      applyAgentRunEvent,
       failAgentRun,
       sendProposal,
       reviewProposal,
@@ -856,6 +878,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       setActiveProposal,
       sendChatMessage,
       applyAgentResponse,
+      applyAgentRunEvent,
       failAgentRun,
       sendProposal,
       reviewProposal,

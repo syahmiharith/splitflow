@@ -9,6 +9,7 @@ import {
 import { countParticipants, deriveProposalStatus } from "@/lib/split";
 import type { AgentRun, AgentRunEvent, Artifact, BotMessage, Proposal, SplitFlowGroup } from "@/lib/types";
 import { FileWorkflowRepository, getWorkflowRepository } from "@/lib/workflow/file-workflow-repository";
+import { publishRunEvent } from "@/lib/workflow/run-event-bus";
 import type { WorkflowActionRequest, WorkflowActionResult, WorkflowRunRequest, WorkflowRunResult, WorkflowServerState } from "@/lib/workflow/schema";
 
 function now(): string {
@@ -272,29 +273,95 @@ function createRun(request: WorkflowRunRequest): AgentRun {
   return appendEvent(run, createRunEvent(run.id, { type: "run_started", detail: "Started server-canonical SplitFlow workflow." }));
 }
 
-export async function runWorkflow(request: WorkflowRunRequest, repository: FileWorkflowRepository = getWorkflowRepository()): Promise<WorkflowRunResult> {
+function isTerminalRun(run: AgentRun): boolean {
+  return run.status === "completed" || run.status === "failed";
+}
+
+function projectRunResult(state: WorkflowServerState, run: AgentRun): WorkflowRunResult {
+  const { group, chatId } = findGroupAndChat(state, run.groupId, run.chatId);
+  const proposalId = [...run.events].reverse().find((event) => event.type === "proposal_version_created")?.proposalId;
+  const proposal = proposalId ? group.proposals.find((item) => item.id === proposalId) : undefined;
+  const artifacts = run.events.flatMap((event) =>
+    event.type === "artifact_staged" ? group.artifacts.filter((artifactItem) => artifactItem.id === event.artifactId) : []
+  );
+  const assistantMessage = group.chats
+    .find((chat) => chat.id === chatId)
+    ?.messages.slice()
+    .reverse()
+    .find((message) => message.sender === "bot" && (!proposal?.id || message.relatedProposalId === proposal.id));
+  return { run, group, proposal, artifacts, assistantMessage };
+}
+
+async function persistRunEvents(
+  repository: FileWorkflowRepository,
+  runId: string,
+  events: AgentRunEvent[],
+  updater?: (state: WorkflowServerState) => WorkflowServerState
+): Promise<void> {
+  await repository.update((state) => {
+    const nextState = updater ? updater(state) : state;
+    return {
+      ...nextState,
+      runs: nextState.runs.map((run) => {
+        if (run.id !== runId) return run;
+        return events.reduce((nextRun, event) => appendEvent(nextRun, event), run);
+      })
+    };
+  });
+  events.forEach(publishRunEvent);
+}
+
+export async function getWorkflowRunResult(runId: string, repository: FileWorkflowRepository = getWorkflowRepository()): Promise<WorkflowRunResult | undefined> {
+  const state = await repository.read();
+  const run = state.runs.find((item) => item.id === runId);
+  return run ? projectRunResult(state, run) : undefined;
+}
+
+export async function createWorkflowRun(request: WorkflowRunRequest, repository: FileWorkflowRepository = getWorkflowRepository()): Promise<WorkflowRunResult> {
   let result: WorkflowRunResult | undefined;
   await repository.update((state) => {
     const existingRunId = state.idempotencyKeys[request.idempotencyKey];
     const existingRun = existingRunId ? state.runs.find((run) => run.id === existingRunId) : undefined;
     if (existingRun) {
-      const { group } = findGroupAndChat(state, existingRun.groupId, existingRun.chatId);
-      result = {
-        run: existingRun,
-        group,
-        proposal: group.proposals[0],
-        artifacts: existingRun.events.flatMap((event) =>
-          event.type === "artifact_staged" ? group.artifacts.filter((artifactItem) => artifactItem.id === event.artifactId) : []
-        )
-      };
+      result = projectRunResult(state, existingRun);
       return state;
     }
 
-    let run = createRun(request);
+    const run = createRun(request);
     const { group, chatId } = findGroupAndChat(state, request.groupId, request.chatId);
-    let nextGroup = appendChatMessage(group, chatId, createMessage("user", request.message, undefined, run.sourceMessageId));
-    run = appendEvent(run, createRunEvent(run.id, { type: "step_started", step: "Intake Agent", detail: "Parsing organizer message on the server." }));
-    const parsed = createProposalFromPrompt(request.message, group.id);
+    const nextGroup = appendChatMessage(group, chatId, createMessage("user", request.message, undefined, run.sourceMessageId));
+    const nextState = updateGroupInState(state, nextGroup);
+    result = projectRunResult(nextState, run);
+    return {
+      ...nextState,
+      runs: [run, ...nextState.runs.filter((item) => item.id !== run.id)].slice(0, 50),
+      idempotencyKeys: { ...nextState.idempotencyKeys, [request.idempotencyKey]: run.id }
+    };
+  });
+  if (!result) throw new Error("Workflow run did not produce a result.");
+  result.run.events.forEach(publishRunEvent);
+  return result;
+}
+
+export async function executeWorkflowRun(runId: string, repository: FileWorkflowRepository = getWorkflowRepository()): Promise<WorkflowRunResult> {
+  const current = await getWorkflowRunResult(runId, repository);
+  if (!current) throw new Error("Workflow run was not found.");
+  if (isTerminalRun(current.run)) return current;
+
+  try {
+    const sourceMessage = current.run.sourceMessage;
+    if (!sourceMessage) throw new Error("Workflow run is missing source message.");
+    if (sourceMessage.includes("SPLITFLOW_FORCE_RUN_FAILURE")) {
+      throw new Error("Forced workflow failure.");
+    }
+
+    await persistRunEvents(repository, runId, [
+      createRunEvent(runId, { type: "step_started", step: "Intake Agent", detail: "Parsing organizer message on the server." })
+    ]);
+
+    const state = await repository.read();
+    const { group, chatId } = findGroupAndChat(state, current.run.groupId, current.run.chatId);
+    const parsed = createProposalFromPrompt(sourceMessage, group.id);
     const parserDetails = parsed.parserResult.draft
       ? [
           `Mode: ${parsed.parserResult.mode}`,
@@ -303,85 +370,109 @@ export async function runWorkflow(request: WorkflowRunRequest, repository: FileW
           ...parsed.parserResult.issues.map((issue) => `${issue.severity === "blocking" ? "Needs clarification" : "Warning"}: ${issue.message}`)
         ]
       : [parsed.parserResult.normalizedSummary];
-    run = appendEvent(run, createRunEvent(run.id, { type: "step_completed", step: "Intake Agent", detail: parsed.parserResult.normalizedSummary }));
 
-    let nextState = state;
+    await persistRunEvents(repository, runId, [
+      createRunEvent(runId, { type: "step_completed", step: "Intake Agent", detail: parsed.parserResult.normalizedSummary })
+    ]);
+
     let proposal: Proposal | undefined;
-    let artifacts: Artifact[] = [];
+    let stagedArtifacts: Artifact[] = [];
     let reply = "I need a little more detail before I can create a Trip Split.";
 
     if (parsed.proposal) {
-      run = appendEvent(run, createRunEvent(run.id, { type: "step_started", step: "Split Planning Agent", detail: "Building deterministic split inputs." }));
-      proposal = { ...parsed.proposal, groupId: group.id, version: 1, revisionHistory: [] };
-      nextState = repository.createVersion({
-        state: nextState,
-        groupId: group.id,
-        proposal,
-        transitionType: "draft_created",
-        actor: "Organizer",
-        reason: "Created proposal from server-side parsed chat message."
+      await persistRunEvents(repository, runId, [
+        createRunEvent(runId, { type: "step_started", step: "Split Planning Agent", detail: "Building deterministic split inputs." })
+      ]);
+      const draftProposal = { ...parsed.proposal, groupId: group.id, version: 1, revisionHistory: [] };
+      proposal = draftProposal;
+      stagedArtifacts = proposalArtifacts(draftProposal, parserDetails, sourceMessage);
+      const proposalEvents = [
+        createRunEvent(runId, { type: "step_completed", step: "Split Planning Agent", detail: "Prepared deterministic itemized calculation." }),
+        createRunEvent(runId, { type: "proposal_version_created", proposalId: draftProposal.id, proposalVersionId: `${draftProposal.id}-v1`, version: 1, detail: "Created immutable proposal v1." }),
+        ...stagedArtifacts.map((item) => createRunEvent(runId, { type: "artifact_staged", artifactId: item.id, detail: `Staged ${item.title}.` }))
+      ];
+      await persistRunEvents(repository, runId, proposalEvents, (latestState) => {
+        let nextState = repository.createVersion({
+          state: latestState,
+          groupId: group.id,
+          proposal: draftProposal,
+          transitionType: "draft_created",
+          actor: "Organizer",
+          reason: "Created proposal from server-side parsed chat message."
+        });
+        const latestGroup = nextState.groups.find((item) => item.id === group.id) ?? group;
+        const appended = appendArtifacts(nextState, upsertProposal(latestGroup, draftProposal), chatId, stagedArtifacts, runId);
+        nextState = appended.state;
+        return updateGroupInState(nextState, appended.group);
       });
-      run = appendEvent(run, createRunEvent(run.id, { type: "step_completed", step: "Split Planning Agent", detail: "Prepared deterministic itemized calculation." }));
-      run = appendEvent(run, createRunEvent(run.id, { type: "proposal_version_created", proposalId: proposal.id, proposalVersionId: `${proposal.id}-v1`, version: 1, detail: "Created immutable proposal v1." }));
-      artifacts = proposalArtifacts(proposal, parserDetails, request.message);
-      const appended = appendArtifacts(nextState, upsertProposal(nextGroup, proposal), chatId, artifacts, run.id);
-      nextState = appended.state;
-      nextGroup = appended.group;
-      for (const item of artifacts) {
-        run = appendEvent(run, createRunEvent(run.id, { type: "artifact_staged", artifactId: item.id, detail: `Staged ${item.title}.` }));
-      }
       reply = `Drafted ${proposal.title}. Review the server-generated proposal artifacts before sending.`;
     } else if (parsed.parserResult.issues.some((issue) => issue.code === "allocation_required")) {
-      artifacts = [
-        artifact("allocation_resolution", "Allocation resolution needed", "Some item amounts are missing, and a participant rule depends on item-level allocation.", undefined, parserDetails, request.message)
+      stagedArtifacts = [
+        artifact("allocation_resolution", "Allocation resolution needed", "Some item amounts are missing, and a participant rule depends on item-level allocation.", undefined, parserDetails, sourceMessage)
       ];
-      const appended = appendArtifacts(nextState, nextGroup, chatId, artifacts, run.id);
-      nextState = appended.state;
-      nextGroup = appended.group;
-      for (const item of artifacts) {
-        run = appendEvent(run, createRunEvent(run.id, { type: "artifact_staged", artifactId: item.id, detail: `Staged ${item.title}.` }));
-      }
+      const artifactEvents = stagedArtifacts.map((item) => createRunEvent(runId, { type: "artifact_staged", artifactId: item.id, detail: `Staged ${item.title}.` }));
+      await persistRunEvents(repository, runId, artifactEvents, (latestState) => {
+        const latestGroup = latestState.groups.find((item) => item.id === group.id) ?? group;
+        const appended = appendArtifacts(latestState, latestGroup, chatId, stagedArtifacts, runId);
+        return updateGroupInState(appended.state, appended.group);
+      });
     }
 
-    run = appendEvent(run, createRunEvent(run.id, { type: "step_completed", step: "Proposal Agent", detail: proposal ? "Created proposal and artifacts." : "Waiting for clarification." }));
-    run = appendEvent(run, createRunEvent(run.id, { type: "text_delta", delta: reply, detail: "Prepared assistant response." }));
-    run = appendEvent(run, createRunEvent(run.id, { type: "run_completed", detail: "Completed server-canonical workflow." }));
-    run = { ...run, status: "completed", endedAt: now() };
-    const assistantMessage = createMessage("bot", reply, proposal?.id);
-    nextGroup = appendChatMessage(nextGroup, chatId, assistantMessage);
-    nextState = updateGroupInState(nextState, nextGroup);
-    nextState = {
-      ...nextState,
-      runs: [run, ...nextState.runs.filter((item) => item.id !== run.id)].slice(0, 50),
-      idempotencyKeys: { ...nextState.idempotencyKeys, [request.idempotencyKey]: run.id }
-    };
-    result = { run, group: nextGroup, proposal, artifacts, assistantMessage };
-    return nextState;
-  });
-  if (!result) throw new Error("Workflow run did not produce a result.");
-  return result;
+    const terminalEvents = [
+      createRunEvent(runId, { type: "step_completed", step: "Proposal Agent", detail: proposal ? "Created proposal and artifacts." : "Waiting for clarification." }),
+      createRunEvent(runId, { type: "text_delta", delta: reply, detail: "Prepared assistant response." }),
+      createRunEvent(runId, { type: "run_completed", detail: "Completed server-canonical workflow." })
+    ];
+    await persistRunEvents(repository, runId, terminalEvents, (latestState) => {
+      const latestGroup = latestState.groups.find((item) => item.id === group.id) ?? group;
+      const nextGroup = appendChatMessage(latestGroup, chatId, createMessage("bot", reply, proposal?.id));
+      return {
+        ...updateGroupInState(latestState, nextGroup),
+        runs: latestState.runs.map((run) =>
+          run.id === runId ? { ...run, status: "completed", endedAt: now(), error: undefined } : run
+        )
+      };
+    });
+
+    const result = await getWorkflowRunResult(runId, repository);
+    if (!result) throw new Error("Workflow run was not found after completion.");
+    return result;
+  } catch {
+    const failed = createRunEvent(runId, { type: "run_failed", detail: "Workflow run failed safely." });
+    await persistRunEvents(repository, runId, [failed], (state) => ({
+      ...state,
+      runs: state.runs.map((run) =>
+        run.id === runId ? { ...run, status: "failed", endedAt: now(), error: "Workflow run failed safely." } : run
+      )
+    }));
+    const result = await getWorkflowRunResult(runId, repository);
+    if (!result) throw new Error("Workflow run was not found after failure.");
+    return result;
+  }
+}
+
+export async function runWorkflow(request: WorkflowRunRequest, repository: FileWorkflowRepository = getWorkflowRepository()): Promise<WorkflowRunResult> {
+  const created = await createWorkflowRun(request, repository);
+  if (isTerminalRun(created.run)) return created;
+  return executeWorkflowRun(created.run.id, repository);
 }
 
 export async function retryWorkflow(runId: string, repository: FileWorkflowRepository = getWorkflowRepository()): Promise<WorkflowRunResult> {
   const run = await repository.getRun(runId);
   if (!run?.sourceMessage) throw new Error("Run cannot be retried.");
+  const started = createRunEvent(runId, { type: "run_started", detail: "Retry started." });
   await repository.update((state) => ({
     ...state,
     runs: state.runs.map((item) =>
       item.id === runId
-        ? appendEvent({ ...item, status: "running", retryCount: item.retryCount + 1, error: undefined }, createRunEvent(runId, { type: "run_started", detail: "Retry started." }))
+        ? appendEvent({ ...item, status: "running", retryCount: item.retryCount + 1, error: undefined, endedAt: undefined }, started)
         : item
     )
   }));
-  return runWorkflow({
-    runId,
-    groupId: run.groupId,
-    chatId: run.chatId,
-    sourceMessageId: run.sourceMessageId,
-    message: run.sourceMessage,
-    idempotencyKey: `${run.idempotencyKey ?? run.id}:retry:${run.retryCount + 1}`,
-    retryCount: run.retryCount + 1
-  }, repository);
+  publishRunEvent(started);
+  const result = await getWorkflowRunResult(runId, repository);
+  if (!result) throw new Error("Run cannot be retried.");
+  return result;
 }
 
 export async function listRunEvents(runId: string, afterEventId?: string, repository: FileWorkflowRepository = getWorkflowRepository()): Promise<AgentRunEvent[]> {

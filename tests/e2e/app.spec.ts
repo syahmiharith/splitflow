@@ -78,6 +78,12 @@ test("chat preview opens Trip Split and sends Your Share", async ({ page }) => {
   await page.goto("/groups/jeju-trip/chat");
   await page.getByTestId("artifact-preview-proposal_draft").click();
   await expect(page.getByTestId("workspace-detail-panel")).toContainText("Review Before Sending");
+  await expect(page.getByTestId("proposal-history-tabs")).toBeVisible();
+  await page.getByTestId("proposal-history-tabs").getByRole("button", { name: "Versions" }).click();
+  await expect(page.getByTestId("proposal-version-history")).toContainText("Seeded canonical demo proposal.");
+  await page.getByTestId("proposal-history-tabs").getByRole("button", { name: "Artifacts" }).click();
+  await expect(page.getByTestId("artifact-history-list")).toContainText("Review Required");
+  await page.getByTestId("proposal-history-tabs").getByRole("button", { name: "Review" }).click();
   await expect(page.getByTestId("workspace-detail-panel")).toContainText("Everyone's share");
   await page.getByTestId("panel-send-proposal").click();
   await expect(page.getByTestId("workspace-detail-panel")).toContainText("Still Waiting");
@@ -114,6 +120,10 @@ test("change request updates organizer ready check and requires reconfirmation",
   await expect(page.getByTestId("workspace-detail-panel")).toContainText("Check Again");
   await expect(page.getByTestId("workspace-detail-panel")).toContainText("Accepted participant change request.");
   await expect(page.getByTestId("workspace-detail-panel")).toContainText(/v\d+(?: to | -> )v\d+/);
+  await page.getByTestId("proposal-history-tabs").getByRole("button", { name: "Versions" }).click();
+  await expect(page.getByTestId("proposal-version-history")).toContainText("Accepted participant change request.");
+  await page.getByTestId("proposal-history-tabs").getByRole("button", { name: "Artifacts" }).click();
+  await expect(page.getByTestId("artifact-history-list")).toContainText("change summary");
 });
 
 test("creating a group and resetting data returns to canonical Jeju workspace", async ({ page }) => {

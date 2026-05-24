@@ -63,6 +63,32 @@ describe("/api/agent/runs", () => {
     expect(payload.assistantMessage).toBeDefined();
   });
 
+  it("preserves a client-created chat id instead of falling back to the seeded chat", async () => {
+    process.env.SPLITFLOW_WORKFLOW_EXECUTION_MODE = "inline";
+    const clientChatId = "chat-client-created-123";
+
+    const response = await createRun(
+      request({
+        groupId: "jeju-trip",
+        chatId: clientChatId,
+        message: "hi",
+        idempotencyKey: "client-chat-run-key"
+      })
+    );
+    const payload = (await response.json()) as {
+      run: { status: string; chatId: string };
+      group: { chats: Array<{ id: string; messages: Array<{ sender: string; content: string }> }> };
+    };
+    const preservedChat = payload.group.chats.find((chat) => chat.id === clientChatId);
+
+    expect(response.status).toBe(200);
+    expect(payload.run.status).toBe("completed");
+    expect(payload.run.chatId).toBe(clientChatId);
+    expect(preservedChat).toBeDefined();
+    expect(preservedChat?.messages.some((message) => message.sender === "user" && message.content === "hi")).toBe(true);
+    expect(preservedChat?.messages.some((message) => message.sender === "bot")).toBe(true);
+  });
+
   it("replays persisted run events as server-sent events", async () => {
     const response = await createRun(
       request({

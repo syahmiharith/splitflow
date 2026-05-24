@@ -94,7 +94,14 @@ Ali says he may request a change if his share goes above ₩20,000.
 Create a proposal I can send to the group before I buy everything.`;
 
 async function seedSplitOperationsState(page: Page) {
-  await page.evaluate(() => {
+  await page.waitForFunction(() => {
+    const raw = window.localStorage.getItem("splitflow.demoState.v4");
+    if (!raw) return false;
+    const state = JSON.parse(raw) as { groups?: Array<{ id: string; proposals?: unknown[] }> };
+    return Boolean(state.groups?.find((item) => item.id === "han-river-bbq")?.proposals?.[0]);
+  });
+
+  const seeded = await page.evaluate(() => {
     const key = "splitflow.demoState.v4";
     type ParticipantRecord = { id?: string; status?: string; paymentStatus?: string; changeRequestNote?: string; [key: string]: unknown };
     type PaymentRecord = { id?: string; status?: string; [key: string]: unknown };
@@ -114,7 +121,7 @@ async function seedSplitOperationsState(page: Page) {
     };
     const group = state.groups?.find((item) => item.id === "han-river-bbq");
     const base = group?.proposals?.[0];
-    if (!group || !base) return;
+    if (!group || !base) return false;
 
     const clone = (id: string, title: string, status: string) => ({
       ...base,
@@ -135,7 +142,7 @@ async function seedSplitOperationsState(page: Page) {
       }))
     });
 
-    const waiting = clone("jeju-booking-split", "Jeju Booking Split", "waiting_for_responses");
+    const waiting = clone("bbq-supplies-follow-up", "BBQ Supplies Follow-up", "waiting_for_responses");
     waiting.participants = waiting.participants.map((participant) =>
       ["you", "ali", "sarah"].includes(participant.id ?? "") ? { ...participant, status: "accepted" } : { ...participant, status: "pending" }
     );
@@ -155,11 +162,20 @@ async function seedSplitOperationsState(page: Page) {
 
     group.proposals = [base, waiting, changed, ready, settled];
     window.localStorage.setItem(key, JSON.stringify(state));
+    return true;
   });
+  expect(seeded).toBe(true);
 }
 
 async function seedGroupWithoutSplits(page: Page) {
-  await page.evaluate(() => {
+  await page.waitForFunction(() => {
+    const raw = window.localStorage.getItem("splitflow.demoState.v4");
+    if (!raw) return false;
+    const state = JSON.parse(raw) as { groups?: Array<{ id: string; chats?: Array<{ id: string }> }> };
+    return Boolean(state.groups?.[0]?.chats?.[0]);
+  });
+
+  const seeded = await page.evaluate(() => {
     const key = "splitflow.demoState.v4";
     const raw = window.localStorage.getItem(key);
     if (!raw) return;
@@ -170,7 +186,7 @@ async function seedGroupWithoutSplits(page: Page) {
       groups?: Array<Record<string, unknown> & { id: string; chats?: Array<{ id: string }> }>;
     };
     const base = state.groups?.[0];
-    if (!base) return;
+    if (!base) return false;
     const chatId = base.chats?.[0]?.id ?? "chat-empty-review-group";
     state.selectedGroupId = "empty-review-group";
     state.selectedChatIdByGroupId = { "empty-review-group": chatId };
@@ -196,7 +212,9 @@ async function seedGroupWithoutSplits(page: Page) {
       }
     ];
     window.localStorage.setItem(key, JSON.stringify(state));
+    return true;
   });
+  expect(seeded).toBe(true);
 }
 
 async function seedPartialHomeState(page: Page) {
@@ -847,10 +865,10 @@ test("Splits page is an agreement operations surface", async ({ page }) => {
 
   await page.getByTestId("proposal-filter-drafts").click();
   await expect(page.getByText("Han River BBQ Proposal").first()).toBeVisible();
-  await expect(page.getByText("Jeju Booking Split")).toHaveCount(0);
+  await expect(page.getByText("BBQ Supplies Follow-up")).toHaveCount(0);
 
   await page.getByTestId("proposal-filter-waiting_responses").click();
-  await expect(page.getByText("Jeju Booking Split").first()).toBeVisible();
+  await expect(page.getByText("BBQ Supplies Follow-up").first()).toBeVisible();
   await expect(page.getByTestId("split-card-list")).not.toContainText("Han River BBQ Proposal");
 
   await page.getByTestId("proposal-filter-changes_requested").click();

@@ -901,8 +901,9 @@ test("opening a split detail does not move the sidebar footer", async ({ page })
 
 test("README documents the canonical demo", async () => {
   const readme = await readFile("README.md", "utf8");
-  expect(readme).toContain("Han River BBQ: Agreement Before the Organizer Fronts Money");
-  expect(readme).toContain("the organizer does not only need math");
+  expect(readme).toContain("ShardLab Product Intern Challenge");
+  expect(readme).toContain("Product moment: `Han River BBQ Crew` needs agreement before Syahmi fronts ₩128,000.");
+  expect(readme).toContain("docs/shardlab-product-case-study.md");
   expect(readme).toContain("Daniel does not eat beef");
-  expect(readme).toContain("claimed vs confirmed payments");
+  expect(readme).toContain("claimed payment");
 });

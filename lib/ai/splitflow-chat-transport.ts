@@ -17,9 +17,13 @@ function getMessageText(message: UIMessage): string {
     .trim();
 }
 
+function getResultText(result: WorkflowRunResult): string {
+  return result.assistantMessage?.content ?? result.run.events.find((event) => event.type === "text_delta")?.delta ?? "Workflow completed.";
+}
+
 function resultToResponse(result: WorkflowRunResult): OrchestratorResponse {
   return {
-    message: result.assistantMessage?.content ?? result.run.events.find((event) => event.type === "text_delta")?.delta ?? "Workflow completed.",
+    message: getResultText(result),
     proposal: result.proposal as never,
     nextActions: ["review_proposal", "send_proposal"],
     trace: result.run.events
@@ -45,6 +49,10 @@ function runEventsUrl(runId: string, afterEventId?: string): string {
   return `/api/agent/runs/${encodeURIComponent(runId)}/events${params}`;
 }
 
+function isTerminalResult(result: WorkflowRunResult): boolean {
+  return result.run.status === "completed" || result.run.status === "failed";
+}
+
 async function fetchRunResult(runId: string): Promise<WorkflowRunResult> {
   const response = await fetch(`/api/agent/runs/${encodeURIComponent(runId)}`);
   const payload = (await response.json()) as WorkflowRunResult | { error?: string };
@@ -58,6 +66,36 @@ export function createSplitFlowChatTransport({ getRunContext, onResponse, onRunE
   let lastRunContext: AgentRunContext | undefined;
   let lastSourceMessage = "";
   let lastEventId: string | undefined;
+
+  function streamTerminalResult(result: WorkflowRunResult, sourceMessage: string, context?: AgentRunContext): ReadableStream<UIMessageChunk> {
+    const textId = crypto.randomUUID();
+    return new ReadableStream<UIMessageChunk>({
+      start(controller) {
+        try {
+          controller.enqueue({ type: "start" });
+          for (const event of result.run.events) {
+            lastEventId = event.id;
+            onRunEvent?.(event, context);
+          }
+
+          if (result.run.status === "failed") {
+            onResponse?.(resultToResponse(result), sourceMessage, context, result);
+            controller.error(new Error(result.run.error ?? "Workflow run failed safely."));
+            return;
+          }
+
+          controller.enqueue({ type: "text-start", id: textId });
+          controller.enqueue({ type: "text-delta", id: textId, delta: getResultText(result) });
+          controller.enqueue({ type: "text-end", id: textId });
+          onResponse?.(resultToResponse(result), sourceMessage, context, result);
+          controller.enqueue({ type: "finish", finishReason: "stop" });
+          controller.close();
+        } catch (error) {
+          controller.error(error);
+        }
+      }
+    });
+  }
 
   function streamRunEvents(runId: string, sourceMessage: string, context?: AgentRunContext, abortSignal?: AbortSignal, afterEventId?: string): ReadableStream<UIMessageChunk> {
     const textId = crypto.randomUUID();
@@ -114,9 +152,8 @@ export function createSplitFlowChatTransport({ getRunContext, onResponse, onRunE
           const result = await fetchRunResult(runId);
           if (result.run.status === "completed") {
             if (!textStarted) {
-              const fallback = result.assistantMessage?.content ?? result.run.events.find((event) => event.type === "text_delta")?.delta ?? "Workflow completed.";
               controller.enqueue({ type: "text-start", id: textId });
-              controller.enqueue({ type: "text-delta", id: textId, delta: fallback });
+              controller.enqueue({ type: "text-delta", id: textId, delta: getResultText(result) });
               textStarted = true;
             }
             controller.enqueue({ type: "text-end", id: textId });
@@ -169,6 +206,7 @@ export function createSplitFlowChatTransport({ getRunContext, onResponse, onRunE
 
       const result = payload as WorkflowRunResult;
       lastRunContext = { runId: result.run.id, groupId: result.run.groupId, chatId: result.run.chatId };
+      if (isTerminalResult(result)) return streamTerminalResult(result, message, lastRunContext);
       return streamRunEvents(result.run.id, message, lastRunContext, abortSignal);
     },
 

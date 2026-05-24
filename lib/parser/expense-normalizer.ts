@@ -8,7 +8,22 @@ import type {
   ParsedPayer
 } from "@/lib/parser/expense-types";
 
-const stopNames = new Set(["KRW", "Total", "Split", "Round", "House", "Trip", "Movie", "Dinner", "Groceries"]);
+const stopNames = new Set([
+  "KRW",
+  "Total",
+  "Split",
+  "Round",
+  "House",
+  "Trip",
+  "Movie",
+  "Dinner",
+  "Groceries",
+  "Create",
+  "Review",
+  "Send",
+  "Proposal",
+  "Please"
+]);
 const knownItemAliases: Record<string, string[]> = {
   meat: ["beef", "meat", "chicken"],
   drinks: ["drink", "drinks", "drank"],
@@ -315,6 +330,7 @@ function extractItems(input: string, payers: ParsedPayer[]): ParsedExpenseItem[]
   for (const segment of segments) {
     if (/\b\d+\s+(?:people|participants|pax|friends)\b/i.test(segment)) continue;
     if (/\bpaid\b/i.test(segment)) continue;
+    if (/\balready\s+(?:paid|sent)\s+me\b/i.test(segment)) continue;
     if (/\bincluded in total\b/i.test(segment)) continue;
     const labelAmount = segment.match(/\b([a-z][a-z\s]{1,26}?)\s+(?:was|were|cost|costs)?\s*(?:₩\s*)?(\d+(?:,\d{3})*|\d+)\s*(k|K|won|KRW|krw)?\b/i);
     if (!labelAmount) continue;

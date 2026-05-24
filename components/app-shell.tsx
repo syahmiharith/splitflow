@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { BottomNav } from "@/components/bottom-nav";
 import { MobileSidebarOverlay, Sidebar } from "@/components/sidebar";
 import { TopHeader } from "@/components/top-header";
 import { useDeviceProfile } from "@/lib/use-device-profile";
@@ -87,16 +88,16 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   return (
     <div
-      className="h-dvh overflow-hidden bg-page text-app-text"
+      className="flex h-dvh flex-col overflow-hidden bg-page text-app-text"
       data-device-layout={device.layoutMode}
       data-pointer={device.isTouchLike ? "coarse" : "fine"}
     >
-      <div className="flex h-full min-h-0">
+      <div className="flex min-h-0 flex-1">
         <Sidebar layoutMode={device.layoutMode} />
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
           <TopHeader layoutMode={device.layoutMode} onMenuClick={() => setMobileSidebarOpen(true)} />
           <main
-            className="min-h-0 flex-1 overflow-hidden pb-0"
+            className="min-h-0 flex-1 overflow-hidden"
             data-testid="app-main"
           >
             <div className="h-full min-h-0 overflow-y-auto" data-testid="app-route-scroll">
@@ -105,6 +106,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           </main>
         </div>
       </div>
+      <BottomNav />
       {compactLayout && !mobileSidebarOpen ? (
         <button
           type="button"

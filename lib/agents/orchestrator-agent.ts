@@ -9,7 +9,7 @@ import { runRiskDecisionAgent } from "@/lib/agents/risk-decision-agent";
 import { runSplitPlanningAgent } from "@/lib/agents/split-planning-agent";
 import { calculateSplit } from "@/lib/domain/split-calculator";
 import { markProposalSent } from "@/lib/domain/proposal-state";
-import type { OpenAiAgentsRuntime } from "@/lib/agents/openai-agents-runtime";
+import { isOpenAiAgentsSdkEnabled, type OpenAiAgentsRuntime } from "@/lib/agents/openai-agents-runtime";
 import type { ProposalRepository } from "@/lib/repositories/proposal-repository";
 
 export type OrchestratorOptions = {
@@ -22,10 +22,9 @@ function trace(agent: AgentTraceStep["agent"], action: string, detail: string, s
 }
 
 function createSdkRuntimeMetadata(agentsRuntime?: OpenAiAgentsRuntime): OpenAiAgentsSdkRuntimeMetadata {
-  const envFlagEnabled = process.env.SPLITFLOW_USE_OPENAI_AGENTS_SDK === "1";
   const apiKeyPresent = Boolean(process.env.OPENAI_API_KEY);
   return {
-    envFlagEnabled,
+    envFlagEnabled: isOpenAiAgentsSdkEnabled(),
     apiKeyPresent,
     runtimeCreated: Boolean(agentsRuntime),
     attempted: false,

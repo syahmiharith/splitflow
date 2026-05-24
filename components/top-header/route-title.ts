@@ -1,6 +1,7 @@
 export const routeCopy: Record<string, { title: string; subtitle: string }> = {
   "/": { title: "Home", subtitle: "Global agreement command center" },
-  "/agent-lab": { title: "Agent Lab", subtitle: "Developer workflow diagnostics" }
+  "/analytics": { title: "Analytics", subtitle: "Recovery, response, and friction signals" },
+  "/groups": { title: "Groups", subtitle: "Recurring split contexts and member lists" }
 };
 
 export function routeTitle(pathname: string) {

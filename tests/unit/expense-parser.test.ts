@@ -38,6 +38,20 @@ describe("prototype-grade expense parser", () => {
     expect(drinks?.eligibleParticipantIds).not.toContain("daniel");
   });
 
+  it("does not treat proposal commands or prior-payment notes as participants or cost items", () => {
+    const { proposal, parserResult } = createProposalFromPrompt(
+      "I'm organizing a live production smoke test dinner split for 5 people. I paid ₩90,000 food, Ali paid ₩30,000 drinks, Sarah already sent me ₩10,000 that needs confirmation, and Daniel does not drink alcohol. Create a proposal I can review before collecting.",
+      "test-group"
+    );
+
+    expect(parserResult.status).toBe("ready");
+    expect(parserResult.draft?.participants.map((participant) => participant.name)).not.toContain("Create");
+    expect(parserResult.draft?.items.map((item) => item.label)).toEqual(["Food", "Drinks"]);
+    expect(proposal?.calculationResult?.totalCost).toBe(120000);
+    expect(proposal?.paymentRecords?.[0]).toMatchObject({ fromParticipantId: "sarah", amount: 10000, status: "claimed" });
+    expect(proposal?.calculationResult?.itemizedBreakdown.find((item) => item.label === "Drinks")?.eligibleParticipantIds).not.toContain("daniel");
+  });
+
   it("handles multiple payers for a group gift", () => {
     const { proposal, parserResult } = createProposalFromPrompt(
       "We bought a group gift for Minji. Total was 150k. Split between 6 people, but Adam paid 50k upfront and I paid the rest.",

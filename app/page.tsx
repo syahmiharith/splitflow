@@ -292,7 +292,9 @@ function ActivityRow({
           {item.groupName} · {item.proposalTitle}
         </p>
       </div>
-      <p className="text-xs font-semibold text-app-muted">{compactTime(item.event.at)}</p>
+      <p className="text-xs font-semibold text-app-muted" suppressHydrationWarning>
+        {compactTime(item.event.at)}
+      </p>
     </Link>
   );
 }

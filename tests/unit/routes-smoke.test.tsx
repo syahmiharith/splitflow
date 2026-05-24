@@ -8,7 +8,6 @@ import GroupProposalsPage from "@/app/groups/[groupId]/proposals/page";
 import GroupInboxPage from "@/app/groups/[groupId]/inbox/page";
 import GroupSettingsPage from "@/app/groups/[groupId]/settings/page";
 import AnalyticsPage from "@/app/analytics/page";
-import AgentLabPage from "@/app/agent-lab/page";
 
 vi.mock("next/link", () => ({
   default: ({ href, children, ...props }: { href: string; children: React.ReactNode }) => (
@@ -19,8 +18,8 @@ vi.mock("next/link", () => ({
 }));
 
 vi.mock("next/navigation", () => ({
-  useParams: () => ({ groupId: "jeju-trip" }),
-  usePathname: () => "/groups/jeju-trip/chat",
+  useParams: () => ({ groupId: "han-river-bbq" }),
+  usePathname: () => "/groups/han-river-bbq/chat",
   useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
   redirect: vi.fn()
 }));
@@ -71,10 +70,5 @@ describe("route smoke tests", () => {
   it("renders analytics route", () => {
     renderWithStore(<AnalyticsPage />);
     expect(screen.getByTestId("analytics-route")).toBeInTheDocument();
-  });
-
-  it("renders agent lab route", () => {
-    renderWithStore(<AgentLabPage />);
-    expect(screen.getByTestId("agent-lab-route")).toBeInTheDocument();
   });
 });

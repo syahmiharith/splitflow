@@ -275,6 +275,32 @@ function appendTimeline(proposal: Proposal, actor: string, text: string): Propos
   };
 }
 
+function markProposalSentLocally(proposal: Proposal): Proposal {
+  return appendTimeline(
+    {
+      ...proposal,
+      status: "waiting_for_responses",
+      participants: proposal.participants.map((participant) => {
+        const isOrganizer = participant.id === proposal.organizerId || participant.id === "you";
+        if (isOrganizer) {
+          return {
+            ...participant,
+            status: participant.status === "not_sent" ? ("accepted" as const) : participant.status,
+            paymentStatus: participant.paymentStatus === "remind" ? ("review" as const) : participant.paymentStatus
+          };
+        }
+        return {
+          ...participant,
+          status: participant.status === "not_sent" ? ("pending" as const) : participant.status,
+          paymentStatus: participant.paymentStatus === "review" ? participant.paymentStatus : ("remind" as const)
+        };
+      })
+    },
+    "Organizer",
+    "Sent proposal to participants for agreement."
+  );
+}
+
 function defaultProfileIdForGroup(group: SplitFlowGroup): string {
   const organizerId = group.proposals.find((proposal) => proposal.organizerId)?.organizerId;
   if (organizerId && group.members.some((member) => member.id === organizerId)) return organizerId;
@@ -507,34 +533,45 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const applyAgentResponse = useCallback((response: OrchestratorResponse, sourceMessage?: string, context?: AgentRunContext, result?: WorkflowRunResult) => {
     setState((current) => {
+      const currentWithRun = result?.run
+        ? hydrateDerivedState({
+            ...current,
+            workspacePanel: current.workspacePanel,
+            agentRuns: [result.run, ...(current.agentRuns ?? []).filter((run) => run.id !== result.run.id)].slice(0, 20),
+            agentSteps:
+              result.run.events.filter((event) => event.type === "step_completed").length > 0
+                ? result.run.events
+                    .filter((event) => event.type === "step_completed")
+                    .map((event) => ({
+                      id: event.id,
+                      name: event.step,
+                      description: event.detail,
+                      status: "completed" as const,
+                      time: new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit" }).format(new Date(event.at))
+                    }))
+                : current.agentSteps,
+            aiUnavailable: false,
+            lastAiError: undefined
+          })
+        : current;
+
       if (result?.group) {
-        const groups = current.groups.some((group) => group.id === result.group.id)
-          ? current.groups.map((group) => (group.id === result.group.id ? result.group : group))
-          : [result.group, ...current.groups];
-        return hydrateDerivedState({
-          ...current,
-          selectedGroupId: current.selectedGroupId,
-          groups,
-          workspacePanel: current.workspacePanel,
-          agentRuns: [result.run, ...(current.agentRuns ?? []).filter((run) => run.id !== result.run.id)].slice(0, 20),
-          agentSteps:
-            result.run.events.filter((event) => event.type === "step_completed").length > 0
-              ? result.run.events
-                  .filter((event) => event.type === "step_completed")
-                  .map((event) => ({
-                    id: event.id,
-                    name: event.step,
-                    description: event.detail,
-                    status: "completed" as const,
-                    time: new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit" }).format(new Date(event.at))
-                  }))
-              : current.agentSteps,
-          aiUnavailable: false,
-          lastAiError: undefined
-        });
+        const targetChatId = context?.chatId;
+        const serverHasTargetChat = targetChatId ? result.group.chats.some((chat) => chat.id === targetChatId) : true;
+        if (serverHasTargetChat && !sourceMessage) {
+          const groups = currentWithRun.groups.some((group) => group.id === result.group.id)
+            ? currentWithRun.groups.map((group) => (group.id === result.group.id ? result.group : group))
+            : [result.group, ...currentWithRun.groups];
+          return hydrateDerivedState({
+            ...currentWithRun,
+            selectedGroupId: currentWithRun.selectedGroupId,
+            groups,
+            workspacePanel: currentWithRun.workspacePanel
+          });
+        }
       }
-      const fallback = selectedIds(current);
-      const group = context?.groupId ? current.groups.find((item) => item.id === context.groupId) ?? fallback.activeGroup : fallback.activeGroup;
+      const fallback = selectedIds(currentWithRun);
+      const group = context?.groupId ? currentWithRun.groups.find((item) => item.id === context.groupId) ?? fallback.activeGroup : fallback.activeGroup;
       const chat = context?.chatId ? group.chats.find((item) => item.id === context.chatId) ?? fallback.activeChat : fallback.activeChat;
       const previous = group.proposals[0] ?? defaultGroup.proposals[0];
       const parsed = sourceMessage ? createProposalFromPrompt(sourceMessage, group.id) : undefined;
@@ -593,8 +630,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       const completedRunId = context?.runId;
       const nextState = updateGroup(
         {
-          ...current,
-          workspacePanel: current.workspacePanel,
+          ...currentWithRun,
+          workspacePanel: currentWithRun.workspacePanel,
           agentSteps:
             parsed?.parserResult
               ? [
@@ -614,7 +651,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
                   status: step.status === "completed" ? "completed" : "pending",
                   time: new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit" }).format(new Date())
                 }))
-              : current.agentSteps,
+              : currentWithRun.agentSteps,
           aiUnavailable: false,
           lastAiError: undefined
         },
@@ -697,14 +734,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const sendProposal = useCallback((proposalId?: string) => {
     const targetId = proposalId ?? activeProposal.id;
-    applyServerAction({
-      type: "send_proposal",
-      groupId: activeGroup.id,
-      chatId: activeChat.id,
-      proposalId: targetId,
-      idempotencyKey: `send:${targetId}`
-    });
-  }, [activeChat.id, activeGroup.id, activeProposal.id, applyServerAction]);
+    updateProposalInActiveGroup(targetId, (proposal) => markProposalSentLocally(proposal));
+  }, [activeProposal.id, updateProposalInActiveGroup]);
 
   const reviewProposal = useCallback(() => {
     setState((current) => updateGroup(current, activeGroup.id, (group) => appendChatMessage(group, activeChat.id, createMessage("bot", "The proposal artifact is ready. Open the panel to review deterministic amounts, exclusions, claimed payments, and settlement readiness before sending.", activeProposal.id))));

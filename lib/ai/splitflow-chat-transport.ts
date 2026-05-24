@@ -178,8 +178,8 @@ export function createSplitFlowChatTransport({ getRunContext, onResponse, onRunE
       const sourceMessageId = lastUserMessage?.id ?? crypto.randomUUID();
       const context = getRunContext?.() ?? {
         runId: crypto.randomUUID(),
-        groupId: "jeju-trip",
-        chatId: "chat-jeju-intake"
+        groupId: "han-river-bbq",
+        chatId: "chat-han-river-bbq"
       };
       lastRunContext = context;
       lastSourceMessage = message;
@@ -190,8 +190,8 @@ export function createSplitFlowChatTransport({ getRunContext, onResponse, onRunE
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           runId: context?.runId,
-          groupId: context?.groupId ?? "jeju-trip",
-          chatId: context?.chatId ?? "chat-jeju-intake",
+          groupId: context?.groupId ?? "han-river-bbq",
+          chatId: context?.chatId ?? "chat-han-river-bbq",
           sourceMessageId,
           message,
           idempotencyKey: context?.runId ?? `${Date.now()}:${message}`

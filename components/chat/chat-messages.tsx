@@ -30,7 +30,9 @@ export function ChatMessageBubble({ message }: { message: BotMessage }) {
         }`}
       >
         <p className="whitespace-pre-wrap break-words">{message.content}</p>
-        <div className="mt-2 text-xs text-app-muted">{compactTime(message.createdAt)}</div>
+        <div className="mt-2 text-xs text-app-muted" suppressHydrationWarning>
+          {compactTime(message.createdAt)}
+        </div>
       </div>
     </div>
   );

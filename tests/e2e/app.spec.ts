@@ -373,6 +373,38 @@ test("mobile home keeps next best action above activity", async ({ page }) => {
   expect(hasHorizontalOverflow).toBe(false);
 });
 
+test("mobile bottom navigation exposes primary reviewer routes", async ({ page }) => {
+  test.skip(!isMobile(page), "Mobile-only bottom navigation coverage");
+  await clearDemoStorage(page);
+
+  await expect(page.getByTestId("bottom-nav")).toBeVisible();
+  await expect(page.getByTestId("bottom-nav-dashboard")).toHaveAttribute("aria-current", "page");
+
+  const navTop = await page.getByTestId("bottom-nav").evaluate((node) => node.getBoundingClientRect().top);
+  const mainBottom = await page.getByTestId("app-main").evaluate((node) => node.getBoundingClientRect().bottom);
+  expect(mainBottom).toBeLessThanOrEqual(navTop + 1);
+
+  await page.getByTestId("bottom-nav-chat").click();
+  await expect(page).toHaveURL(/\/groups\/han-river-bbq\/chat$/);
+  await expect(page.getByTestId("bottom-nav-chat")).toHaveAttribute("aria-current", "page");
+  await expect(page.getByTestId("chat-route")).toBeVisible();
+
+  await page.getByTestId("bottom-nav-proposals").click();
+  await expect(page).toHaveURL(/\/groups\/han-river-bbq\/proposals$/);
+  await expect(page.getByTestId("bottom-nav-proposals")).toHaveAttribute("aria-current", "page");
+  await expect(page.getByTestId("group-proposals-route")).toBeVisible();
+
+  await page.getByTestId("bottom-nav-groups").click();
+  await expect(page).toHaveURL(/\/groups$/);
+  await expect(page.getByTestId("bottom-nav-groups")).toHaveAttribute("aria-current", "page");
+  await expect(page.getByTestId("groups-route")).toBeVisible();
+
+  await page.getByTestId("bottom-nav-analytics").click();
+  await expect(page).toHaveURL(/\/analytics$/);
+  await expect(page.getByTestId("bottom-nav-analytics")).toHaveAttribute("aria-current", "page");
+  await expect(page.getByTestId("analytics-route")).toBeVisible();
+});
+
 test("mobile sidebar opens from hamburger and left-edge swipe", async ({ page }) => {
   test.skip(!isMobile(page), "Mobile-only sidebar gesture coverage");
   await clearDemoStorage(page);
@@ -865,21 +897,6 @@ test("opening a split detail does not move the sidebar footer", async ({ page })
 
   expect(Math.abs(after.y - before.y)).toBeLessThan(1);
   expect(Math.abs(after.height - before.height)).toBeLessThan(1);
-});
-
-test("agent lab runs orchestrator scenario without layout overflow", async ({ page }) => {
-  await page.goto("/agent-lab");
-  await expect(page.getByTestId("agent-lab-route")).toBeVisible();
-  await page.getByRole("button", { name: "Run" }).click();
-  await expect(page.getByText("Orchestrator message")).toBeVisible();
-  await expect(page.getByText("Busan Airbnb").first()).toBeVisible();
-  await expect(page.getByText("Risk", { exact: true })).toBeVisible();
-  await expect(page.getByText("Trace", { exact: true })).toBeVisible();
-  await expect(page.getByTestId("agent-backend")).toHaveText("runOrchestrator");
-  await expect(page.getByTestId("sdk-invoked")).toHaveText("false");
-
-  const hasHorizontalOverflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);
-  expect(hasHorizontalOverflow).toBe(false);
 });
 
 test("README documents the canonical demo", async () => {

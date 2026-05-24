@@ -18,7 +18,6 @@ export function ChatWorkspace() {
   const {
     activeGroup,
     activeChat,
-    activeProposal,
     activeArtifacts,
     state,
     recordChatUserMessage,
@@ -46,10 +45,15 @@ export function ChatWorkspace() {
   const submitting = status === "submitted" || status === "streaming";
   const activeRun = state.agentRuns.find((run) => run.id === pendingRunRef.current?.runId);
   const showProgress = submitting && pendingRunRef.current?.groupId === activeGroup.id && pendingRunRef.current?.chatId === activeChat.id;
-  const readiness = deriveReadinessSummary(activeProposal);
   const latestRun = activeRun ?? state.agentRuns.find((run) => run.groupId === activeGroup.id && run.chatId === activeChat.id);
   const shouldShowRun = showProgress || Boolean(latestRun) || activeArtifacts.length > 0;
   const hasConversation = activeChat.messages.length > 0;
+  const hasUserMessages = activeChat.messages.some((message) => message.sender === "user");
+  const chatProposalId =
+    activeArtifacts.find((artifact) => artifact.proposalId)?.proposalId ??
+    activeChat.messages.slice().reverse().find((message) => message.relatedProposalId)?.relatedProposalId;
+  const chatProposal = chatProposalId ? activeGroup.proposals.find((proposal) => proposal.id === chatProposalId) : undefined;
+  const readiness = chatProposal ? deriveReadinessSummary(chatProposal) : undefined;
 
   useEffect(() => {
     if (!submitting) {
@@ -93,11 +97,13 @@ export function ChatWorkspace() {
           <div className="mx-auto flex w-full max-w-[820px] flex-col gap-4" data-testid="chat-centered-column">
             {hasConversation ? <ChatThread messages={activeChat.messages} /> : <ChatEmptyState onPrompt={(prompt) => void handleSend(prompt)} />}
 
-            <DecisionSummaryCard
-              proposal={activeProposal}
-              summary={readiness}
-              onReview={() => openProposalPanel(activeProposal.id)}
-            />
+            {chatProposal && readiness ? (
+              <DecisionSummaryCard
+                proposal={chatProposal}
+                summary={readiness}
+                onReview={() => openProposalPanel(chatProposal.id)}
+              />
+            ) : null}
 
             {shouldShowRun ? <AgentRunCard progressIndex={progressIndex} run={latestRun} showEstimated={!latestRun && !showProgress} /> : null}
 
@@ -116,7 +122,7 @@ export function ChatWorkspace() {
             isLoading={submitting}
             onSend={handleSend}
             placeholder={`Message ${activeGroup.name}...`}
-            showStarterPrompts={!hasConversation}
+            showStarterPrompts={!hasUserMessages}
           />
         </div>
       </section>

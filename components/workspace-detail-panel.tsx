@@ -275,7 +275,7 @@ function VersionHistoryPanel({ history }: { history?: ProposalHistoryResult }) {
           <div className="mt-3 grid gap-1 text-xs font-semibold text-app-muted">
             <span>Actor: {version.actor}</span>
             <span>Parent: {version.parentVersionId ?? "none"}</span>
-            <span>{formatDate(version.createdAt)}</span>
+            <span suppressHydrationWarning>{formatDate(version.createdAt)}</span>
           </div>
         </div>
       ))}
@@ -310,7 +310,7 @@ function ArtifactHistoryPanel({ history }: { history?: ProposalHistoryResult }) 
             <span>Version: {artifact.proposalVersionId ?? "unlinked"}</span>
             {artifact.supersedesArtifactId ? <span>Supersedes: {shortId(artifact.supersedesArtifactId)}</span> : null}
             {artifact.supersededByArtifactId ? <span>Superseded by: {shortId(artifact.supersededByArtifactId)}</span> : null}
-            <span>{formatDate(artifact.createdAt)}</span>
+            <span suppressHydrationWarning>{formatDate(artifact.createdAt)}</span>
           </div>
         </div>
       ))}
@@ -332,7 +332,9 @@ function RunTimelinePanel({ history }: { history?: ProposalHistoryResult }) {
               <p className="text-sm font-bold text-app-text">{humanStatus(event.type)}</p>
               <p className="mt-1 break-words text-sm leading-5 text-app-muted">{eventDetail(event)}</p>
             </div>
-            <span className="shrink-0 rounded-md bg-slate-50 px-2 py-1 text-xs font-bold text-app-text">{formatDate(event.at)}</span>
+            <span className="shrink-0 rounded-md bg-slate-50 px-2 py-1 text-xs font-bold text-app-text" suppressHydrationWarning>
+              {formatDate(event.at)}
+            </span>
           </div>
         </div>
       ))}

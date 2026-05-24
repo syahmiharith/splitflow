@@ -17,7 +17,7 @@ Total 530,000
 7 people
 Alex no Friday`;
 
-    const { proposal, parserResult } = createProposalFromPrompt(input, "jeju-trip");
+    const { proposal, parserResult } = createProposalFromPrompt(input, "han-river-bbq");
 
     expect(parserResult.status).toBe("ready");
     expect(parserResult.mode).toBe("receipt_text");

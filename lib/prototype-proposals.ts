@@ -79,7 +79,7 @@ export function recalculateProposal(proposal: Proposal, timelineText?: string): 
   };
 }
 
-export function createProposalFromPrompt(message: string, groupId = "jeju-trip"): { proposal?: Proposal; parserResult: ParserResult } {
+export function createProposalFromPrompt(message: string, groupId = "han-river-bbq"): { proposal?: Proposal; parserResult: ParserResult } {
   const parserResult = parseExpensePrompt(message);
   if (parserResult.status !== "ready" || !parserResult.draft) return { parserResult };
   return { parserResult, proposal: createProposalFromParsedDraft(parserResult.draft, groupId) };
@@ -87,7 +87,7 @@ export function createProposalFromPrompt(message: string, groupId = "jeju-trip")
 
 export function createProposalFromPromptWithAllocation(
   message: string,
-  groupId = "jeju-trip",
+  groupId = "han-river-bbq",
   strategy: Extract<AllocationStrategy, "single_total_equal_items" | "unallocated_remainder">
 ): { proposal?: Proposal; parserResult: ParserResult } {
   const parserResult = parseExpensePrompt(message);
@@ -135,7 +135,7 @@ function resolveAllocationDraft(draft: ParsedExpenseDraft, strategy: Extract<All
   };
 }
 
-export function createProposalFromParsedDraft(draft: ParsedExpenseDraft, groupId = "jeju-trip"): Proposal {
+export function createProposalFromParsedDraft(draft: ParsedExpenseDraft, groupId = "han-river-bbq"): Proposal {
   const createdAt = now();
   const participants = draft.participants.map((participant, index) => ({
     id: participant.id,
@@ -403,7 +403,7 @@ export function createHanRiverBbqProposal(groupId = "han-river-bbq", id = "han-r
   return recalculateProposal(proposal);
 }
 
-export function createJejuTripProposal(groupId = "jeju-trip", id = "jeju-airbnb-trip"): Proposal {
+export function createJejuTripProposal(groupId = "han-river-bbq", id = "jeju-airbnb-trip"): Proposal {
   const createdAt = now();
   const participants = ["Syahmi", "Mina", "Daniel", "Alex", "Sarah", "Yuna"].map(participantFromName).map((participant) => {
     if (participant.id === "mina") return { ...participant, roleNote: "Sharing a room with Daniel" };

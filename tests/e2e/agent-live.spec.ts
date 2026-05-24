@@ -46,17 +46,4 @@ test.describe("live OpenAI Agents SDK workflow", () => {
       })
     );
   });
-
-  test("agent lab exposes SDK invocation status", async ({ page }) => {
-    await page.goto("/agent-lab");
-    await page.getByRole("button", { name: "Run" }).click();
-
-    await expect(page.getByTestId("agent-backend")).toHaveText("runOrchestrator");
-    await expect(page.getByTestId("sdk-flag-status")).toHaveText("true");
-    await expect(page.getByTestId("sdk-api-key-present")).toHaveText("true");
-    await expect(page.getByTestId("sdk-runtime-created")).toHaveText("true");
-    await expect(page.getByTestId("sdk-attempted")).toHaveText("true");
-    await expect(page.getByTestId("sdk-invoked")).toHaveText("true");
-    await expect(page.getByTestId("sdk-trace-count")).toHaveText("1");
-  });
 });

@@ -1,6 +1,7 @@
 "use client";
 
 import { MessageSquareText } from "lucide-react";
+import { starterPrompts } from "@/components/chat/chat-composer";
 
 export function ChatEmptyState({ onPrompt }: { onPrompt: (message: string) => void }) {
   return (
@@ -16,10 +17,10 @@ export function ChatEmptyState({ onPrompt }: { onPrompt: (message: string) => vo
           </p>
           <button
             type="button"
-            onClick={() => onPrompt("Create Han River BBQ proposal")}
+            onClick={() => onPrompt(starterPrompts[0].message)}
             className="mt-3 min-h-9 rounded-md border border-blue-200 bg-blue-50 px-3 text-sm font-bold text-app-blue hover:bg-blue-100"
           >
-            Create Han River BBQ proposal
+            Use BBQ agreement example
           </button>
         </div>
       </div>

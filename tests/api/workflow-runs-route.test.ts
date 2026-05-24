@@ -28,8 +28,8 @@ describe("/api/agent/runs", () => {
 
   it("creates or reuses a run by idempotency key", async () => {
     const body = {
-      groupId: "jeju-trip",
-      chatId: "chat-jeju-intake",
+      groupId: "han-river-bbq",
+      chatId: "chat-han-river-bbq",
       message: "Split 120,000 won dinner between 4 people.",
       idempotencyKey: "api-run-key"
     };
@@ -49,8 +49,8 @@ describe("/api/agent/runs", () => {
 
     const response = await createRun(
       request({
-        groupId: "jeju-trip",
-        chatId: "chat-jeju-intake",
+        groupId: "han-river-bbq",
+        chatId: "chat-han-river-bbq",
         message: "Split 120,000 won dinner between 4 people.",
         idempotencyKey: "inline-run-key"
       })
@@ -92,8 +92,8 @@ describe("/api/agent/runs", () => {
   it("replays persisted run events as server-sent events", async () => {
     const response = await createRun(
       request({
-        groupId: "jeju-trip",
-        chatId: "chat-jeju-intake",
+        groupId: "han-river-bbq",
+        chatId: "chat-han-river-bbq",
         message: "Split 120,000 won dinner between 4 people.",
         idempotencyKey: "sse-run-key"
       })
@@ -121,8 +121,8 @@ describe("/api/agent/runs", () => {
   it("persists terminal failure events without leaking internal details", async () => {
     const response = await createRun(
       request({
-        groupId: "jeju-trip",
-        chatId: "chat-jeju-intake",
+        groupId: "han-river-bbq",
+        chatId: "chat-han-river-bbq",
         message: "SPLITFLOW_FORCE_RUN_FAILURE",
         idempotencyKey: "failed-run-key"
       })
@@ -142,8 +142,8 @@ describe("/api/agent/runs", () => {
   it("retries an existing run with a new attempt", async () => {
     const response = await createRun(
       request({
-        groupId: "jeju-trip",
-        chatId: "chat-jeju-intake",
+        groupId: "han-river-bbq",
+        chatId: "chat-han-river-bbq",
         message: "Split 120,000 won dinner between 4 people.",
         idempotencyKey: "retry-run-key"
       })

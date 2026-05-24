@@ -8,9 +8,19 @@ This prototype was built for the ShardLab Product Intern Challenge as a product-
 
 - Product moment: `Han River BBQ Crew` needs agreement before Syahmi fronts ₩128,000.
 - Start route: `/`
-- Primary flow: Home -> Chat -> Proposal artifact -> Proposals -> Your Share -> Proposals
+- Primary flow: Home -> Chat -> inline agent workflow -> Proposal artifact -> Proposals -> Your Share -> Proposals
 - 1-page explanation: [`docs/shardlab-product-case-study.md`](docs/shardlab-product-case-study.md)
 - Local validation: `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm build`, `pnpm test:e2e`
+
+### 90-second reviewer script
+
+1. Open `/` and notice the dashboard leads with blockers and next action, not vanity finance metrics.
+2. Go to Chat and paste the canonical BBQ prompt below.
+3. Watch the inline agent workflow stay in the transcript while the system parses, validates, calculates, and creates the proposal artifact.
+4. Open the single `Proposal artifact` bundle and inspect Review, Math, Settlement, Ledger, and Warnings from one card.
+5. Re-submit the same BBQ prompt and confirm the artifact list does not fill with duplicate-looking parser/math/ledger cards.
+6. Send the proposal, switch to `Your Share`, and simulate a participant accepting, requesting a change, opting out, or claiming payment.
+7. Return to `Proposals` and check whether the organizer can see who is blocking, what amount is safe, and what action comes next.
 
 ## Why This Moment
 
@@ -47,11 +57,13 @@ Create a proposal I can send to the group before I buy everything.
 
 What to check:
 
-1. Chat turns the messy prompt into a reviewable proposal artifact.
-2. Proposal review shows itemized costs, participant shares, Daniel's meat exclusion, and Sarah's claimed payment.
-3. Sending the proposal moves participants into a response workflow.
-4. Your Share lets a participant accept, request a change, opt out, ask why, or claim payment.
-5. Proposals shows blockers, response progress, payment-claim status, and settlement readiness.
+1. Chat turns the messy prompt into a persistent inline workflow and one reviewable proposal artifact bundle.
+2. The workflow steps remain visible after completion, so the reviewer can see what the agent system actually did.
+3. Proposal review shows itemized costs, participant shares, Daniel's meat exclusion, and Sarah's claimed payment.
+4. Re-running the same prompt reuses or updates the proposal artifact instead of cluttering the chat with duplicate cards.
+5. Sending the proposal moves participants into a response workflow.
+6. Your Share lets a participant accept, request a change, opt out, ask why, or claim payment.
+7. Proposals shows blockers, response progress, payment-claim status, and settlement readiness.
 
 This is intentionally a workflow prototype, not a payment app. The important behavior is that the organizer can see whether it is safe to buy, book, or collect before acting.
 
@@ -88,13 +100,17 @@ app/
 components/
   app-shell.tsx                    Desktop/sidebar and mobile shell
   bottom-nav.tsx                   Mobile primary navigation
-  chat-workspace.tsx               Chat, run progress, artifacts
+  chat-workspace.tsx               Chat transport, composer, paced workflow response handling
+  chat/chat-messages.tsx           Inline agent workflow timeline inside the transcript
+  chat/artifact-preview-grid.tsx   Single proposal artifact bundle preview
   workspace-detail-panel.tsx       Proposal review, ledger, actions
   readiness-widgets.tsx            Safe-to-book and action queue UI
 
 lib/
   domain/                          Deterministic money, state, and risk logic
   parser/                          Prototype natural-language expense parser
+  artifact-identity.ts             Stable proposal/artifact identity for idempotent demo runs
+  artifact-upsert.ts               Artifact upsert behavior for repeat prompts
   agents/                          Server orchestrator and agent role modules
   workflow/                        Server workflow service, run events, history
   prototype-persistence.ts         LocalStorage schema and migration guardrails
@@ -145,7 +161,7 @@ Optional live SDK check:
 SPLITFLOW_USE_OPENAI_AGENTS_SDK=1 RUN_LIVE_AGENT_TESTS=1 pnpm test:agent:live
 ```
 
-The e2e suite covers the canonical demo, desktop/mobile layouts, proposal review, participant actions, payment-claim confirmation, route smoke, and horizontal-overflow guards.
+The e2e suite covers the canonical demo, inline workflow visibility, artifact bundle dedupe, desktop/mobile layouts, proposal review, participant actions, payment-claim confirmation, route smoke, and horizontal-overflow guards.
 
 ## Prototype Boundaries
 

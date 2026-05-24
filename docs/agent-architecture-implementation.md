@@ -4,7 +4,7 @@ SplitFlow exposes one server-side agent orchestration path: `/api/agent`.
 
 This architecture is a product decision, not only a technical one. SplitFlow uses AI where it reduces organizer effort: parsing messy context, drafting a proposal, explaining why someone owes an amount, and summarizing blockers. It does not use AI as the authority for money. Deterministic domain services own calculation, rounding, participant eligibility, payment-claim effects, and readiness because trust is the product.
 
-The UI presents one compact AI Split Agent. Internally, the server keeps the workflow decomposed into focused roles: intake, proposal, recalculation, response tracking, risk decision, participant communication, and recommendation.
+The UI presents one compact AI Split Agent. Internally, the server keeps the workflow decomposed into focused roles: intake, proposal, recalculation, response tracking, risk decision, participant communication, and recommendation. In Chat, that work is rendered as an inline workflow timeline between the organizer's message and the assistant result, so the reviewer can see progress without leaving the transcript.
 
 ## Current Contract
 
@@ -25,10 +25,17 @@ When live SDK mode is enabled, `/api/agent` creates the OpenAI Agents runtime se
 
 1. Parse organizer input into a reviewable proposal draft.
 2. Run deterministic itemized split and settlement calculations.
-3. Persist workflow run events and artifacts.
-4. Render participant review, organizer actions, and readiness blockers.
-5. Optionally ask the server-side agent runtime for drafting, summarization, or explanation support.
-6. Keep final amounts and safety decisions in typed TypeScript domain logic.
+3. Persist workflow run events and render them as transcript-level progress.
+4. Upsert a stable proposal artifact bundle instead of creating duplicate-looking parser, math, settlement, and ledger cards.
+5. Render participant review, organizer actions, and readiness blockers.
+6. Optionally ask the server-side agent runtime for drafting, summarization, or explanation support.
+7. Keep final amounts and safety decisions in typed TypeScript domain logic.
+
+## Artifact Contract
+
+Proposal creation is idempotent for repeat prompts. Artifact identity uses the group, chat, proposal, artifact type, and normalized source text hash, so submitting the same semantic BBQ prompt reuses or updates the existing proposal artifact. A meaningful prompt change creates a new artifact version.
+
+The reviewer-facing UI shows one `Proposal artifact` card with sections for Review, Math, Settlement, Ledger, and Warnings. Internally, the detail panel can still expose the same calculation, readiness, and ledger data; the chat surface stays uncluttered.
 
 ## Reviewer Notes
 

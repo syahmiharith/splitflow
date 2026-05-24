@@ -27,14 +27,19 @@ SplitFlow turns a messy organizer prompt into an agreement workflow.
 In the prototype, a reviewer can:
 
 1. Enter a natural-language BBQ prompt in Chat.
-2. Review a structured proposal with itemized costs and participant shares.
-3. See deterministic math for Daniel's meat exclusion.
-4. Track Sarah's ₩10,000 as a claimed payment until the organizer confirms it.
-5. Send the proposal for participant review.
-6. Switch into a participant view and accept, request a change, opt out, ask why, or mark as paid.
-7. Return to the organizer dashboard to see blockers, response progress, and settlement readiness.
+2. Watch the inline agent workflow parse, validate, calculate, and create a proposal artifact without leaving the conversation.
+3. Open one proposal artifact bundle instead of sorting through separate parser, math, settlement, and ledger cards.
+4. Review a structured proposal with itemized costs and participant shares.
+5. See deterministic math for Daniel's meat exclusion.
+6. Track Sarah's ₩10,000 as a claimed payment until the organizer confirms it.
+7. Re-submit the same prompt and see the artifact update/reuse behavior instead of duplicate clutter.
+8. Send the proposal for participant review.
+9. Switch into a participant view and accept, request a change, opt out, ask why, or mark as paid.
+10. Return to the organizer dashboard to see blockers, response progress, and settlement readiness.
 
 The most important product decision is that AI does not calculate final money. AI helps parse and explain. Typed TypeScript domain logic owns split calculation, rounding, eligibility, payment-claim effects, and readiness. That keeps the product trustworthy in the part of the workflow where mistakes damage relationships.
+
+The most important interaction decision is that the agent work is visible but not noisy. The workflow appears inline in the chat transcript, and the output resolves into one proposal artifact bundle with Review, Math, Settlement, Ledger, and Warnings. That makes the prototype feel like an agreement workflow rather than a chatbot that throws disconnected files into a sidebar.
 
 ## AI tools used
 
@@ -54,6 +59,8 @@ Useful signals:
 
 - The organizer can describe a recent painful split without prompting.
 - They understand the proposal in under one minute.
+- They notice the inline workflow and trust that the system did structured work before showing an answer.
+- They understand that one artifact bundle is the current proposal, not five unrelated outputs.
 - They say they would send it before buying or booking.
 - Participants say the explanation makes the amount feel fair.
 - The organizer notices the difference between claimed and confirmed payment.

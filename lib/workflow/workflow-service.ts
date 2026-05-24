@@ -7,7 +7,7 @@ import {
   recalculateProposal
 } from "@/lib/prototype-proposals";
 import { countParticipants, deriveProposalStatus } from "@/lib/split";
-import type { AgentRun, AgentRunEvent, Artifact, BotMessage, Proposal, SplitFlowGroup } from "@/lib/types";
+import type { AgentRun, AgentRunEvent, Artifact, BotMessage, ChatSession, Proposal, SplitFlowGroup } from "@/lib/types";
 import { FileWorkflowRepository, getWorkflowRepository } from "@/lib/workflow/file-workflow-repository";
 import { publishRunEvent } from "@/lib/workflow/run-event-bus";
 import type { WorkflowActionRequest, WorkflowActionResult, WorkflowRunRequest, WorkflowRunResult, WorkflowServerState } from "@/lib/workflow/schema";
@@ -20,6 +20,18 @@ function createMessage(sender: BotMessage["sender"], content: string, relatedPro
   return { id, sender, content, relatedProposalId, createdAt: now() };
 }
 
+function createWorkflowChat(chatId: string, title = "New chat"): ChatSession {
+  const createdAt = now();
+  return {
+    id: chatId,
+    title,
+    messages: [],
+    artifactIds: [],
+    createdAt,
+    updatedAt: createdAt
+  };
+}
+
 function createRunEvent(runId: string, event: { type: AgentRunEvent["type"]; [key: string]: unknown }): AgentRunEvent {
   return { id: randomUUID(), runId, at: now(), ...event } as AgentRunEvent;
 }
@@ -30,6 +42,14 @@ function appendEvent(run: AgentRun, event: AgentRunEvent): AgentRun {
 }
 
 function appendChatMessage(group: SplitFlowGroup, chatId: string, message: BotMessage): SplitFlowGroup {
+  if (!group.chats.some((chat) => chat.id === chatId)) {
+    const chat = createWorkflowChat(chatId);
+    return {
+      ...group,
+      chats: [...group.chats, { ...chat, messages: [message], updatedAt: now() }]
+    };
+  }
+
   return {
     ...group,
     chats: group.chats.map((chat) =>
@@ -121,9 +141,10 @@ function appendArtifacts(state: WorkflowServerState, group: SplitFlowGroup, chat
 
 function updateGroupInState(state: WorkflowServerState, group: SplitFlowGroup): WorkflowServerState {
   const normalized = { ...group, analyticsSummary: deriveGroupAnalytics(group), updatedAt: now() };
+  const exists = state.groups.some((item) => item.id === group.id);
   return {
     ...state,
-    groups: state.groups.map((item) => (item.id === group.id ? normalized : item))
+    groups: exists ? state.groups.map((item) => (item.id === group.id ? normalized : item)) : [normalized, ...state.groups]
   };
 }
 
@@ -131,6 +152,21 @@ function findGroupAndChat(state: WorkflowServerState, groupId: string, chatId: s
   const group = state.groups.find((item) => item.id === groupId) ?? state.groups[0];
   const chat = group.chats.find((item) => item.id === chatId) ?? group.chats[0];
   return { group, chatId: chat.id };
+}
+
+function ensureGroupAndChat(state: WorkflowServerState, groupId: string, chatId: string): { state: WorkflowServerState; group: SplitFlowGroup; chatId: string } {
+  const group = state.groups.find((item) => item.id === groupId) ?? state.groups[0];
+  if (group.chats.some((item) => item.id === chatId)) {
+    return { state, group, chatId };
+  }
+
+  const nextGroup = {
+    ...group,
+    chats: [...group.chats, createWorkflowChat(chatId)],
+    updatedAt: now()
+  };
+  const nextState = updateGroupInState(state, nextGroup);
+  return { state: nextState, group: nextGroup, chatId };
 }
 
 function appendTimeline(proposal: Proposal, actor: string, text: string): Proposal {
@@ -328,9 +364,9 @@ export async function createWorkflowRun(request: WorkflowRunRequest, repository:
     }
 
     const run = createRun(request);
-    const { group, chatId } = findGroupAndChat(state, request.groupId, request.chatId);
-    const nextGroup = appendChatMessage(group, chatId, createMessage("user", request.message, undefined, run.sourceMessageId));
-    const nextState = updateGroupInState(state, nextGroup);
+    const ensured = ensureGroupAndChat(state, request.groupId, request.chatId);
+    const nextGroup = appendChatMessage(ensured.group, ensured.chatId, createMessage("user", request.message, undefined, run.sourceMessageId));
+    const nextState = updateGroupInState(ensured.state, nextGroup);
     result = projectRunResult(nextState, run);
     return {
       ...nextState,
@@ -359,8 +395,12 @@ export async function executeWorkflowRun(runId: string, repository: FileWorkflow
       createRunEvent(runId, { type: "step_started", step: "Intake Agent", detail: "Parsing organizer message on the server." })
     ]);
 
-    const state = await repository.read();
-    const { group, chatId } = findGroupAndChat(state, current.run.groupId, current.run.chatId);
+    const readState = await repository.read();
+    const ensured = ensureGroupAndChat(readState, current.run.groupId, current.run.chatId);
+    if (ensured.state !== readState) {
+      await repository.write(ensured.state);
+    }
+    const { group, chatId } = ensured;
     const parsed = createProposalFromPrompt(sourceMessage, group.id);
     const parserDetails = parsed.parserResult.draft
       ? [

@@ -62,7 +62,11 @@ export function createSplitFlowOrchestratorSdkAgent(input?: AgentsSdkOrganizerMe
 export const splitFlowOrchestratorSdkAgent = createSplitFlowOrchestratorSdkAgent();
 
 export function isOpenAiAgentsSdkEnabled(): boolean {
-  return process.env.SPLITFLOW_USE_OPENAI_AGENTS_SDK === "1" && Boolean(process.env.OPENAI_API_KEY);
+  const flag = process.env.SPLITFLOW_USE_OPENAI_AGENTS_SDK;
+  const enabledByFlag = flag === "1";
+  const disabledByFlag = flag === "0";
+  const enabledByProductionDefault = flag === undefined && process.env.VERCEL === "1";
+  return Boolean(process.env.OPENAI_API_KEY) && !disabledByFlag && (enabledByFlag || enabledByProductionDefault);
 }
 
 export function createOpenAiAgentsRuntime(): OpenAiAgentsRuntime | undefined {

@@ -6,6 +6,7 @@ import { GET as getEvents } from "@/app/api/agent/runs/[runId]/events/route";
 import { POST as retryRun } from "@/app/api/agent/runs/[runId]/retry/route";
 
 const originalStateFile = process.env.SPLITFLOW_STATE_FILE;
+const originalWorkflowExecutionMode = process.env.SPLITFLOW_WORKFLOW_EXECUTION_MODE;
 
 function request(body: unknown) {
   return new Request("http://localhost/api/agent/runs", {
@@ -17,10 +18,12 @@ function request(body: unknown) {
 describe("/api/agent/runs", () => {
   beforeEach(() => {
     process.env.SPLITFLOW_STATE_FILE = path.join(process.cwd(), ".splitflow", `test-api-${Date.now()}-${Math.random().toString(16).slice(2)}.json`);
+    delete process.env.SPLITFLOW_WORKFLOW_EXECUTION_MODE;
   });
 
   afterEach(() => {
     process.env.SPLITFLOW_STATE_FILE = originalStateFile;
+    process.env.SPLITFLOW_WORKFLOW_EXECUTION_MODE = originalWorkflowExecutionMode;
   });
 
   it("creates or reuses a run by idempotency key", async () => {
@@ -39,6 +42,25 @@ describe("/api/agent/runs", () => {
     expect(first.status).toBe(200);
     expect(firstPayload.run.status).toBe("running");
     expect(secondPayload.run.id).toBe(firstPayload.run.id);
+  });
+
+  it("can execute a run inline for serverless deployments", async () => {
+    process.env.SPLITFLOW_WORKFLOW_EXECUTION_MODE = "inline";
+
+    const response = await createRun(
+      request({
+        groupId: "jeju-trip",
+        chatId: "chat-jeju-intake",
+        message: "Split 120,000 won dinner between 4 people.",
+        idempotencyKey: "inline-run-key"
+      })
+    );
+    const payload = (await response.json()) as { run: { id: string; status: string }; proposal?: unknown; assistantMessage?: unknown };
+
+    expect(response.status).toBe(200);
+    expect(payload.run.status).toBe("completed");
+    expect(payload.proposal).toBeDefined();
+    expect(payload.assistantMessage).toBeDefined();
   });
 
   it("replays persisted run events as server-sent events", async () => {

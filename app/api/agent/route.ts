@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { runOrchestrator } from "@/lib/agents/orchestrator-agent";
-import { createOpenAiAgentsRuntime, type OpenAiAgentsRuntime } from "@/lib/agents/openai-agents-runtime";
+import { createOpenAiAgentsRuntime, isOpenAiAgentsSdkEnabled, type OpenAiAgentsRuntime } from "@/lib/agents/openai-agents-runtime";
 import type { AgentRuntimeMetadata } from "@/lib/agents/agent-types";
 import { MemoryProposalRepository } from "@/lib/repositories/memory-proposal-repository";
 
@@ -37,7 +37,7 @@ function routeRuntimeMetadata(agentsRuntime?: OpenAiAgentsRuntime): AgentRuntime
     route: "/api/agent",
     backend: "runOrchestrator",
     openAiAgentsSdk: {
-      envFlagEnabled: process.env.SPLITFLOW_USE_OPENAI_AGENTS_SDK === "1",
+      envFlagEnabled: isOpenAiAgentsSdkEnabled(),
       apiKeyPresent: Boolean(process.env.OPENAI_API_KEY),
       runtimeCreated: Boolean(agentsRuntime),
       attempted: false,

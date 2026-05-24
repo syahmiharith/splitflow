@@ -1,4 +1,4 @@
-import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { initialState } from "@/lib/demo-data";
 import { deriveGroupAnalytics } from "@/lib/analytics";
@@ -10,7 +10,11 @@ function now(): string {
 }
 
 function defaultStatePath(): string {
-  return process.env.SPLITFLOW_STATE_FILE ?? path.join(process.cwd(), ".splitflow", "server-state.json");
+  if (process.env.SPLITFLOW_STATE_FILE) return process.env.SPLITFLOW_STATE_FILE;
+  if (process.env.VERCEL === "1" || process.env.SPLITFLOW_STATE_BACKEND === "ephemeral") {
+    return path.join("/tmp", "splitflow", "server-state.json");
+  }
+  return path.join(process.cwd(), ".splitflow", "server-state.json");
 }
 
 function versionId(proposalId: string, version: number): string {
@@ -151,7 +155,6 @@ export class FileWorkflowRepository {
     await mkdir(path.dirname(this.filePath), { recursive: true });
     const tempPath = `${this.filePath}.${process.pid}.${Date.now()}.tmp`;
     await writeFile(tempPath, JSON.stringify(next, null, 2), "utf8");
-    await rm(this.filePath, { force: true });
     await rename(tempPath, this.filePath);
     return next;
   }

@@ -87,19 +87,21 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   return (
     <div
-      className="min-h-screen bg-page text-app-text"
+      className="h-dvh overflow-hidden bg-page text-app-text"
       data-device-layout={device.layoutMode}
       data-pointer={device.isTouchLike ? "coarse" : "fine"}
     >
-      <div className="flex min-h-screen">
+      <div className="flex h-full min-h-0">
         <Sidebar layoutMode={device.layoutMode} />
-        <div className="flex min-w-0 flex-1 flex-col">
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
           <TopHeader layoutMode={device.layoutMode} onMenuClick={() => setMobileSidebarOpen(true)} />
           <main
-            className="min-h-0 flex-1 pb-0"
+            className="min-h-0 flex-1 overflow-hidden pb-0"
             data-testid="app-main"
           >
-            {children}
+            <div className="h-full min-h-0 overflow-y-auto" data-testid="app-route-scroll">
+              {children}
+            </div>
           </main>
         </div>
       </div>

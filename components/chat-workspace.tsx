@@ -87,17 +87,17 @@ export function ChatWorkspace() {
   }
 
   return (
-    <div className="flex min-h-[calc(100vh-68px)] flex-col bg-page lg:h-[calc(100vh-76px)] lg:min-h-0 lg:flex-row" data-testid="chat-route">
+    <div className="flex h-full min-h-0 flex-col overflow-hidden bg-page lg:flex-row" data-testid="chat-route">
       <section className="flex min-h-0 flex-1 flex-col">
-        <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 md:px-6 md:py-5">
+        <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-3 pt-4 md:px-6 md:pb-4 md:pt-5" data-testid="chat-scroll-region">
           <div className="mx-auto flex w-full max-w-[820px] flex-col gap-4" data-testid="chat-centered-column">
+            {hasConversation ? <ChatThread messages={activeChat.messages} /> : <ChatEmptyState onPrompt={(prompt) => void handleSend(prompt)} />}
+
             <DecisionSummaryCard
               proposal={activeProposal}
               summary={readiness}
               onReview={() => openProposalPanel(activeProposal.id)}
             />
-
-            {hasConversation ? <ChatThread messages={activeChat.messages} /> : <ChatEmptyState onPrompt={(prompt) => void handleSend(prompt)} />}
 
             {shouldShowRun ? <AgentRunCard progressIndex={progressIndex} run={latestRun} showEstimated={!latestRun && !showProgress} /> : null}
 
@@ -116,6 +116,7 @@ export function ChatWorkspace() {
             isLoading={submitting}
             onSend={handleSend}
             placeholder={`Message ${activeGroup.name}...`}
+            showStarterPrompts={!hasConversation}
           />
         </div>
       </section>

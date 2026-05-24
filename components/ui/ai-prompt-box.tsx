@@ -13,10 +13,11 @@ interface PromptInputBoxProps {
   isLoading?: boolean;
   placeholder?: string;
   className?: string;
+  maxTextareaHeight?: number;
 }
 
 export const PromptInputBox = React.forwardRef<HTMLDivElement, PromptInputBoxProps>(
-  ({ onSend = () => {}, isLoading = false, placeholder = "Type your message here...", className }, ref) => {
+  ({ onSend = () => {}, isLoading = false, placeholder = "Type your message here...", className, maxTextareaHeight }, ref) => {
     usePromptBoxStyles();
 
     const [input, setInput] = React.useState("");
@@ -29,6 +30,8 @@ export const PromptInputBox = React.forwardRef<HTMLDivElement, PromptInputBoxPro
     const [showCanvas, setShowCanvas] = React.useState(false);
     const uploadInputRef = React.useRef<HTMLInputElement>(null);
     const promptBoxRef = React.useRef<HTMLDivElement>(null);
+    const responsiveMaxHeight = useResponsiveTextareaMaxHeight();
+    const textareaMaxHeight = maxTextareaHeight ?? responsiveMaxHeight;
 
     const isImageFile = React.useCallback((file: File) => file.type.startsWith("image/"), []);
 
@@ -136,6 +139,7 @@ export const PromptInputBox = React.forwardRef<HTMLDivElement, PromptInputBoxPro
           value={input}
           onValueChange={setInput}
           isLoading={isLoading}
+          maxHeight={textareaMaxHeight}
           onSubmit={handleSubmit}
           className={cn("w-full", isRecording && "border-app-red/70", className)}
           disabled={isLoading || isRecording}
@@ -227,3 +231,19 @@ export const PromptInputBox = React.forwardRef<HTMLDivElement, PromptInputBoxPro
   }
 );
 PromptInputBox.displayName = "PromptInputBox";
+
+function useResponsiveTextareaMaxHeight() {
+  const [maxHeight, setMaxHeight] = React.useState(156);
+
+  React.useEffect(() => {
+    function syncMaxHeight() {
+      setMaxHeight(window.innerWidth >= 768 ? 196 : 156);
+    }
+
+    syncMaxHeight();
+    window.addEventListener("resize", syncMaxHeight);
+    return () => window.removeEventListener("resize", syncMaxHeight);
+  }, []);
+
+  return maxHeight;
+}

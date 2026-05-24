@@ -1,7 +1,7 @@
 "use client";
 
 import { Check, Copy, CreditCard, MoreHorizontal, Send, UserRoundCheck, X } from "lucide-react";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode, type PointerEvent as ReactPointerEvent } from "react";
 import { formatKrw, humanStatus } from "@/lib/format";
 import { deriveSplitReadiness } from "@/lib/readiness";
 import { useSplitFlow } from "@/lib/store";
@@ -22,8 +22,7 @@ const historyTabs: Array<{ id: HistoryTab; label: string }> = [
 ];
 
 export function WorkspaceDetailPanel({
-  fallbackProposal,
-  desktopPersistent = false
+  fallbackProposal
 }: {
   fallbackProposal?: Proposal;
   desktopPersistent?: boolean;
@@ -47,6 +46,40 @@ export function WorkspaceDetailPanel({
   const [activeTab, setActiveTab] = useState<HistoryTab>("review");
   const [history, setHistory] = useState<ProposalHistoryResult | undefined>();
   const [historyError, setHistoryError] = useState<string | undefined>();
+  const [panelWidth, setPanelWidth] = useState(420);
+  const [resizing, setResizing] = useState(false);
+
+  useEffect(() => {
+    const savedWidth = Number(window.localStorage.getItem("splitflow-workspace-panel-width"));
+    if (Number.isFinite(savedWidth) && savedWidth > 0) {
+      setPanelWidth(clampPanelWidth(savedWidth));
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!resizing) return;
+
+    function onPointerMove(event: PointerEvent) {
+      setPanelWidth(clampPanelWidth(window.innerWidth - event.clientX));
+    }
+
+    function onPointerUp() {
+      setResizing(false);
+    }
+
+    window.addEventListener("pointermove", onPointerMove);
+    window.addEventListener("pointerup", onPointerUp);
+    return () => {
+      window.removeEventListener("pointermove", onPointerMove);
+      window.removeEventListener("pointerup", onPointerUp);
+    };
+  }, [resizing]);
+
+  useEffect(() => {
+    if (!resizing) {
+      window.localStorage.setItem("splitflow-workspace-panel-width", String(panelWidth));
+    }
+  }, [panelWidth, resizing]);
 
   useEffect(() => {
     if (!proposal?.id || !isOpen) {
@@ -75,15 +108,39 @@ export function WorkspaceDetailPanel({
     };
   }, [activeGroup.id, isOpen, proposal?.id, proposal?.status, proposal?.updatedAt, proposal?.version]);
 
-  if (!isOpen && !desktopPersistent) return null;
+  if (!isOpen) return null;
+
+  function startResize(event: ReactPointerEvent<HTMLDivElement>) {
+    event.preventDefault();
+    setResizing(true);
+    setPanelWidth(clampPanelWidth(window.innerWidth - event.clientX));
+  }
+
+  function resetResize() {
+    setPanelWidth(420);
+  }
 
   return (
     <aside
-      className={`${isOpen ? "fixed inset-0 z-40 h-[100dvh]" : "hidden"} flex min-h-0 w-full flex-col border-t border-app-border bg-white lg:static lg:z-auto lg:flex lg:h-auto lg:min-h-[520px] lg:w-[420px] lg:border-l lg:border-t-0`}
+      className="fixed right-0 top-0 z-40 flex h-dvh min-h-0 max-w-[100vw] translate-x-0 flex-col border-l border-app-border bg-white shadow-[0_18px_45px_rgba(24,33,47,0.18)] transition-transform duration-200 ease-out"
       data-testid="workspace-detail-panel"
-      aria-hidden={!isOpen && desktopPersistent}
+      aria-label="Workspace detail panel"
+      style={{ width: `min(100vw, ${panelWidth}px)` }}
     >
-      <div className="sticky top-0 z-10 flex items-start gap-3 border-b border-app-border bg-white px-5 py-4">
+      <div
+        role="separator"
+        aria-orientation="vertical"
+        aria-label="Resize workspace detail panel"
+        tabIndex={0}
+        data-testid="workspace-panel-resize-handle"
+        onPointerDown={startResize}
+        onDoubleClick={resetResize}
+        className="absolute left-0 top-0 z-20 h-full w-3 -translate-x-1/2 cursor-col-resize touch-none"
+      >
+        <span className="absolute left-1/2 top-0 h-full w-px -translate-x-1/2 bg-transparent transition-colors hover:bg-app-blue" aria-hidden="true" />
+      </div>
+
+      <div className="flex shrink-0 items-start gap-3 border-b border-app-border bg-white px-5 py-4">
         <div className="min-w-0 flex-1">
           <div className="text-xs font-semibold uppercase tracking-wide text-app-muted">
             {selectedArtifact ? humanStatus(selectedArtifact.type) : "Split"}
@@ -103,7 +160,7 @@ export function WorkspaceDetailPanel({
         ) : null}
       </div>
 
-      <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-5 py-4">
+      <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-5 py-4" data-testid="workspace-panel-body">
         {proposal ? (
           <>
             <HistoryTabs activeTab={activeTab} onChange={setActiveTab} />
@@ -128,14 +185,12 @@ export function WorkspaceDetailPanel({
         ) : (
           <div className="rounded-lg border border-dashed border-app-border bg-slate-50 px-4 py-5">
             <p className="text-sm font-semibold text-app-text">Select a split or detail</p>
-            <p className="mt-2 text-sm leading-6 text-app-muted">
-              Desktop keeps this panel open so split details, payment notes, and next actions stay visible while you review the chat.
-            </p>
+            <p className="mt-2 text-sm leading-6 text-app-muted">Split details, payment notes, and next actions appear here after selection.</p>
           </div>
         )}
       </div>
 
-      <div className="sticky bottom-0 grid gap-2 border-t border-app-border bg-white p-4" data-testid="workspace-panel-footer">
+      <div className="sticky bottom-0 grid shrink-0 gap-2 border-t border-app-border bg-white p-4" data-testid="workspace-panel-footer">
         {proposal ? (
           <ProposalPanelActions
             proposal={proposal}
@@ -174,6 +229,13 @@ export function WorkspaceDetailPanel({
       </div>
     </aside>
   );
+}
+
+function clampPanelWidth(value: number): number {
+  if (typeof window === "undefined") return Math.min(720, Math.max(360, value));
+  const maxWidth = Math.min(720, Math.floor(window.innerWidth * 0.9));
+  const minWidth = Math.min(360, maxWidth);
+  return Math.min(maxWidth, Math.max(minWidth, value));
 }
 
 function HistoryTabs({ activeTab, onChange }: { activeTab: HistoryTab; onChange: (tab: HistoryTab) => void }) {

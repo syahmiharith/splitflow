@@ -12,7 +12,7 @@ interface TextareaProps extends React.TextareaHTMLAttributes<HTMLTextAreaElement
 const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(({ className, ...props }, ref) => (
   <textarea
     className={cn(
-      "flex w-full rounded-md border-none bg-transparent px-3 py-2.5 text-base text-app-text placeholder:text-app-muted focus-visible:outline-none focus-visible:ring-0 disabled:cursor-not-allowed disabled:opacity-50 min-h-[44px] resize-none",
+      "flex w-full rounded-md border-none bg-transparent px-3 py-2 text-base leading-6 text-app-text placeholder:text-app-muted focus-visible:outline-none focus-visible:ring-0 disabled:cursor-not-allowed disabled:opacity-50 min-h-10 resize-none",
       className
     )}
     ref={ref}
@@ -153,7 +153,7 @@ export const PromptInput = React.forwardRef<HTMLDivElement, PromptInputProps>(
           <div
             ref={ref}
             className={cn(
-              "rounded-2xl border border-app-border bg-white p-2 shadow-[0_1px_2px_rgba(24,33,47,0.04)] transition-all duration-300 md:rounded-lg",
+              "rounded-xl border border-app-border bg-white p-1 shadow-[0_1px_2px_rgba(24,33,47,0.035)] transition-all duration-300 md:rounded-lg",
               isLoading && "border-app-blue/70",
               className
             )}
@@ -187,13 +187,16 @@ export const PromptInputTextarea: React.FC<PromptInputTextareaProps & React.Comp
 
   React.useEffect(() => {
     if (disableAutosize || !textareaRef.current) return;
-    textareaRef.current.style.height = "auto";
-    textareaRef.current.style.height =
-      typeof maxHeight === "number"
-        ? `${Math.min(textareaRef.current.scrollHeight, maxHeight)}px`
-        : `min(${textareaRef.current.scrollHeight}px, ${maxHeight})`;
-    textareaRef.current.style.overflowY =
-      textareaRef.current.scrollHeight > Number(maxHeight) ? "auto" : "hidden";
+    const textarea = textareaRef.current;
+    const numericMaxHeight = typeof maxHeight === "number" ? maxHeight : parseFloat(maxHeight);
+
+    textarea.style.height = "auto";
+    const nextHeight = Number.isFinite(numericMaxHeight)
+      ? Math.min(textarea.scrollHeight, numericMaxHeight)
+      : textarea.scrollHeight;
+    textarea.style.height = `${nextHeight}px`;
+    textarea.style.overflowY = Number.isFinite(numericMaxHeight) && textarea.scrollHeight > numericMaxHeight ? "auto" : "hidden";
+    if (!value) textarea.scrollTop = 0;
   }, [value, maxHeight, disableAutosize]);
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {

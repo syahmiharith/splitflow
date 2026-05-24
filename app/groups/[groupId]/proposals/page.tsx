@@ -33,9 +33,9 @@ export default function GroupProposalsPage() {
   const nextBestAction = deriveNextBestAction(activeGroup.proposals);
 
   return (
-    <div className="flex min-h-[calc(100vh-76px)] flex-col lg:flex-row" data-testid="group-proposals-route">
+    <div className="h-full min-h-0 overflow-hidden" data-testid="group-proposals-route">
       <GroupRouteSync groupId={params.groupId} />
-      <section className="min-w-0 flex-1 space-y-4 px-4 py-5 md:p-6">
+      <section className="h-full min-h-0 min-w-0 space-y-4 overflow-y-auto px-4 py-5 md:p-6" data-testid="split-list-scroll">
         <header className="space-y-3" data-testid="splits-summary-header">
           <div>
             <h1 className="text-2xl font-bold tracking-tight text-app-text md:text-3xl">Splits</h1>

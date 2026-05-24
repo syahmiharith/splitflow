@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import type { PointerEvent } from "react";
+import { useEffect, type PointerEvent } from "react";
 import { Check, ChevronsUpDown, FileText, Grid2X2, Home, MessageCircle, Plus, Settings, UserRoundCheck, Waypoints, X } from "lucide-react";
 import type { ChatSession, SplitFlowGroup } from "@/lib/types";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
@@ -89,6 +89,8 @@ export function GroupAccordion({
   expandedGroupIds,
   onExpandedChange,
   onOpenChat,
+  onAddChat,
+  activeGroupName,
   testId
 }: {
   groups: SplitFlowGroup[];
@@ -97,11 +99,24 @@ export function GroupAccordion({
   expandedGroupIds: Set<string>;
   onExpandedChange: (ids: Set<string>) => void;
   onOpenChat: (groupId: string, chatId: string) => void;
+  onAddChat: () => void;
+  activeGroupName: string;
   testId: TestId;
 }) {
   return (
-    <div className="min-h-0 flex-1 overflow-y-auto border-b border-app-border px-4 py-4">
-      <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-app-muted">Groups</div>
+    <div className="px-4 py-4">
+      <div className="mb-2 flex min-h-11 items-center justify-between gap-3">
+        <div className="text-xs font-semibold uppercase tracking-wide text-app-muted">Groups</div>
+        <button
+          type="button"
+          onClick={onAddChat}
+          className="grid h-10 w-10 shrink-0 place-items-center rounded-lg border border-app-border bg-white text-app-blue hover:bg-blue-50"
+          aria-label={`New chat for ${activeGroupName}`}
+          data-testid={testId("new-chat")}
+        >
+          <Plus className="h-5 w-5" aria-hidden="true" />
+        </button>
+      </div>
       <Accordion
         type="multiple"
         value={Array.from(expandedGroupIds)}
@@ -183,35 +198,22 @@ export function ChatSessionList({
 }
 
 export function SidebarFooter({
-  activeGroup,
   currentParticipant,
   currentParticipantRole,
   groupBase,
-  onAddChat,
   onOpenProfile,
   onNavigate,
   testId
 }: {
-  activeGroup: SplitFlowGroup;
   currentParticipant?: Participant;
   currentParticipantRole: string;
   groupBase: string;
-  onAddChat: () => void;
   onOpenProfile: () => void;
   onNavigate?: () => void;
   testId: TestId;
 }) {
   return (
-    <div className="space-y-3 border-t border-app-border px-3 py-4">
-      <button
-        type="button"
-        onClick={onAddChat}
-        className="ml-auto grid h-11 w-11 place-items-center rounded-full bg-app-blue text-white shadow-soft hover:bg-blue-700"
-        aria-label={`New chat for ${activeGroup.name}`}
-        data-testid={testId("new-chat")}
-      >
-        <Plus className="h-5 w-5" aria-hidden="true" />
-      </button>
+    <div className="shrink-0 px-3 py-4" data-testid={testId("sidebar-footer")}>
       <div className="flex min-h-14 items-center gap-3 rounded-lg px-2 py-1.5">
         <button
           type="button"
@@ -271,19 +273,34 @@ export function ProfileSheet({
   const organizerId = activeGroup.proposals[0]?.organizerId ?? "you";
   const roleFor = (participantId: string) => (participantId === organizerId ? "Organizer" : "Participant");
 
+  useEffect(() => {
+    if (!open) return;
+
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        onClose();
+      }
+    }
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [onClose, open]);
+
+  if (!open) return null;
+
   return (
     <div
-      className={`fixed inset-0 z-[60] flex items-end transition-colors duration-200 md:items-center md:justify-center md:p-6 ${
-        open ? "pointer-events-auto bg-slate-900/30" : "pointer-events-none bg-slate-900/0"
-      }`}
+      className="fixed inset-0 z-[60] flex items-end bg-slate-900/30 transition-colors duration-200 md:items-center md:justify-center md:p-6"
       data-testid={testId("profile-sheet-backdrop")}
-      aria-hidden={!open}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="profile-sheet-title"
+      onClick={onClose}
     >
       <div
-        className={`max-h-[86vh] w-full overflow-y-auto rounded-t-2xl border border-app-border bg-white p-4 shadow-soft transition-transform duration-200 ease-out md:max-w-md md:rounded-lg ${
-          open ? "translate-y-0" : "translate-y-full"
-        }`}
+        className="max-h-[86vh] w-full translate-y-0 overflow-y-auto rounded-t-2xl border border-app-border bg-white p-4 shadow-soft transition-transform duration-200 ease-out md:max-w-md md:rounded-lg"
         data-testid={testId("profile-bottom-sheet")}
+        onClick={(event) => event.stopPropagation()}
         onPointerDown={onPointerDown}
         onPointerUp={onPointerUp}
       >
@@ -294,7 +311,7 @@ export function ProfileSheet({
           </span>
           <div className="min-w-0 flex-1">
             <div className="text-xs font-semibold uppercase tracking-wide text-app-muted">View as</div>
-            <h2 className="mt-1 truncate text-lg font-bold">{currentParticipant?.name ?? "You"}</h2>
+            <h2 id="profile-sheet-title" className="mt-1 truncate text-lg font-bold">{currentParticipant?.name ?? "You"}</h2>
             <p className="mt-1 text-sm text-app-muted">Prototype profile switching. Production auth is out of scope.</p>
           </div>
           <button

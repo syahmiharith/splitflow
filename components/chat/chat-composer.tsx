@@ -12,35 +12,43 @@ const starterPrompts = [
 export function ChatComposer({
   isLoading,
   placeholder,
+  showStarterPrompts = true,
   onSend
 }: {
   isLoading: boolean;
   placeholder: string;
+  showStarterPrompts?: boolean;
   onSend: (message: string, files?: File[]) => void;
 }) {
   return (
-    <div className="border-t border-app-border bg-page px-4 pb-5 pt-3 md:px-6 md:pb-6 md:pt-4" data-testid="chat-input-area">
+    <div
+      className="bg-page/95 px-3 py-1 shadow-[0_-1px_0_rgba(223,227,232,0.28)] md:px-6 md:py-1.5"
+      style={{ borderTopStyle: "none" }}
+      data-testid="chat-input-area"
+    >
       <div className="mx-auto w-full max-w-3xl">
-        <div className="mb-3 flex gap-2 overflow-x-auto pb-1" data-testid="chat-starter-prompts">
-          {starterPrompts.map((prompt) => (
-            <button
-              key={prompt}
-              type="button"
-              onClick={() => onSend(prompt)}
-              disabled={isLoading}
-              className="min-h-9 shrink-0 rounded-lg border border-app-border bg-white px-3 text-xs font-semibold text-app-text hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {prompt}
-            </button>
-          ))}
-        </div>
+        {showStarterPrompts ? (
+          <div className="mb-1.5 flex gap-1.5 overflow-x-auto pb-0.5" data-testid="chat-starter-prompts">
+            {starterPrompts.map((prompt) => (
+              <button
+                key={prompt}
+                type="button"
+                onClick={() => onSend(prompt)}
+                disabled={isLoading}
+                className="min-h-8 shrink-0 rounded-md border border-app-border bg-white px-2.5 text-[11px] font-semibold text-app-text hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {prompt}
+              </button>
+            ))}
+          </div>
+        ) : null}
         <PromptInputBox
           isLoading={isLoading}
           onSend={onSend}
           placeholder={placeholder}
         />
-        <p className="mt-2 text-center text-xs leading-5 text-app-muted">
-          AI drafts artifacts. Deterministic math and human review decide settlement readiness.
+        <p className="mt-1 text-center text-[11px] leading-4 text-app-muted/75" data-testid="chat-disclaimer">
+          AI drafts only. Math and settlement require review.
         </p>
       </div>
     </div>

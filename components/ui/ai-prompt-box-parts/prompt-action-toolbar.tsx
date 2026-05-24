@@ -33,7 +33,7 @@ export function PromptActionToolbar({
   const [mobileToolsOpen, setMobileToolsOpen] = React.useState(false);
 
   return (
-    <PromptInputActions className="relative flex items-center justify-between gap-2 p-0 pt-2">
+    <PromptInputActions className="relative flex items-center justify-between gap-2 p-0">
       <div className={cn("flex min-w-0 items-center gap-1 transition-opacity duration-300", isRecording ? "invisible h-0 opacity-0" : "visible opacity-100")}>
         <PromptInputAction tooltip="Upload image">
           <button
@@ -113,7 +113,7 @@ export function PromptActionToolbar({
           size="icon"
           data-testid="chat-send"
           className={cn(
-            "h-9 w-9 shrink-0 rounded-full transition-all duration-200",
+            "h-8 w-8 shrink-0 rounded-full transition-all duration-200",
             isRecording
               ? "bg-transparent text-app-red hover:bg-red-50 hover:text-app-red"
               : hasContent
@@ -135,7 +135,7 @@ export function PromptActionToolbar({
         </Button>
       </PromptInputAction>
       {mobileToolsOpen ? (
-        <div className="absolute bottom-[76px] left-3 right-3 z-10 grid gap-2 rounded-lg border border-app-border bg-white p-2 shadow-soft md:hidden" data-testid="mobile-composer-tools">
+        <div className="absolute bottom-[52px] left-2 right-2 z-10 grid gap-2 rounded-lg border border-app-border bg-white p-2 shadow-soft md:hidden" data-testid="mobile-composer-tools">
           <MobileToolButton active={showSearch} label="Search" onClick={() => onToggleMode("search")} />
           <MobileToolButton active={showThink} label="Think" onClick={() => onToggleMode("think")} />
           <MobileToolButton active={showCanvas} label="Canvas" onClick={onToggleCanvas} />

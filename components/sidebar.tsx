@@ -17,7 +17,7 @@ export function Sidebar({ layoutMode = "unknown" }: { layoutMode?: DeviceLayoutM
   const canonicalTestIds = layoutMode === "desktop" || layoutMode === "unknown";
 
   return (
-    <aside className={`${visibilityClass} min-h-screen w-[280px] shrink-0 flex-col border-r border-app-border bg-white`} data-testid="sidebar">
+    <aside className={`${visibilityClass} h-dvh w-[280px] shrink-0 flex-col border-r border-app-border bg-white`} data-testid="sidebar">
       <SidebarContent canonicalTestIds={canonicalTestIds} />
     </aside>
   );
@@ -96,27 +96,31 @@ function SidebarContent({
 
   return (
     <>
-      <SidebarBrand onClose={onClose} />
-      <WorkspaceNav pathname={pathname} groupBase={groupBase} onNavigate={handleNavigate} testId={testId} />
-      <GroupAccordion
-        groups={state.groups}
-        activeGroupId={activeGroup.id}
-        activeChatId={activeChat.id}
-        expandedGroupIds={expandedGroupIds}
-        onExpandedChange={setExpandedGroupIds}
-        onOpenChat={openGroupChat}
-        testId={testId}
-      />
-      <SidebarFooter
-        activeGroup={activeGroup}
-        currentParticipant={currentParticipant}
-        currentParticipantRole={currentParticipantRole}
-        groupBase={groupBase}
-        onAddChat={() => addChat(activeGroup.id)}
-        onOpenProfile={() => setProfileSheetOpen(true)}
-        onNavigate={handleNavigate}
-        testId={testId}
-      />
+      <div className="flex h-full min-h-0 flex-col">
+        <SidebarBrand onClose={onClose} />
+        <div className="min-h-0 flex-1 overflow-y-auto border-b border-app-border" data-testid={testId("sidebar-scroll-region")}>
+          <WorkspaceNav pathname={pathname} groupBase={groupBase} onNavigate={handleNavigate} testId={testId} />
+          <GroupAccordion
+            groups={state.groups}
+            activeGroupId={activeGroup.id}
+            activeChatId={activeChat.id}
+            expandedGroupIds={expandedGroupIds}
+            onExpandedChange={setExpandedGroupIds}
+            onOpenChat={openGroupChat}
+            onAddChat={() => addChat(activeGroup.id)}
+            activeGroupName={activeGroup.name}
+            testId={testId}
+          />
+        </div>
+        <SidebarFooter
+          currentParticipant={currentParticipant}
+          currentParticipantRole={currentParticipantRole}
+          groupBase={groupBase}
+          onOpenProfile={() => setProfileSheetOpen(true)}
+          onNavigate={handleNavigate}
+          testId={testId}
+        />
+      </div>
       <ProfileSheet
         open={profileSheetOpen}
         activeGroup={activeGroup}

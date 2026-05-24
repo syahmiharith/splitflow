@@ -227,6 +227,7 @@ async function seedPartialHomeState(page: Page) {
     }
     window.localStorage.setItem(key, JSON.stringify(state));
   });
+  await page.reload();
 }
 
 test("home shows product story and global status cards", async ({ page }) => {
@@ -321,6 +322,39 @@ test("sidebar uses Splits and Your Share navigation labels", async ({ page }) =>
   await expect(page.getByTestId("nav-notifications")).toContainText("Your Share");
 });
 
+test("profile sheet only mounts while open", async ({ page }) => {
+  await clearDemoStorage(page);
+  await page.goto("/groups/han-river-bbq");
+
+  await expect(page.getByTestId("profile-sheet-backdrop")).toHaveCount(0);
+  await openProfileSwitcher(page);
+  await expect(page.getByTestId("profile-sheet-backdrop")).toBeVisible();
+  await expect(page.getByTestId("profile-switch-daniel")).toBeVisible();
+
+  await page.keyboard.press("Escape");
+  await expect(page.getByTestId("profile-sheet-backdrop")).toHaveCount(0);
+
+  await openProfileSwitcher(page);
+  await expect(page.getByTestId("profile-sheet-backdrop")).toBeVisible();
+  await page.getByTestId("profile-sheet-backdrop").click({ position: { x: 8, y: 8 } });
+  await expect(page.getByTestId("profile-sheet-backdrop")).toHaveCount(0);
+});
+
+test("new chat lives in groups header instead of sidebar footer", async ({ page }) => {
+  await clearDemoStorage(page);
+  await page.goto("/groups/han-river-bbq/chat");
+
+  if (isMobile(page)) {
+    await page.getByTestId("mobile-sidebar-open").click();
+  }
+
+  const sidebar = isMobile(page) ? page.getByTestId("mobile-sidebar-overlay") : page.getByTestId("sidebar");
+  const footer = sidebar.getByTestId("sidebar-footer");
+  await expect(sidebar.getByTestId("new-chat")).toBeVisible();
+  await expect(footer.getByTestId("new-chat")).toHaveCount(0);
+  await expect(footer.getByTestId("sidebar-profile-button")).toBeVisible();
+});
+
 test("mobile home keeps next best action above activity", async ({ page }) => {
   test.skip(!isMobile(page), "Mobile-only Home layout coverage");
   await clearDemoStorage(page);
@@ -374,6 +408,67 @@ test("chat creates revised BBQ proposal artifact", async ({ page }) => {
   await expect(page.getByTestId("workspace-detail-panel")).toContainText("claimed");
 });
 
+test("chat keeps decision summary below the conversation", async ({ page }) => {
+  await clearDemoStorage(page);
+  await page.goto("/groups/han-river-bbq/chat");
+
+  await expect(page.getByTestId("chat-messages")).toBeVisible();
+  await expect(page.getByTestId("decision-summary-card")).toBeVisible();
+  const chatBox = await page.getByTestId("chat-messages").boundingBox();
+  const decisionBox = await page.getByTestId("decision-summary-card").boundingBox();
+  expect(decisionBox?.y ?? 0).toBeGreaterThan(chatBox?.y ?? 0);
+});
+
+test("chat composer is compact and textarea scrolls internally", async ({ page }) => {
+  await clearDemoStorage(page);
+  await page.goto("/groups/han-river-bbq/chat");
+
+  const composer = page.getByTestId("chat-input-area");
+  const input = page.getByTestId("chat-input");
+  const scrollRegion = page.getByTestId("chat-scroll-region");
+  await expect(composer).toBeVisible();
+  await expect(page.getByTestId("chat-disclaimer")).toHaveText("AI drafts only. Math and settlement require review.");
+  await expect(page.getByTestId("chat-disclaimer")).toHaveCSS("font-size", "11px");
+  await expect(page.getByTestId("chat-starter-prompts")).toHaveCount(0);
+
+  const initialComposerBox = await composer.boundingBox();
+  expect(initialComposerBox?.height ?? 999).toBeLessThan(125);
+
+  const seam = await composer.evaluate((node) => {
+    const styles = window.getComputedStyle(node);
+    return {
+      borderTopWidth: styles.borderTopWidth,
+      borderTopStyle: styles.borderTopStyle
+    };
+  });
+  expect(seam.borderTopWidth).toBe("0px");
+  expect(seam.borderTopStyle).toBe("none");
+
+  const initialTextareaHeight = await input.evaluate((node) => node.getBoundingClientRect().height);
+  expect(initialTextareaHeight).toBeGreaterThanOrEqual(40);
+  expect(initialTextareaHeight).toBeLessThanOrEqual(46);
+
+  const initialDocumentScroll = await page.evaluate(() => document.documentElement.scrollTop);
+  const initialChatScroll = await scrollRegion.evaluate((node) => node.scrollTop);
+  await input.fill(["Line one", "Line two", "Line three", "Line four", "Line five"].join("\n"));
+  const grownTextareaHeight = await input.evaluate((node) => node.getBoundingClientRect().height);
+  expect(grownTextareaHeight).toBeGreaterThan(initialTextareaHeight + 24);
+
+  const manyLines = Array.from({ length: 60 }, (_, index) => `Long prompt line ${index + 1}`).join("\n");
+  await input.fill(manyLines);
+  const maxTextareaState = await input.evaluate((node) => ({
+    height: node.getBoundingClientRect().height,
+    scrollHeight: node.scrollHeight,
+    clientHeight: node.clientHeight,
+    overflowY: window.getComputedStyle(node).overflowY
+  }));
+  expect(maxTextareaState.height).toBeLessThanOrEqual(isMobile(page) ? 162 : 202);
+  expect(maxTextareaState.scrollHeight).toBeGreaterThan(maxTextareaState.clientHeight);
+  expect(maxTextareaState.overflowY).toBe("auto");
+  expect(await page.evaluate(() => document.documentElement.scrollTop)).toBe(initialDocumentScroll);
+  expect(await scrollRegion.evaluate((node) => node.scrollTop)).toBe(initialChatScroll);
+});
+
 test("mobile chat keeps composer and artifact panel usable", async ({ page }) => {
   test.skip(!isMobile(page), "Mobile-only chat layout coverage");
   await clearDemoStorage(page);
@@ -392,7 +487,9 @@ test("proposal panel shows settlement readiness", async ({ page }) => {
   await clearDemoStorage(page);
 
   await page.goto("/groups/han-river-bbq/proposals");
+  await expect(page.getByTestId("workspace-detail-panel")).toHaveCount(0);
   await page.getByTestId("proposal-row-han-river-bbq-proposal").first().click();
+  await expect(page.getByTestId("workspace-detail-panel")).toBeVisible();
   await expect(page.getByTestId("panel-decision")).toContainText("Settlement readiness");
   await expect(page.getByTestId("panel-decision")).toContainText(/Not ready|Needs review|Ready/);
   await expect(page.getByTestId("rules-applied")).toContainText("Ready Check");
@@ -404,6 +501,57 @@ test("proposal panel shows settlement readiness", async ({ page }) => {
   await expect(page.getByTestId("claimed-payment-ledger")).toContainText("No bank verification in prototype");
   await expect(page.getByTestId("workspace-panel-footer")).toContainText("Confirm claim");
   await expect(page.getByTestId("workspace-panel-footer")).not.toContainText("Mark Daniel paid");
+  await page.getByLabel("Close panel").click();
+  await expect(page.getByTestId("workspace-detail-panel")).toHaveCount(0);
+});
+
+test("proposal panel scrolls independently and keeps footer actions visible", async ({ page }) => {
+  await clearDemoStorage(page);
+  await page.goto("/groups/han-river-bbq/proposals");
+
+  await page.getByTestId("proposal-row-han-river-bbq-proposal").first().click();
+  const panel = page.getByTestId("workspace-detail-panel");
+  const body = page.getByTestId("workspace-panel-body");
+  const footer = page.getByTestId("workspace-panel-footer");
+  await expect(panel).toBeVisible();
+  await expect(footer).toBeVisible();
+
+  const beforeMainScroll = await page.getByTestId("split-list-scroll").evaluate((node) => node.scrollTop);
+  await body.evaluate((node) => {
+    node.scrollTop = node.scrollHeight;
+  });
+  const bodyScrollTop = await body.evaluate((node) => node.scrollTop);
+  const afterMainScroll = await page.getByTestId("split-list-scroll").evaluate((node) => node.scrollTop);
+
+  expect(bodyScrollTop).toBeGreaterThan(0);
+  expect(afterMainScroll).toBe(beforeMainScroll);
+  await expect(footer).toBeVisible();
+  await expect(footer).toContainText("Confirm claim");
+});
+
+test("workspace detail panel can be resized from the left edge", async ({ page }) => {
+  test.skip(isMobile(page), "Desktop-only panel resize coverage");
+  await clearDemoStorage(page);
+  await page.goto("/groups/han-river-bbq/proposals");
+
+  await page.getByTestId("proposal-row-han-river-bbq-proposal").first().click();
+  const panel = page.getByTestId("workspace-detail-panel");
+  const handle = page.getByTestId("workspace-panel-resize-handle");
+  await expect(panel).toBeVisible();
+
+  const before = await panel.boundingBox();
+  const handleBox = await handle.boundingBox();
+  expect(before).not.toBeNull();
+  expect(handleBox).not.toBeNull();
+  if (!before || !handleBox) return;
+
+  await page.mouse.move(handleBox.x + handleBox.width / 2, handleBox.y + 80);
+  await page.mouse.down();
+  await page.mouse.move(handleBox.x - 120, handleBox.y + 80, { steps: 4 });
+  await page.mouse.up();
+
+  const after = await panel.boundingBox();
+  expect(after?.width ?? 0).toBeGreaterThan(before.width + 40);
 });
 
 test("proposal history and send flow are still available", async ({ page }) => {
@@ -696,6 +844,27 @@ test("Splits page is an agreement operations surface", async ({ page }) => {
 
   const hasHorizontalOverflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);
   expect(hasHorizontalOverflow).toBe(false);
+});
+
+test("opening a split detail does not move the sidebar footer", async ({ page }) => {
+  test.skip(isMobile(page), "Desktop sidebar stability coverage");
+  await clearDemoStorage(page);
+  await page.goto("/groups/han-river-bbq/proposals");
+
+  const footer = page.getByTestId("sidebar-footer");
+  await expect(footer).toBeVisible();
+  const before = await footer.boundingBox();
+  expect(before).not.toBeNull();
+
+  await page.getByTestId("proposal-row-han-river-bbq-proposal").first().click();
+  await expect(page.getByTestId("workspace-detail-panel")).toBeVisible();
+  await expect(footer).toBeVisible();
+  const after = await footer.boundingBox();
+  expect(after).not.toBeNull();
+  if (!before || !after) return;
+
+  expect(Math.abs(after.y - before.y)).toBeLessThan(1);
+  expect(Math.abs(after.height - before.height)).toBeLessThan(1);
 });
 
 test("agent lab runs orchestrator scenario without layout overflow", async ({ page }) => {

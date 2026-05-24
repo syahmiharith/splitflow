@@ -43,11 +43,11 @@ The most important interaction decision is that the agent work is visible but no
 
 ## AI tools used
 
-I used Codex as the main AI development tool to plan, implement, refactor, test, and critique the product. AI made it easier to move quickly across product copy, React UI, deterministic domain logic, and Playwright/Vitest coverage.
+I used Codex as an AI-assisted development tool while building SplitFlow. It helped with implementation planning, refactoring suggestions, UI iteration, test updates, and documentation critique. I used it to move faster and pressure-test decisions, not to outsource the product judgment.
 
-What was easy: generating scaffolds, exploring edge cases, creating tests, and iterating on UI surfaces.
+What was easy with AI support: exploring edge cases, generating implementation options, drafting test coverage, and iterating on UI surfaces.
 
-What was hard: preventing the product from becoming a generic chatbot or generic dashboard. I had to keep challenging AI output against the real user moment: the organizer needs confidence before paying. I also pushed back on any direction where AI would become the source of truth for money, because trust in this product depends on auditable deterministic logic.
+What required my judgment: keeping the product from becoming a generic chatbot or generic dashboard. I evaluated suggestions against the real user moment: the organizer needs confidence before paying. I also rejected any direction where AI would become the source of truth for money, because trust in this product depends on auditable deterministic logic.
 
 ## Part 4 - Validation Plan
 

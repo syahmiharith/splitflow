@@ -118,9 +118,9 @@ lib/
 
 ## AI Tools Used
 
-I used Codex as the main AI development partner for implementation planning, refactoring, UI iteration, test updates, and documentation critique. AI was useful for moving fast across product, frontend, and test surfaces. The hard part was not generating code. The hard part was keeping the product decision sharp: agreement-first workflow, deterministic money logic, no fake payment verification, and no overbuilt infrastructure for a 48-hour prototype.
+I used Codex as an AI-assisted development tool for implementation planning, code review, UI iteration, test updates, and documentation critique. It helped me move faster across product, frontend, and validation work, but I kept the product direction and engineering constraints explicit: agreement-first workflow, deterministic money logic, no fake payment verification, and no overbuilt infrastructure for a 48-hour prototype.
 
-I challenged AI-generated directions when they drifted toward generic dashboards, marketing-style pages, or AI-owned money calculations. The final shape is deliberately operational: a user can act, not just admire a mockup.
+My role was to make the product and technical calls: choosing the Han River BBQ moment, deciding what the workflow should prove, preserving deterministic TypeScript as the source of truth for money, and rejecting directions that drifted toward generic dashboards, marketing-style pages, or AI-owned calculations. The final shape is deliberately operational: a user can act, not just admire a mockup.
 
 ## Run Locally
 

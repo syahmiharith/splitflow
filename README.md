@@ -1,42 +1,33 @@
 # SplitFlow
 
-SplitFlow is an AI-assisted split agreement workspace for group expenses. It helps an organizer turn messy cost context into a structured proposal, run deterministic split math, collect participant responses, track payment claims, and decide whether it is safe to book, pay, or settle.
+SplitFlow is an interactive AI-assisted agreement workspace for shared costs. It is built for the moment before someone fronts money, when the real problem is not arithmetic yet. It is getting a group to agree on what is fair, what is included, who is still unsure, and whether it is safe to pay.
 
-The product is built around one principle: the organizer does not only need math. They need agreement before someone fronts money.
+This prototype was built for the ShardLab Product Intern Challenge as a product-development case study, not as a static mockup. A reviewer can tap through the full loop: describe a messy shared cost, review a structured proposal, inspect deterministic split math, simulate participant responses, confirm a payment claim, and decide whether settlement is ready.
 
-## Why This Exists
+## Reviewer Quick Path
 
-Group expense tools usually start after money has already moved. SplitFlow moves the critical review earlier:
+- Product moment: `Han River BBQ Crew` needs agreement before Syahmi fronts ₩128,000.
+- Start route: `/`
+- Primary flow: Home -> Chat -> Proposal artifact -> Proposals -> Your Share -> Proposals
+- 1-page explanation: [`docs/shardlab-product-case-study.md`](docs/shardlab-product-case-study.md)
+- Local validation: `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm build`, `pnpm test:e2e`
 
-```text
-Messy input
--> structured expense proposal
--> deterministic split calculation
--> participant review
--> accept / request change / opt out
--> organizer tracks blockers
--> safe settlement decision
-```
+## Why This Moment
 
-AI helps draft and explain. TypeScript owns the money, state transitions, participant eligibility, payment-claim effects, and readiness decisions.
+I chose a Han River BBQ because it creates cost-sharing tension quickly without needing a complex financial setting:
 
-## Reviewer Demo
+- The organizer pays before everyone has committed.
+- Food exclusions are personal and easy to mishandle.
+- Prior transfers are socially sensitive because "I already paid" is not the same as confirmed money.
+- One participant has a threshold where the amount may stop feeling fair.
 
-### Han River BBQ: Agreement Before the Organizer Fronts Money
+The current workaround is usually a group chat, mental math, screenshots of transfers, and someone manually chasing friends. That works when everyone agrees instantly. It fails when someone has an exclusion, pays early, opts out, or questions the amount after the organizer has already spent money.
 
-Use this flow to evaluate the product, UI, and engineering decisions.
+The emotional cost is the real product opportunity: the organizer becomes the uncomfortable debt collector, and participants may feel they are being charged for something they did not agree to.
 
-1. Run the app and open `/`.
-2. Confirm the selected group is `Han River BBQ Crew`.
-3. Open `Chat`.
-4. Paste the canonical prompt below.
-5. Review the proposal artifact and deterministic math.
-6. Send the proposal for agreement.
-7. Open `Your Share`, switch to Daniel from the sidebar profile control, and request a change.
-8. Return to `Proposals` and confirm Sarah's claimed payment.
-9. Check settlement readiness and the action queue.
+## Working Prototype
 
-Canonical prompt:
+Use this canonical prompt in Chat:
 
 ```text
 I'm organizing a Han River BBQ for 8 people and need agreement before I front ₩128,000.
@@ -54,29 +45,36 @@ Ali says he may request a change if his share goes above ₩20,000.
 Create a proposal I can send to the group before I buy everything.
 ```
 
-What this proves:
+What to check:
 
-- Natural prompt to reviewable proposal.
-- Item-level eligibility, including Daniel's meat exclusion.
-- Deterministic itemized split and net settlement.
-- Proof-aware ledger for claimed vs confirmed payments.
-- Human-in-the-loop change requests.
-- Readiness logic before booking, payment, or collection.
+1. Chat turns the messy prompt into a reviewable proposal artifact.
+2. Proposal review shows itemized costs, participant shares, Daniel's meat exclusion, and Sarah's claimed payment.
+3. Sending the proposal moves participants into a response workflow.
+4. Your Share lets a participant accept, request a change, opt out, ask why, or claim payment.
+5. Proposals shows blockers, response progress, payment-claim status, and settlement readiness.
+
+This is intentionally a workflow prototype, not a payment app. The important behavior is that the organizer can see whether it is safe to buy, book, or collect before acting.
+
+## Product Decisions
+
+- SplitFlow is not another bill splitter. The product moves agreement before money is spent.
+- AI accelerates messy-input intake and explanation, but deterministic TypeScript owns amounts, rounding, participant eligibility, payment-claim effects, and readiness.
+- The first user is specific: a recurring group organizer who fronts money and carries social risk if the split becomes disputed.
+- The prototype uses local state and simulated profiles because the challenge asks for functional interaction, not production banking, auth, or notifications.
+- Mobile is first-class because group-expense coordination usually happens in chat-like contexts on phones.
 
 ## Product Surfaces
 
-- `/` - global dashboard and next best action across groups.
-- `/groups` - recurring split contexts such as BBQ crews, housemates, trips, or subscriptions.
-- `/groups/[groupId]` - group overview, readiness, response progress, and blockers.
-- `/groups/[groupId]/chat` - primary AI Split Agent workspace.
-- `/groups/[groupId]/proposals` - agreement records, filters, blockers, payment claims, and settlement readiness.
+- `/` - global agreement dashboard and next best action.
+- `/groups` - recurring split contexts.
+- `/groups/[groupId]/chat` - AI Split Agent intake and artifact generation.
+- `/groups/[groupId]/proposals` - proposal operations, blockers, claims, and readiness.
 - `/groups/[groupId]/inbox` - participant review simulation through the selected profile.
-- `/groups/[groupId]/settings` - group members and context.
-- `/analytics` - lightweight recovery, response, and dispute signals.
+- `/analytics` - lightweight recovery, response, and friction signals.
 
 Shortcut routes `/chat`, `/proposals`, and `/inbox` route to the canonical Han River BBQ demo group for reviewer convenience.
 
-## Architecture Map
+## Architecture
 
 ```text
 app/
@@ -99,43 +97,14 @@ lib/
   parser/                          Prototype natural-language expense parser
   agents/                          Server orchestrator and agent role modules
   workflow/                        Server workflow service, run events, history
-  prototype-proposals.ts           Demo proposal builders and recalculation
   prototype-persistence.ts         LocalStorage schema and migration guardrails
-
-tests/
-  unit/                            Domain, parser, persistence, agents, APIs
-  api/                             Server route and workflow tests
-  e2e/                             Desktop and mobile reviewer flows
 ```
 
-## Deterministic Money Principle
+## AI Tools Used
 
-AI may draft proposals, classify intent, summarize objections, and explain next actions. It must not be the source of truth for:
+I used Codex as the main AI development partner for implementation planning, refactoring, UI iteration, test updates, and documentation critique. AI was useful for moving fast across product, frontend, and test surfaces. The hard part was not generating code. The hard part was keeping the product decision sharp: agreement-first workflow, deterministic money logic, no fake payment verification, and no overbuilt infrastructure for a 48-hour prototype.
 
-- split calculation
-- rounding
-- item eligibility
-- net settlement
-- participant response transitions
-- reconfirmation requirements
-- risk/readiness decisions
-- final amount owed
-
-The deterministic itemized split engine verifies the core accounting invariants:
-
-```text
-sum(total paid) == total cost
-sum(fair shares) == total cost
-sum(net balances) == 0
-```
-
-Positive net balance means the participant receives money. Negative net balance means the participant pays money.
-
-## AI Boundary
-
-OpenAI usage stays server-side through `/api/agent` and optional `@openai/agents` runtime support. The client never receives `OPENAI_API_KEY`, server-only prompts, hidden system prompts, or raw SDK internals.
-
-Normal demo mode does not require an OpenAI key. The deterministic parser and proposal workflow still run locally. With `SPLITFLOW_USE_OPENAI_AGENTS_SDK=1` and `OPENAI_API_KEY` configured, the server orchestrator can invoke the Agents SDK while deterministic TypeScript remains authoritative for money and readiness.
+I challenged AI-generated directions when they drifted toward generic dashboards, marketing-style pages, or AI-owned money calculations. The final shape is deliberately operational: a user can act, not just admire a mockup.
 
 ## Run Locally
 
@@ -158,9 +127,9 @@ OPENAI_MODEL=gpt-5.4-mini
 SPLITFLOW_USE_OPENAI_AGENTS_SDK=1
 ```
 
-## Verification
+Normal demo mode does not require an OpenAI key. The deterministic parser and proposal workflow still run locally.
 
-Required reviewer checks:
+## Verification
 
 ```bash
 pnpm typecheck
@@ -188,14 +157,12 @@ SplitFlow is intentionally scoped as a production-style MVP prototype:
 - local/mock status updates instead of real notifications
 - no real payment processing or billing provider
 
-These boundaries keep the submission focused on product thinking, deterministic financial correctness, AI safety boundaries, and reviewer-visible workflow quality.
+These boundaries are product decisions. They keep the prototype focused on validating whether agreement-before-payment reduces social friction before investing in production infrastructure.
 
-## Next Production Steps
+## Next Product Questions
 
-1. Database-backed groups, proposals, and audit history.
-2. Real auth, invite links, and participant identity.
-3. Notification delivery for reminders and reconfirmation.
-4. Multi-device sync and collaborative proposal review.
-5. Immutable settlement ledger with uploaded proof.
-6. Richer receipt parsing and OCR.
-7. Production observability and permissioned API access.
+1. Do organizers actually want agreement before spending, or only help collecting afterward?
+2. Which moment creates the strongest pull: food exclusions, trip deposits, subscriptions, or rent?
+3. Will participants respond faster when the proposal explains why they owe a specific amount?
+4. What level of proof is enough for "paid" before real banking integrations exist?
+5. Which readiness signal would make an organizer trust the product enough to use it for a real group?

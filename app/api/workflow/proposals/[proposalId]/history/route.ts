@@ -6,10 +6,24 @@ export const runtime = "nodejs";
 export async function GET(request: Request, { params }: { params: Promise<{ proposalId: string }> }) {
   const { proposalId } = await params;
   const { searchParams } = new URL(request.url);
-  const history = await getProposalHistory(proposalId, searchParams.get("groupId") ?? undefined);
+  const groupId = searchParams.get("groupId") ?? undefined;
+  const history = await getProposalHistory(proposalId, groupId);
 
   if (!history) {
-    return NextResponse.json({ error: "Proposal history was not found." }, { status: 404 });
+    const now = new Date().toISOString();
+    return NextResponse.json({
+      proposalRecord: {
+        id: proposalId,
+        groupId: groupId ?? "",
+        currentVersionId: "",
+        versionIds: [],
+        createdAt: now,
+        updatedAt: now
+      },
+      versions: [],
+      artifacts: [],
+      runs: []
+    });
   }
 
   return NextResponse.json(history);

@@ -2,7 +2,9 @@
 
 SplitFlow exposes one server-side agent orchestration path: `/api/agent`.
 
-The product presents a compact AI Split Agent in the UI, while the server keeps the workflow decomposed into focused roles: intake, proposal, recalculation, response tracking, risk decision, participant communication, and recommendation. These agents can draft, classify, explain, and summarize, but deterministic domain services remain the authority for money and readiness.
+This architecture is a product decision, not only a technical one. SplitFlow uses AI where it reduces organizer effort: parsing messy context, drafting a proposal, explaining why someone owes an amount, and summarizing blockers. It does not use AI as the authority for money. Deterministic domain services own calculation, rounding, participant eligibility, payment-claim effects, and readiness because trust is the product.
+
+The UI presents one compact AI Split Agent. Internally, the server keeps the workflow decomposed into focused roles: intake, proposal, recalculation, response tracking, risk decision, participant communication, and recommendation.
 
 ## Current Contract
 
@@ -25,9 +27,9 @@ When live SDK mode is enabled, `/api/agent` creates the OpenAI Agents runtime se
 2. Run deterministic itemized split and settlement calculations.
 3. Persist workflow run events and artifacts.
 4. Render participant review, organizer actions, and readiness blockers.
-5. Optionally ask the server-side agent runtime for drafting or explanation support.
+5. Optionally ask the server-side agent runtime for drafting, summarization, or explanation support.
 6. Keep final amounts and safety decisions in typed TypeScript domain logic.
 
 ## Reviewer Notes
 
-The architecture intentionally avoids real auth, payment processing, push notifications, and a production database. Those are production integration steps, not hidden assumptions. The submission focuses on product workflow, deterministic financial correctness, AI boundary discipline, mobile/desktop UX, and testable state transitions.
+The architecture intentionally avoids real auth, payment processing, push notifications, and a production database. Those are production integration steps, not hidden assumptions. The prototype focuses on the product question that matters first: can an agreement-before-payment workflow reduce social friction enough to justify deeper infrastructure?

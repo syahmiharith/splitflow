@@ -258,6 +258,7 @@ function HistoryTabs({ activeTab, onChange }: { activeTab: HistoryTab; onChange:
 
 function VersionHistoryPanel({ history }: { history?: ProposalHistoryResult }) {
   if (!history) return <PanelEmptyState text="Loading immutable proposal versions..." />;
+  if (history.versions.length === 0) return <PanelEmptyState text="No server version history is linked to this local draft yet." />;
 
   return (
     <div className="space-y-3" data-testid="proposal-version-history">

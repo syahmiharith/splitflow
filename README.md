@@ -20,6 +20,19 @@ Shortcut `/chat`, `/dashboard`, `/proposals`, and `/inbox` routes redirect into 
 
 If localStorage is empty, stale, or invalid, SplitFlow recreates and selects the canonical `Han River BBQ Crew` demo group.
 
+## Home Command Center
+
+Home (`/`) is the global agreement command center, not only a metrics dashboard. It summarizes blockers, waiting confirmations, unconfirmed payment claims, still-owed amounts, and settlement readiness across all groups.
+
+The page recommends the next best action across groups so an organizer can see which split needs review, confirmation, sending, reconfirmation, settlement, or archiving before anyone fronts money. Active workflows show the group, split, status, blockers, response progress, claimed payments, and next action.
+
+Navigation uses product language even where compatibility routes remain:
+
+- Splits may still be served from `/groups/[groupId]/proposals`.
+- Your Share may still be served from `/groups/[groupId]/inbox`.
+
+Prototype state is localStorage persistence only. There is no production auth, payment processing, bank verification, or production database.
+
 ## Product Demo
 
 ### Han River BBQ: Agreement Before the Organizer Fronts Money

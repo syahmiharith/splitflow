@@ -1,14 +1,33 @@
 import http from "node:http";
+import net from "node:net";
 import { spawn } from "node:child_process";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 
-const port = process.env.SPLITFLOW_E2E_PORT || "3107";
+const port = process.env.SPLITFLOW_E2E_PORT || String(await findAvailablePort());
 const baseURL = process.env.PLAYWRIGHT_BASE_URL || `http://127.0.0.1:${port}`;
 const isWindows = process.platform === "win32";
 const stateFile = process.env.SPLITFLOW_STATE_FILE || path.resolve(".splitflow", `e2e-server-state-${port}.json`);
 const distDir = process.env.SPLITFLOW_NEXT_DIST_DIR || ".next-e2e";
 const typegenFiles = ["next-env.d.ts", "tsconfig.json"];
+
+function findAvailablePort(host = "127.0.0.1") {
+  return new Promise((resolve, reject) => {
+    const server = net.createServer();
+    server.unref();
+    server.on("error", reject);
+    server.listen(0, host, () => {
+      const address = server.address();
+      server.close(() => {
+        if (typeof address === "object" && address?.port) {
+          resolve(address.port);
+          return;
+        }
+        reject(new Error("Could not allocate an e2e port."));
+      });
+    });
+  });
+}
 
 function waitForServer(url, timeoutMs = 120_000) {
   const started = Date.now();
@@ -42,6 +61,14 @@ function run(command, args, options = {}) {
     });
 
     child.on("exit", (code) => resolve(code ?? 1));
+  });
+}
+
+function waitForServerProcess(server) {
+  return new Promise((_, reject) => {
+    server.once("exit", (code, signal) => {
+      reject(new Error(`Next server exited before startup. code=${code ?? "null"} signal=${signal ?? "null"}`));
+    });
   });
 }
 
@@ -100,7 +127,7 @@ try {
       env: { ...process.env, SPLITFLOW_STATE_FILE: stateFile, SPLITFLOW_NEXT_DIST_DIR: distDir }
     });
 
-    await waitForServer(baseURL);
+    await Promise.race([waitForServer(baseURL), waitForServerProcess(server)]);
     const command = isWindows ? "cmd.exe" : "pnpm";
     const playwrightArgs = ["exec", "playwright", "test"];
     if (isWindows) {

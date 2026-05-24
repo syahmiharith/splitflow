@@ -1,5 +1,5 @@
 export const routeCopy: Record<string, { title: string; subtitle: string }> = {
-  "/": { title: "Home", subtitle: "Global overview across groups" },
+  "/": { title: "Home", subtitle: "Global agreement command center" },
   "/agent-lab": { title: "Agent Lab", subtitle: "Developer workflow diagnostics" }
 };
 
@@ -17,5 +17,5 @@ export function routeTitle(pathname: string) {
   if (/\/groups\/[^/]+/.test(pathname)) {
     return { title: "Group Overview", subtitle: "Readiness, responses, and activity" };
   }
-  return { title: "Home", subtitle: "Global overview across groups" };
+  return { title: "Home", subtitle: "Global agreement command center" };
 }

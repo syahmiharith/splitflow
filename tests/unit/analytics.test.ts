@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { deriveGlobalAnalytics, deriveGroupAnalytics } from "@/lib/analytics";
+import { deriveActiveWorkflows, deriveGlobalAnalytics, deriveGlobalNextAction, deriveGroupAnalytics } from "@/lib/analytics";
 import { defaultGroup } from "@/lib/demo-data";
 import { updatePaymentRecordStatus } from "@/lib/prototype-proposals";
+import type { Proposal } from "@/lib/types";
 
 describe("derived analytics", () => {
   it("derives group analytics from proposal state", () => {
@@ -49,5 +50,60 @@ describe("derived analytics", () => {
     expect(claimedSummary.confirmedPayments).toBe(0);
     expect(confirmedSummary.claimedUnconfirmedCredits).toBe(0);
     expect(confirmedSummary.confirmedPayments).toBe(1000);
+  });
+
+  it("prioritizes global next action by agreement risk", () => {
+    const baseProposal = defaultGroup.proposals[0];
+    const claimed = {
+      ...baseProposal,
+      id: "claimed-payment",
+      title: "Claimed Payment Split",
+      participants: baseProposal.participants.map((participant) => ({ ...participant, status: "pending" as const, changeRequestNote: undefined }))
+    };
+    const changed = {
+      ...baseProposal,
+      id: "changed-split",
+      title: "Changed Split",
+      paymentRecords: [],
+      participants: baseProposal.participants.map((participant) =>
+        participant.id === "daniel"
+          ? { ...participant, status: "requested_changes" as const, changeRequestNote: "Exclude Daniel from meat." }
+          : { ...participant, status: "pending" as const, changeRequestNote: undefined }
+      )
+    };
+
+    const action = deriveGlobalNextAction([{ ...defaultGroup, proposals: [claimed, changed] }]);
+
+    expect(action?.priority).toBe("high");
+    expect(action?.proposalId).toBe("changed-split");
+    expect(action?.title).toContain("Daniel requested a change");
+  });
+
+  it("derives active workflows with blockers and next actions", () => {
+    const workflows = deriveActiveWorkflows([defaultGroup]);
+
+    expect(workflows[0].groupName).toBe(defaultGroup.name);
+    expect(workflows[0].proposalTitle).toBe(defaultGroup.proposals[0].title);
+    expect(workflows[0].nextAction).toBeTruthy();
+    expect(workflows[0].responseProgress.label).toContain("confirmed");
+  });
+
+  it("defensively handles partial calculation, payment, and timeline state", () => {
+    const proposal = {
+      ...defaultGroup.proposals[0],
+      calculationResult: {
+        fairShareByParticipant: { daniel: 6858 },
+        netBalanceByParticipant: {},
+        itemizedBreakdown: []
+      },
+      paymentRecords: undefined,
+      timeline: undefined
+    } as unknown as Proposal;
+
+    const summary = deriveGlobalAnalytics([{ ...defaultGroup, proposals: [proposal] }]);
+
+    expect(summary.stillOwed).toBe(0);
+    expect(summary.claimedUnconfirmedCredits).toBe(0);
+    expect(summary.recentActivity).toEqual([]);
   });
 });

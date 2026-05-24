@@ -158,17 +158,91 @@ async function seedSplitOperationsState(page: Page) {
   });
 }
 
-test("home communicates the Han River agreement story", async ({ page }) => {
+async function seedGroupWithoutSplits(page: Page) {
+  await page.evaluate(() => {
+    const key = "splitflow.demoState.v4";
+    const raw = window.localStorage.getItem(key);
+    if (!raw) return;
+    const state = JSON.parse(raw) as {
+      selectedGroupId?: string;
+      selectedChatIdByGroupId?: Record<string, string>;
+      selectedProfileByGroupId?: Record<string, string>;
+      groups?: Array<Record<string, unknown> & { id: string; chats?: Array<{ id: string }> }>;
+    };
+    const base = state.groups?.[0];
+    if (!base) return;
+    const chatId = base.chats?.[0]?.id ?? "chat-empty-review-group";
+    state.selectedGroupId = "empty-review-group";
+    state.selectedChatIdByGroupId = { "empty-review-group": chatId };
+    state.selectedProfileByGroupId = { "empty-review-group": "you" };
+    state.groups = [
+      {
+        ...base,
+        id: "empty-review-group",
+        name: "Empty Review Group",
+        description: "No split created yet.",
+        proposals: [],
+        artifacts: [],
+        analyticsSummary: {
+          activeProposals: 0,
+          openChangeRequests: 0,
+          pendingSettlements: 0,
+          totalFronted: 0,
+          stillOwed: 0,
+          pendingResponses: 0,
+          confirmedPayments: 0,
+          claimedUnconfirmedCredits: 0
+        }
+      }
+    ];
+    window.localStorage.setItem(key, JSON.stringify(state));
+  });
+}
+
+async function seedPartialHomeState(page: Page) {
+  await page.evaluate(() => {
+    const key = "splitflow.demoState.v4";
+    const raw = window.localStorage.getItem(key);
+    if (!raw) return;
+    const state = JSON.parse(raw) as {
+      groups?: Array<{
+        id: string;
+        proposals?: Array<{
+          id: string;
+          calculationResult?: unknown;
+          paymentRecords?: unknown;
+          timeline?: unknown;
+        }>;
+      }>;
+    };
+    const proposal = state.groups?.find((group) => group.id === "han-river-bbq")?.proposals?.[0];
+    if (proposal) {
+      proposal.calculationResult = {
+        fairShareByParticipant: { daniel: 6858 },
+        netBalanceByParticipant: {},
+        itemizedBreakdown: []
+      };
+      delete proposal.paymentRecords;
+      delete proposal.timeline;
+    }
+    window.localStorage.setItem(key, JSON.stringify(state));
+  });
+}
+
+test("home shows product story and global status cards", async ({ page }) => {
   await clearDemoStorage(page);
 
   await expect(page.getByTestId("home-route")).toBeVisible();
   if (!isMobile(page)) {
     await expect(page.getByTestId("group-switcher")).toContainText("Han River BBQ Crew");
   }
-  await expect(page.getByText("Agreement before payment")).toBeVisible();
-  await expect(page.getByTestId("global-next-action-card")).toContainText("Daniel");
-  await expect(page.getByTestId("demo-guide-card")).toContainText("Reviewer path");
-  await expect(page.getByRole("link", { name: "Open Han River BBQ Crew" })).toBeVisible();
+  await expect(page.getByText(/agreement before/i).first()).toBeVisible();
+  await expect(page.getByText("Get agreement before you front group expenses.")).toBeVisible();
+  await expect(page.getByTestId("global-status-cards")).toContainText("Needs action");
+  await expect(page.getByTestId("global-status-cards")).toContainText("Waiting confirmations");
+  await expect(page.getByTestId("global-status-cards")).toContainText("Unconfirmed claims");
+  await expect(page.getByTestId("global-next-action-card")).toContainText("Next best action");
+  await expect(page.getByTestId("home-primary-cta")).toBeVisible();
 
   await page.goto("/groups/han-river-bbq/chat");
   await expect(page.getByTestId("chat-route")).toBeVisible();
@@ -180,6 +254,89 @@ test("home communicates the Han River agreement story", async ({ page }) => {
   await expect(page.getByTestId("decision-summary-card")).toContainText("Not ready");
   await expect(page.getByTestId("decision-primary-cta")).toBeVisible();
   await expect(page.getByTestId("artifact-preview-proposal_draft")).toContainText("Han River BBQ Proposal");
+});
+
+test("home shows next best action for unresolved change request", async ({ page }) => {
+  await clearDemoStorage(page);
+  await seedSplitOperationsState(page);
+  await page.goto("/");
+
+  await expect(page.getByTestId("global-next-action-card")).toContainText("Daniel requested a change");
+  await expect(page.getByTestId("global-next-action-card")).toContainText("Daniel requested a meat exclusion review");
+  await page.getByTestId("global-next-action-cta").click();
+  await expect(page).toHaveURL(/\/groups\/han-river-bbq\/proposals\/daniel-change-split$/);
+  await expect(page.getByTestId("proposal-detail-route")).toBeVisible();
+});
+
+test("home shows active workflows before recent activity", async ({ page }) => {
+  await clearDemoStorage(page);
+  await seedSplitOperationsState(page);
+  await page.goto("/");
+
+  await expect(page.getByTestId("active-workflows-section")).toBeVisible();
+  await expect(page.getByTestId("active-workflow-daniel-change-split")).toContainText("Han River BBQ Crew");
+  await expect(page.getByTestId("active-workflow-daniel-change-split")).toContainText("Daniel Change Split");
+  await expect(page.getByTestId("active-workflow-daniel-change-split")).toContainText(/Change|Needs|Review/);
+  await expect(page.getByTestId("recent-activity-section")).toBeVisible();
+
+  const nextBox = await page.getByTestId("global-next-action-card").boundingBox();
+  const workflowsBox = await page.getByTestId("active-workflows-section").boundingBox();
+  const activityBox = await page.getByTestId("recent-activity-section").boundingBox();
+  expect(nextBox?.y ?? 0).toBeLessThan(activityBox?.y ?? 0);
+  expect(workflowsBox?.y ?? 0).toBeLessThan(activityBox?.y ?? 0);
+});
+
+test("home empty state works when a group has no splits", async ({ page }) => {
+  await clearDemoStorage(page);
+  await seedGroupWithoutSplits(page);
+  await page.reload();
+
+  await expect(page.getByTestId("home-no-splits-state")).toContainText("Start in Chat");
+  await expect(page.getByTestId("home-no-splits-state")).toContainText("reviewable split");
+  await expect(page.getByRole("link", { name: "Start from chat" }).first()).toBeVisible();
+});
+
+test("home survives partial calculation and missing timeline state", async ({ page }) => {
+  await clearDemoStorage(page);
+  await seedPartialHomeState(page);
+  await page.goto("/");
+
+  await expect(page.getByTestId("home-route")).toBeVisible();
+  await expect(page.getByTestId("global-status-cards")).toContainText("Still owed");
+  await expect(page.getByTestId("recent-activity-empty")).toContainText("Activity appears here");
+});
+
+test("sidebar uses Splits and Your Share navigation labels", async ({ page }) => {
+  await clearDemoStorage(page);
+
+  if (isMobile(page)) {
+    await page.getByTestId("mobile-sidebar-open").click();
+    const sidebar = page.getByTestId("mobile-sidebar-overlay");
+    await expect(sidebar.getByTestId("nav-proposals")).toContainText("Splits");
+    await expect(sidebar.getByTestId("nav-notifications")).toContainText("Your Share");
+    return;
+  }
+
+  await expect(page.getByTestId("nav-proposals")).toContainText("Splits");
+  await expect(page.getByTestId("nav-notifications")).toContainText("Your Share");
+});
+
+test("mobile home keeps next best action above activity", async ({ page }) => {
+  test.skip(!isMobile(page), "Mobile-only Home layout coverage");
+  await clearDemoStorage(page);
+  await seedSplitOperationsState(page);
+  await page.goto("/");
+
+  await expect(page.getByTestId("global-next-action-card")).toBeVisible();
+  await expect(page.getByTestId("active-workflows-section")).toBeVisible();
+  await expect(page.getByTestId("recent-activity-section")).toBeVisible();
+  const nextBox = await page.getByTestId("global-next-action-card").boundingBox();
+  const activityBox = await page.getByTestId("recent-activity-section").boundingBox();
+  expect(nextBox?.y ?? 0).toBeLessThan(activityBox?.y ?? 0);
+  const ctaBox = await page.getByTestId("global-next-action-cta").boundingBox();
+  expect(ctaBox?.height ?? 0).toBeGreaterThanOrEqual(44);
+  const hasHorizontalOverflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);
+  expect(hasHorizontalOverflow).toBe(false);
 });
 
 test("mobile sidebar opens from hamburger and left-edge swipe", async ({ page }) => {

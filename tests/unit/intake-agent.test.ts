@@ -34,4 +34,14 @@ describe("Intake Agent", () => {
     const result = runIntakeAgent(airbnbMessage);
     expect(result.participants.some((participant) => "amount" in participant)).toBe(false);
   });
+
+  it("sums itemized KRW amounts and accepts shorthand participant counts", () => {
+    const result = runIntakeAgent(
+      "BBQ dinner for 8. I paid ₩64,000 meat, Ali paid ₩24,000 drinks, Sarah paid ₩10,000 charcoal, sides were ₩30,000. Daniel did not eat beef."
+    );
+
+    expect(result.totalAmount).toBe(128000);
+    expect(result.participants).toHaveLength(8);
+    expect(result.missingFields).toEqual([]);
+  });
 });

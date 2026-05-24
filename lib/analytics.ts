@@ -24,11 +24,11 @@ export function deriveGroupAnalytics(group: SplitFlowGroup): GroupAnalyticsSumma
   return group.proposals.reduce(
     (summary, proposal) => {
       const organizerId = proposal.organizerId ?? "you";
-      const netBalance = proposal.calculationResult?.netBalanceByParticipant[organizerId] ?? 0;
+      const netBalance = proposal.calculationResult?.netBalanceByParticipant?.[organizerId] ?? 0;
       summary.activeProposals += proposal.status !== "settled" && proposal.status !== "archived" ? 1 : 0;
       summary.openChangeRequests += countParticipants(proposal).changes;
       summary.pendingSettlements += proposal.status === "safe_to_book" || proposal.status === "partially_paid" || proposal.status === "settling" ? 1 : 0;
-      summary.totalFronted += proposal.calculationResult?.totalPaidByParticipant[organizerId] ?? 0;
+      summary.totalFronted += proposal.calculationResult?.totalPaidByParticipant?.[organizerId] ?? 0;
       summary.stillOwed += Math.max(0, netBalance);
       summary.pendingResponses += countParticipants(proposal).pending + countParticipants(proposal).needsReconfirmation;
       summary.confirmedPayments += sumPaymentRecords(proposal.paymentRecords, "confirmed");

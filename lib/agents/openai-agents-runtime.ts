@@ -11,8 +11,24 @@ export type AgentsSdkOrganizerMessageInput = {
   trace: AgentTraceStep[];
 };
 
+export type AgentsSdkDraftResult =
+  | {
+      status: "invoked";
+      output: string;
+      model: string;
+    }
+  | {
+      status: "no_output";
+      model: string;
+    }
+  | {
+      status: "failed";
+      model?: string;
+      errorCode: string;
+    };
+
 export type OpenAiAgentsRuntime = {
-  draftOrganizerMessage(input: AgentsSdkOrganizerMessageInput): Promise<string | undefined>;
+  draftOrganizerMessage(input: AgentsSdkOrganizerMessageInput): Promise<AgentsSdkDraftResult>;
 };
 
 const splitFlowOrchestratorInstructions = [
@@ -24,19 +40,21 @@ const splitFlowOrchestratorInstructions = [
   ].join(" ");
 
 export function createSplitFlowOrchestratorSdkAgent(input?: AgentsSdkOrganizerMessageInput) {
+  const model =
+    input?.recommendation.primaryAction === "resolve_change_request" ||
+    input?.recommendation.primaryAction === "request_reconfirmation" ||
+    input?.risk.level === "high" ||
+    input?.risk.level === "blocked"
+      ? getRequiredModelForAgent("Recommendation Agent", {
+          proposal: input.proposal,
+          risk: input.risk,
+          userMessage: input.userMessage
+        })
+      : getRequiredModelForAgent("Orchestrator Agent");
+
   return new Agent({
     name: "SplitFlow Orchestrator Agent",
-    model:
-      input?.recommendation.primaryAction === "resolve_change_request" ||
-      input?.recommendation.primaryAction === "request_reconfirmation" ||
-      input?.risk.level === "high" ||
-      input?.risk.level === "blocked"
-        ? getRequiredModelForAgent("Recommendation Agent", {
-            proposal: input.proposal,
-            risk: input.risk,
-            userMessage: input.userMessage
-          })
-        : getRequiredModelForAgent("Orchestrator Agent"),
+    model,
     instructions: splitFlowOrchestratorInstructions
   });
 }
@@ -52,6 +70,17 @@ export function createOpenAiAgentsRuntime(): OpenAiAgentsRuntime | undefined {
 
   return {
     async draftOrganizerMessage(input) {
+      const model =
+        input.recommendation.primaryAction === "resolve_change_request" ||
+        input.recommendation.primaryAction === "request_reconfirmation" ||
+        input.risk.level === "high" ||
+        input.risk.level === "blocked"
+          ? getRequiredModelForAgent("Recommendation Agent", {
+              proposal: input.proposal,
+              risk: input.risk,
+              userMessage: input.userMessage
+            })
+          : getRequiredModelForAgent("Orchestrator Agent");
       const payload = {
         task: "draft_organizer_workflow_update",
         userMessage: input.userMessage,
@@ -72,9 +101,21 @@ export function createOpenAiAgentsRuntime(): OpenAiAgentsRuntime | undefined {
         }))
       };
 
-      const result = await run(createSplitFlowOrchestratorSdkAgent(input), JSON.stringify(payload), { maxTurns: 1 });
+      try {
+        const result = await run(createSplitFlowOrchestratorSdkAgent(input), JSON.stringify(payload), { maxTurns: 1 });
 
-      return typeof result.finalOutput === "string" ? result.finalOutput : undefined;
+        if (typeof result.finalOutput === "string" && result.finalOutput.trim()) {
+          return { status: "invoked", output: result.finalOutput, model };
+        }
+
+        return { status: "no_output", model };
+      } catch (error) {
+        return {
+          status: "failed",
+          model,
+          errorCode: error instanceof Error && error.name ? error.name : "sdk_error"
+        };
+      }
     }
   };
 }

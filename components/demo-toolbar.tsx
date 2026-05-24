@@ -15,8 +15,8 @@ export function DemoToolbar({ compact = false, showLoaders = true }: DemoToolbar
     <div className={`flex flex-wrap gap-2 rounded-2xl border border-app-border bg-white p-2 md:rounded-lg ${compact ? "mb-4" : ""}`} data-testid="demo-toolbar">
       {showLoaders ? (
         <>
-          <DemoButton icon={Map} label="Load Jeju Trip" onClick={() => loadDemo("trip")} />
-          <DemoButton icon={CreditCard} label="Load Subscription Split" onClick={() => loadDemo("subscription")} />
+          <DemoButton icon={Map} label="Load Han River BBQ" onClick={() => loadDemo("trip")} />
+          <DemoButton icon={CreditCard} label="Load Subscription Proposal" onClick={() => loadDemo("subscription")} />
         </>
       ) : null}
       <DemoButton icon={RotateCcw} label="Reset Demo Data" onClick={resetDemo} testId="reset-demo-data" />

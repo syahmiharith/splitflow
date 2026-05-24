@@ -49,17 +49,15 @@ function SidebarContent({
 }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { state, activeGroup, activeChat, selectGroup, selectChat, createChat, setCurrentUser } = useSplitFlow();
+  const { state, activeGroup, activeChat, selectedProfile, selectGroup, selectChat, createChat, setSelectedProfile } = useSplitFlow();
   const [profileSheetOpen, setProfileSheetOpen] = useState(false);
   const [expandedGroupIds, setExpandedGroupIds] = useState<Set<string>>(() => new Set([activeGroup.id]));
   const dragStartY = useRef<number | null>(null);
   const groupBase = `/groups/${activeGroup.id}`;
   const handleNavigate = onNavigate ? () => window.setTimeout(onNavigate, 0) : undefined;
-  const currentParticipant =
-    activeGroup.members.find((participant) => participant.id === state.currentUser) ??
-    activeGroup.members.find((participant) => participant.id === "you") ??
-    activeGroup.members[0];
-  const currentParticipantRole = currentParticipant?.id === "you" ? "Admin" : "Member";
+  const currentParticipant = selectedProfile ?? activeGroup.members.find((participant) => participant.id === "you") ?? activeGroup.members[0];
+  const organizerId = activeGroup.proposals[0]?.organizerId ?? "you";
+  const currentParticipantRole = currentParticipant?.id === organizerId ? "Organizer" : "Participant";
   const testId = (id: string) => (canonicalTestIds ? id : `${id}-hidden`);
 
   useEffect(() => {
@@ -124,12 +122,12 @@ function SidebarContent({
         activeGroup={activeGroup}
         currentParticipant={currentParticipant}
         groupBase={groupBase}
-        currentUser={state.currentUser}
+        selectedProfileId={currentParticipant?.id ?? state.currentUser}
         onClose={() => setProfileSheetOpen(false)}
         onNavigate={handleNavigate}
         onPointerDown={onSheetPointerDown}
         onPointerUp={onSheetPointerUp}
-        onSetCurrentUser={setCurrentUser}
+        onSetSelectedProfile={(participantId) => setSelectedProfile(activeGroup.id, participantId)}
         testId={testId}
       />
     </>

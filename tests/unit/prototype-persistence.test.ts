@@ -33,11 +33,11 @@ describe("prototype persistence helpers", () => {
     window.localStorage.setItem("splitflow.demoState.v2", JSON.stringify({ proposals: [] }));
     window.localStorage.setItem("splitflow.demoState.v3", JSON.stringify({ proposals: [] }));
     resetDemoData();
-    expect(getProposals()[0].id).toBe("jeju-airbnb-trip");
+    expect(getProposals()[0].id).toBe("han-river-bbq-proposal");
     expect(window.localStorage.getItem("splitflow.demoState.v1")).toBeNull();
     expect(window.localStorage.getItem("splitflow.demoState.v2")).toBeNull();
     expect(window.localStorage.getItem("splitflow.demoState.v3")).toBeNull();
-    expect(window.localStorage.getItem(SPLITFLOW_STORAGE_KEY)).toContain("jeju-trip");
+    expect(window.localStorage.getItem(SPLITFLOW_STORAGE_KEY)).toContain("han-river-bbq");
     expect(getDemoState().schemaVersion).toBe(CURRENT_SCHEMA_VERSION);
   });
 
@@ -50,7 +50,7 @@ describe("prototype persistence helpers", () => {
 
     const loaded = getDemoState();
     expect(loaded.schemaVersion).toBe(CURRENT_SCHEMA_VERSION);
-    expect(loaded.migrationLog).toContain("Migrated local state from schema v4 to v5.");
+    expect(loaded.migrationLog).toContain(`Migrated local state from schema v4 to v${CURRENT_SCHEMA_VERSION}.`);
   });
 
   it("writes the current schema when saving older state", () => {
@@ -64,9 +64,9 @@ describe("prototype persistence helpers", () => {
   it("falls back to canonical data when persisted state is invalid", () => {
     window.localStorage.setItem(SPLITFLOW_STORAGE_KEY, JSON.stringify({ proposals: [{ id: "bad", title: "Bad" }] }));
 
-    expect(getProposals()[0].id).toBe("jeju-airbnb-trip");
-    expect(getDemoState().selectedGroupId).toBe("jeju-trip");
-    expect(getDemoState().groups[0].name).toBe("Jeju Trip");
+    expect(getProposals()[0].id).toBe("han-river-bbq-proposal");
+    expect(getDemoState().selectedGroupId).toBe("han-river-bbq");
+    expect(getDemoState().groups[0].name).toBe("Han River BBQ Crew");
   });
 
   it("ignores stale global proposal and message mirrors", () => {
@@ -81,7 +81,7 @@ describe("prototype persistence helpers", () => {
 
     expect("proposals" in getDemoState()).toBe(false);
     expect("messages" in getDemoState()).toBe(false);
-    expect(getProposals()[0].id).toBe("jeju-airbnb-trip");
+    expect(getProposals()[0].id).toBe("han-river-bbq-proposal");
   });
 
   it("recalculates valid persisted proposals on load", () => {
@@ -115,7 +115,7 @@ describe("prototype persistence helpers", () => {
 
     const loaded = getDemoState();
     expect(loaded.selectedGroupId).toBe("busan-trip");
-    expect(loaded.groups.map((group) => group.id)).toEqual(["busan-trip", "jeju-trip"]);
+    expect(loaded.groups.map((group) => group.id)).toEqual(["busan-trip", "han-river-bbq"]);
   });
 
   it("keeps only the newest three chats per persisted group", () => {

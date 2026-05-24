@@ -11,8 +11,8 @@ function stateFile() {
   return path.join(process.cwd(), ".splitflow", `test-history-${Date.now()}-${Math.random().toString(16).slice(2)}.json`);
 }
 
-function request(proposalId = "jeju-airbnb-trip") {
-  return new Request(`http://localhost/api/workflow/proposals/${proposalId}/history?groupId=jeju-trip`);
+function request(proposalId = "han-river-bbq-proposal") {
+  return new Request(`http://localhost/api/workflow/proposals/${proposalId}/history?groupId=han-river-bbq`);
 }
 
 async function payload(response: Response) {
@@ -29,11 +29,11 @@ describe("/api/workflow/proposals/[proposalId]/history", () => {
   });
 
   it("returns proposal versions in immutable chain order", async () => {
-    const response = await getHistory(request(), { params: Promise.resolve({ proposalId: "jeju-airbnb-trip" }) });
+    const response = await getHistory(request(), { params: Promise.resolve({ proposalId: "han-river-bbq-proposal" }) });
     const history = await payload(response);
 
     expect(response.status).toBe(200);
-    expect(history.proposalRecord.id).toBe("jeju-airbnb-trip");
+    expect(history.proposalRecord.id).toBe("han-river-bbq-proposal");
     expect(history.versions.map((version) => version.version)).toEqual([1]);
     expect(history.versions[0]).toMatchObject({
       transitionType: "draft_created",
@@ -45,7 +45,7 @@ describe("/api/workflow/proposals/[proposalId]/history", () => {
   it("includes active and superseded artifacts while normalizing old staged records", async () => {
     const repository = new FileWorkflowRepository(process.env.SPLITFLOW_STATE_FILE);
     const state = await repository.read();
-    const active = state.artifactRecords.find((record) => record.proposalId === "jeju-airbnb-trip");
+    const active = state.artifactRecords.find((record) => record.proposalId === "han-river-bbq-proposal");
     expect(active).toBeDefined();
     const oldRecord: ArtifactRecord = {
       ...active!,
@@ -62,7 +62,7 @@ describe("/api/workflow/proposals/[proposalId]/history", () => {
     };
     await repository.write({ ...state, artifactRecords: [oldRecord, ...state.artifactRecords] });
 
-    const response = await getHistory(request(), { params: Promise.resolve({ proposalId: "jeju-airbnb-trip" }) });
+    const response = await getHistory(request(), { params: Promise.resolve({ proposalId: "han-river-bbq-proposal" }) });
     const history = await payload(response);
 
     expect(history.artifacts.some((artifact) => artifact.active && artifact.state === "review_required")).toBe(true);
@@ -74,8 +74,8 @@ describe("/api/workflow/proposals/[proposalId]/history", () => {
     const state = await repository.read();
     const run: AgentRun = {
       id: "unsafe-run",
-      groupId: "jeju-trip",
-      chatId: "chat-jeju-intake",
+      groupId: "han-river-bbq",
+      chatId: "chat-han-river-bbq",
       sourceMessageId: "unsafe-source",
       sourceMessage: "contains private organizer text",
       status: "failed",
@@ -91,8 +91,8 @@ describe("/api/workflow/proposals/[proposalId]/history", () => {
           runId: "unsafe-run",
           at: "2026-01-01T00:00:00.500Z",
           type: "proposal_version_created",
-          proposalId: "jeju-airbnb-trip",
-          proposalVersionId: "jeju-airbnb-trip-v1",
+          proposalId: "han-river-bbq-proposal",
+          proposalVersionId: "han-river-bbq-proposal-v1",
           version: 1,
           detail: "Created immutable proposal v1."
         },
@@ -107,7 +107,7 @@ describe("/api/workflow/proposals/[proposalId]/history", () => {
     };
     await repository.write({ ...state, runs: [run, ...state.runs] });
 
-    const response = await getHistory(request(), { params: Promise.resolve({ proposalId: "jeju-airbnb-trip" }) });
+    const response = await getHistory(request(), { params: Promise.resolve({ proposalId: "han-river-bbq-proposal" }) });
     const text = JSON.stringify(await response.json());
 
     expect(text).toContain("Workflow run failed safely.");

@@ -45,6 +45,21 @@ export type ActionQueueItem = {
   actionLabel: string;
 };
 
+export type SplitReadinessState = "ready" | "not_ready" | "needs_review" | "settled";
+
+export type SplitReadiness = {
+  state: SplitReadinessState;
+  label: string;
+  blockers: string[];
+  nextAction: string;
+  responseProgress: {
+    confirmed: number;
+    total: number;
+  };
+  claimedPayments: number;
+  changeRequests: number;
+};
+
 function activeFriendCount(proposal: Proposal): number {
   return proposal.participants.filter((participant) => participant.status !== "opted_out").length;
 }
@@ -57,6 +72,88 @@ function hasClaimedCredit(proposal: Proposal): boolean {
   return Boolean(proposal.paymentRecords?.some((record) => record.status === "claimed"));
 }
 
+function participantName(proposal: Proposal, participantId: string): string {
+  return proposal.participants.find((participant) => participant.id === participantId)?.name ?? participantId;
+}
+
+export function deriveSplitReadiness(proposal: Proposal): SplitReadiness {
+  const counts = countParticipants(proposal);
+  const activeParticipants = proposal.participants.filter((participant) => participant.status !== "opted_out");
+  const confirmed = activeParticipants.filter((participant) => participant.status === "accepted" || participant.status === "paid").length;
+  const claimedRecords = (proposal.paymentRecords ?? []).filter((record) => record.status === "claimed");
+  const changeRequestParticipants = proposal.participants.filter(
+    (participant) => participant.status === "requested_changes" || Boolean(participant.changeRequestNote)
+  );
+  const pendingParticipants = activeParticipants.filter((participant) => participant.status === "pending" || participant.status === "not_sent");
+  const reconfirmParticipants = activeParticipants.filter((participant) => participant.status === "needs_reconfirmation");
+  const blockers: string[] = [];
+
+  if (proposal.status === "draft") blockers.push("Split has not been sent for participant agreement yet.");
+  for (const participant of changeRequestParticipants.slice(0, 3)) {
+    blockers.push(`${participant.name} requested a change${participant.changeRequestNote ? `: ${participant.changeRequestNote}` : "."}`);
+  }
+  for (const record of claimedRecords.slice(0, 3)) {
+    blockers.push(`${participantName(proposal, record.fromParticipantId)}'s ${formatKrw(record.amount)} payment claim needs organizer confirmation.`);
+  }
+  if (pendingParticipants.length > 0) {
+    blockers.push(`${pendingParticipants.length} participant${pendingParticipants.length === 1 ? " has" : "s have"} not confirmed.`);
+  }
+  if (reconfirmParticipants.length > 0) {
+    blockers.push(`${reconfirmParticipants.length} participant${reconfirmParticipants.length === 1 ? " needs" : "s need"} reconfirmation after amount changes.`);
+  }
+  if (counts.optedOut > 0) {
+    blockers.push(`${counts.optedOut} participant${counts.optedOut === 1 ? " has" : "s have"} opted out; shares need review.`);
+  }
+
+  const hasBlockingStatus = ["changes_requested", "recalculation_needed", "needs_reconfirmation"].includes(proposal.status);
+  const ready = proposal.status === "safe_to_book" && blockers.length === 0 && isSafeToBook(proposal);
+  const settled = proposal.status === "settled";
+  const state: SplitReadinessState = settled
+    ? "settled"
+    : ready
+      ? "ready"
+      : hasBlockingStatus || claimedRecords.length > 0 || changeRequestParticipants.length > 0
+        ? "needs_review"
+        : "not_ready";
+  const label =
+    state === "settled"
+      ? "Settled"
+      : state === "ready"
+        ? "Ready to settle"
+        : state === "needs_review"
+          ? "Needs review"
+          : "Not ready to settle";
+  const nextAction =
+    state === "settled"
+      ? "Copy summary"
+      : ready
+        ? "Mark settled"
+        : claimedRecords.length > 0
+          ? "Confirm payment claim"
+          : changeRequestParticipants.length > 0 || hasBlockingStatus
+            ? "Review blockers"
+            : proposal.status === "draft"
+              ? "Send split"
+              : reconfirmParticipants.length > 0
+                ? "Reconfirm amounts"
+                : pendingParticipants.length > 0
+                  ? "Copy reminder"
+                  : "Review split";
+
+  return {
+    state,
+    label,
+    blockers,
+    nextAction,
+    responseProgress: {
+      confirmed,
+      total: activeParticipants.length
+    },
+    claimedPayments: claimedRecords.length,
+    changeRequests: changeRequestParticipants.length
+  };
+}
+
 export function deriveReadinessSummary(proposal: Proposal): ReadinessSummary {
   const counts = countParticipants(proposal);
   const activeTotal = activeFriendCount(proposal);
@@ -65,37 +162,37 @@ export function deriveReadinessSummary(proposal: Proposal): ReadinessSummary {
   const changeNames = friendNames(proposal, ["requested_changes"]);
   const reconfirmNames = friendNames(proposal, ["needs_reconfirmation"]);
 
-  if (proposal.status === "draft") blockers.push("Trip Split has not been sent to friends yet.");
+  if (proposal.status === "draft") blockers.push("Proposal has not been sent for participant agreement yet.");
   if (pendingNames.length > 0) blockers.push(`Waiting for ${pendingNames.slice(0, 3).join(", ")}${pendingNames.length > 3 ? ` and ${pendingNames.length - 3} more` : ""}.`);
   if (changeNames.length > 0) blockers.push(`${changeNames.join(", ")} asked for a change.`);
   if (counts.optedOut > 0) blockers.push(`${counts.optedOut} friend${counts.optedOut === 1 ? "" : "s"} opted out, so shares need review.`);
   if (reconfirmNames.length > 0) blockers.push(`${reconfirmNames.join(", ")} need to check the updated amount.`);
   if (hasClaimedCredit(proposal)) blockers.push("A claimed payment note still needs confirmation.");
 
-  const safe = isSafeToBook(proposal);
+  const safe = isSafeToBook(proposal) && blockers.length === 0;
   const settled = proposal.status === "settled";
   const collecting = proposal.status === "booked" || proposal.status === "settling" || proposal.status === "partially_paid";
   const title = settled
     ? "Collected"
     : collecting
-      ? "Collecting Payback"
+      ? "Collecting Settlement"
       : safe
-        ? "Ready to Book"
+        ? "Ready to Settle"
         : proposal.status === "draft"
-          ? "Review Before Sending"
+          ? "Human Review Required"
           : "Not Ready Yet";
   const tone: ReadinessTone = settled || safe ? "green" : changeNames.length > 0 || counts.optedOut > 0 ? "red" : collecting ? "blue" : "amber";
   const message = safe
-    ? "Everyone active has tapped I'm In and the amounts are stable."
+    ? "Everyone active has accepted and the deterministic amounts are stable."
     : settled
-      ? "This split has been marked collected."
+      ? "This proposal has been marked settled."
       : collecting
-        ? "The trip moved past booking; keep tracking payback until everyone is paid up."
-        : blockers[0] ?? "Review the split before anyone pays upfront.";
+        ? "Settlement is in progress; keep tracking claimed and confirmed payments."
+        : blockers[0] ?? "Review the proposal before anyone fronts money.";
   const nextAction = safe
-    ? "Book with confidence"
+    ? "Settle with confidence"
     : proposal.status === "draft"
-      ? "Send Your Share"
+      ? "Send proposal for agreement"
       : changeNames.length > 0 || counts.optedOut > 0
         ? "Resolve changes"
         : reconfirmNames.length > 0
@@ -103,10 +200,10 @@ export function deriveReadinessSummary(proposal: Proposal): ReadinessSummary {
           : pendingNames.length > 0
             ? "Wait or nudge friends"
             : hasClaimedCredit(proposal)
-              ? "Confirm payment note"
+              ? "Confirm claimed payment"
               : collecting
-                ? "Track payback"
-                : "Review split";
+                ? "Track settlement"
+                : "Review proposal";
 
   return {
     title,
@@ -142,8 +239,8 @@ export function deriveReadinessSummary(proposal: Proposal): ReadinessSummary {
       {
         id: "shares",
         label: "Shares",
-        detail: "Final amounts come from deterministic split math.",
-        status: proposal.calculationResult?.validationWarnings.length ? "attention" : "done"
+        detail: "Final amounts come from deterministic split math, not AI.",
+        status: proposal.calculationResult?.validationWarnings?.length ? "attention" : "done"
       },
       {
         id: "ready-check",
@@ -154,7 +251,7 @@ export function deriveReadinessSummary(proposal: Proposal): ReadinessSummary {
       {
         id: "send",
         label: "Send",
-        detail: proposal.status === "draft" ? "Friends have not received Your Share yet." : "Your Share has been sent or reviewed.",
+        detail: proposal.status === "draft" ? "Participants have not received the proposal yet." : "The proposal has been sent or reviewed.",
         status: proposal.status === "draft" ? "pending" : "done"
       }
     ]
@@ -165,7 +262,7 @@ export function deriveParticipantShareExplanation(proposal: Proposal, participan
   const participant = proposal.participants.find((item) => item.id === participantId) ?? proposal.participants[0];
   const calculation = proposal.calculationResult;
   const included = calculation?.itemizedBreakdown
-    .filter((item) => item.eligibleParticipantIds.includes(participant.id))
+    ?.filter((item) => item.eligibleParticipantIds.includes(participant.id))
     .map((item) => ({
       itemId: item.itemId,
       label: item.label,
@@ -173,10 +270,10 @@ export function deriveParticipantShareExplanation(proposal: Proposal, participan
       share: item.shareByParticipant[participant.id] ?? 0
     })) ?? [];
   const excluded = calculation?.itemizedBreakdown
-    .filter((item) => !item.eligibleParticipantIds.includes(participant.id))
+    ?.filter((item) => !item.eligibleParticipantIds.includes(participant.id))
     .map((item) => ({ itemId: item.itemId, label: item.label, amount: item.amount })) ?? [];
-  const share = calculation?.fairShareByParticipant[participant.id] ?? participant.shareAmount;
-  const net = calculation?.netBalanceByParticipant[participant.id] ?? 0;
+  const share = calculation?.fairShareByParticipant?.[participant.id] ?? participant.shareAmount;
+  const net = calculation?.netBalanceByParticipant?.[participant.id] ?? 0;
   const reasons = [
     included.length > 0
       ? `${participant.name} is included in ${included.map((item) => item.label).join(", ")}.`
@@ -244,10 +341,10 @@ export function deriveActionQueue(group: SplitFlowGroup): ActionQueueItem[] {
       items.push({
         id: `${proposal.id}-draft`,
         proposalId: proposal.id,
-        title: "Trip Split is ready to send",
-        description: "Review the deterministic amounts, then send Your Share to friends.",
+        title: "Proposal is ready for organizer review",
+        description: "Review deterministic math, claimed payments, and exclusions before sending for agreement.",
         tone: "blue",
-        actionLabel: "Send Your Share"
+        actionLabel: "Review proposal"
       });
       continue;
     }
@@ -262,14 +359,14 @@ export function deriveActionQueue(group: SplitFlowGroup): ActionQueueItem[] {
       });
       continue;
     }
-    if (summary.title === "Ready to Book") {
+    if (summary.title === "Ready to Settle") {
       items.push({
         id: `${proposal.id}-ready`,
         proposalId: proposal.id,
-        title: "Ready to book",
+        title: "Ready to settle",
         description: "Everyone active is in and no blockers remain.",
         tone: "green",
-        actionLabel: "Book with confidence"
+        actionLabel: "Settle"
       });
       continue;
     }

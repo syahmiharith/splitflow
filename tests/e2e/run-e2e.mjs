@@ -1,12 +1,14 @@
 import http from "node:http";
 import { spawn } from "node:child_process";
-import { mkdir, rm } from "node:fs/promises";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 const port = process.env.SPLITFLOW_E2E_PORT || "3107";
 const baseURL = process.env.PLAYWRIGHT_BASE_URL || `http://127.0.0.1:${port}`;
 const isWindows = process.platform === "win32";
 const stateFile = process.env.SPLITFLOW_STATE_FILE || path.resolve(".splitflow", `e2e-server-state-${port}.json`);
+const distDir = process.env.SPLITFLOW_NEXT_DIST_DIR || ".next-e2e";
+const typegenFiles = ["next-env.d.ts", "tsconfig.json"];
 
 function waitForServer(url, timeoutMs = 120_000) {
   const started = Date.now();
@@ -58,25 +60,60 @@ async function killTree(pid) {
   }
 }
 
+async function snapshotTypegenFiles() {
+  return Promise.all(
+    typegenFiles.map(async (filePath) => ({
+      filePath,
+      contents: await readFile(filePath, "utf8").catch(() => undefined)
+    }))
+  );
+}
+
+async function restoreTypegenFiles(snapshots) {
+  await Promise.all(
+    snapshots.map(async ({ filePath, contents }) => {
+      if (contents === undefined) return;
+      await writeFile(filePath, contents);
+    })
+  );
+}
+
+const typegenSnapshots = await snapshotTypegenFiles();
+
 await mkdir(path.dirname(stateFile), { recursive: true });
 await rm(stateFile, { force: true });
-
-const server = spawn("node", ["node_modules/next/dist/bin/next", "dev", "--hostname", "127.0.0.1", "--port", port], {
-  stdio: "inherit",
-  detached: !isWindows,
-  env: { ...process.env, SPLITFLOW_STATE_FILE: stateFile }
-});
+await rm(path.resolve(distDir), { recursive: true, force: true });
 
 let exitCode = 1;
+let server;
 try {
-  await waitForServer(baseURL);
-  const command = isWindows ? "cmd.exe" : "pnpm";
-  const args = isWindows ? ["/c", "pnpm", "exec", "playwright", "test"] : ["exec", "playwright", "test"];
-  exitCode = await run(command, args, {
-    env: { ...process.env, PLAYWRIGHT_BASE_URL: baseURL, SPLITFLOW_STATE_FILE: stateFile }
+  const buildCode = await run("node", ["node_modules/next/dist/bin/next", "build"], {
+    env: { ...process.env, SPLITFLOW_STATE_FILE: stateFile, SPLITFLOW_NEXT_DIST_DIR: distDir }
   });
+
+  if (buildCode !== 0) {
+    exitCode = buildCode;
+  } else {
+    server = spawn("node", ["node_modules/next/dist/bin/next", "start", "--hostname", "127.0.0.1", "--port", port], {
+      stdio: "inherit",
+      detached: !isWindows,
+      env: { ...process.env, SPLITFLOW_STATE_FILE: stateFile, SPLITFLOW_NEXT_DIST_DIR: distDir }
+    });
+
+    await waitForServer(baseURL);
+    const command = isWindows ? "cmd.exe" : "pnpm";
+    const playwrightArgs = ["exec", "playwright", "test"];
+    if (isWindows) {
+      playwrightArgs.push("--workers=1");
+    }
+    const args = isWindows ? ["/c", "pnpm", ...playwrightArgs] : playwrightArgs;
+    exitCode = await run(command, args, {
+      env: { ...process.env, PLAYWRIGHT_BASE_URL: baseURL, SPLITFLOW_STATE_FILE: stateFile, SPLITFLOW_NEXT_DIST_DIR: distDir }
+    });
+  }
 } finally {
-  await killTree(server.pid);
+  await killTree(server?.pid);
+  await restoreTypegenFiles(typegenSnapshots);
 }
 
 process.exit(exitCode);

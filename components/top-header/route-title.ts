@@ -6,10 +6,10 @@ export const routeCopy: Record<string, { title: string; subtitle: string }> = {
 export function routeTitle(pathname: string) {
   if (routeCopy[pathname]) return routeCopy[pathname];
   if (/\/groups\/[^/]+\/proposals/.test(pathname)) {
-    return { title: "Trip Splits", subtitle: "Review split details and booking readiness" };
+    return { title: "Splits", subtitle: "Agreement records, blockers, and settlement readiness" };
   }
   if (/\/groups\/[^/]+\/inbox/.test(pathname)) {
-    return { title: "Your Share", subtitle: "Review, accept, or ask for a change" };
+    return { title: "Your Share", subtitle: "Participant Review simulation through the sidebar profile switcher" };
   }
   if (/\/groups\/[^/]+\/settings/.test(pathname)) {
     return { title: "Group Settings", subtitle: "Manage members and context" };

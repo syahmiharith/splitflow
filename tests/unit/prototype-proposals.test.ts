@@ -1,7 +1,17 @@
 import { describe, expect, it } from "vitest";
-import { applyPrototypeAdjustment, createJejuTripProposal, recalculateProposal } from "@/lib/prototype-proposals";
+import { applyPrototypeAdjustment, createHanRiverBbqProposal, createJejuTripProposal, recalculateProposal } from "@/lib/prototype-proposals";
 
 describe("prototype proposal recalculation", () => {
+  it("seeds Han River BBQ with deterministic exclusions and claimed payments", () => {
+    const proposal = createHanRiverBbqProposal();
+
+    expect(proposal.title).toBe("Han River BBQ Proposal");
+    expect(proposal.calculationResult?.totalCost).toBe(128000);
+    expect(proposal.calculationResult?.itemizedBreakdown.find((item) => item.itemId === "meat")?.eligibleParticipantIds).not.toContain("daniel");
+    expect(proposal.paymentRecords?.[0]).toMatchObject({ fromParticipantId: "sarah", amount: 10000, status: "claimed" });
+    expect(proposal.calculationResult?.netBalanceByParticipant.sarah).toBeLessThan(0);
+  });
+
   it("excludes Alex from Friday lodging after an accepted change request", () => {
     const base = createJejuTripProposal();
     const proposal = recalculateProposal({

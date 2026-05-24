@@ -1,8 +1,9 @@
 "use client";
 
-import { Check, CreditCard, MoreHorizontal, Send, X } from "lucide-react";
+import { Check, Copy, CreditCard, MoreHorizontal, Send, UserRoundCheck, X } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { formatKrw, humanStatus } from "@/lib/format";
+import { deriveSplitReadiness } from "@/lib/readiness";
 import { useSplitFlow } from "@/lib/store";
 import type { PaymentRecord, Proposal } from "@/lib/types";
 import type { ProposalHistoryResult } from "@/lib/workflow/schema";
@@ -34,7 +35,7 @@ export function WorkspaceDetailPanel({
     selectedPanelProposal,
     sendProposal,
     acceptRequestedChange,
-    markPaid,
+    rejectRequestedChange,
     markSettled,
     resolveAllocation,
     updateCreditStatus,
@@ -42,7 +43,6 @@ export function WorkspaceDetailPanel({
   } = useSplitFlow();
   const proposal = selectedPanelProposal ?? (selectedArtifact?.proposalId ? activeGroup.proposals.find((item) => item.id === selectedArtifact.proposalId) : undefined) ?? fallbackProposal;
   const claimedCredit = proposal?.paymentRecords?.find((record) => record.status === "claimed");
-  const payableParticipant = proposal?.participants.find((participant) => participant.id !== proposal.organizerId && participant.id !== "you" && participant.status !== "opted_out");
   const isOpen = Boolean(state.workspacePanel || fallbackProposal);
   const [activeTab, setActiveTab] = useState<HistoryTab>("review");
   const [history, setHistory] = useState<ProposalHistoryResult | undefined>();
@@ -86,7 +86,7 @@ export function WorkspaceDetailPanel({
       <div className="sticky top-0 z-10 flex items-start gap-3 border-b border-app-border bg-white px-5 py-4">
         <div className="min-w-0 flex-1">
           <div className="text-xs font-semibold uppercase tracking-wide text-app-muted">
-            {selectedArtifact ? humanStatus(selectedArtifact.type) : "Trip Split"}
+            {selectedArtifact ? humanStatus(selectedArtifact.type) : "Split"}
           </div>
           <h2 className="mt-1 text-lg font-bold text-app-text">{selectedArtifact?.title ?? proposal?.title ?? "Workspace detail"}</h2>
           {proposal ? (
@@ -145,8 +145,18 @@ export function WorkspaceDetailPanel({
             onVoidCredit={() => claimedCredit ? updateCreditStatus(claimedCredit.id, "void") : undefined}
             onSendProposal={() => sendProposal(proposal.id)}
             onAcceptChange={() => acceptRequestedChange(proposal.id)}
-            onMarkPaid={() => payableParticipant ? markPaid(payableParticipant.id, proposal.id) : undefined}
+            onRejectChange={() => rejectRequestedChange(proposal.id)}
             onMarkSettled={() => markSettled(proposal.id)}
+            onViewShare={() => {
+              window.location.href = `/groups/${activeGroup.id}/inbox`;
+            }}
+            onCopyReminder={() => {
+              void navigator.clipboard?.writeText(`Please review ${proposal.title} in SplitFlow so we can settle safely.`);
+            }}
+            onCopySummary={() => {
+              void navigator.clipboard?.writeText(`${proposal.title}: ${formatKrw(proposal.calculationResult?.totalCost ?? proposal.totalCost)} ${humanStatus(proposal.status)}.`);
+            }}
+            onClose={closePanel}
           />
         ) : selectedArtifact?.type === "allocation_resolution" ? (
           <>
@@ -298,8 +308,12 @@ function ProposalPanelActions({
   onVoidCredit,
   onSendProposal,
   onAcceptChange,
-  onMarkPaid,
-  onMarkSettled
+  onRejectChange,
+  onMarkSettled,
+  onViewShare,
+  onCopyReminder,
+  onCopySummary,
+  onClose
 }: {
   proposal: Proposal;
   claimedCredit?: PaymentRecord;
@@ -308,22 +322,28 @@ function ProposalPanelActions({
   onVoidCredit: () => void;
   onSendProposal: () => void;
   onAcceptChange: () => void;
-  onMarkPaid: () => void;
+  onRejectChange: () => void;
   onMarkSettled: () => void;
+  onViewShare: () => void;
+  onCopyReminder: () => void;
+  onCopySummary: () => void;
+  onClose: () => void;
 }) {
   const [moreOpen, setMoreOpen] = useState(false);
-  const needsOrganizerDecision = proposal.status === "changes_requested" || proposal.status === "recalculation_needed";
+  const readiness = deriveSplitReadiness(proposal);
+  const needsOrganizerDecision = proposal.status === "changes_requested" || proposal.status === "recalculation_needed" || readiness.changeRequests > 0;
+  const waitingForResponses = proposal.status === "sent" || proposal.status === "waiting_for_responses";
   const shouldSend = proposal.status === "draft";
 
   if (claimedCredit) {
     return (
       <>
-        <PanelAction testId="panel-confirm-credit" icon={Check} label="Confirm payment note" onClick={onConfirmCredit} primary />
-        <PanelAction testId="panel-dispute-credit" icon={X} label="Dispute payment note" onClick={onDisputeCredit} />
+        <PanelAction testId="panel-confirm-credit" icon={Check} label="Confirm claim" onClick={onConfirmCredit} primary />
+        <PanelAction testId="panel-dispute-credit" icon={X} label="Dispute claim" onClick={onDisputeCredit} />
         <OverflowActions open={moreOpen} onToggle={() => setMoreOpen((current) => !current)}>
-          <PanelAction testId="panel-void-credit" icon={X} label="Void claimed credit" onClick={onVoidCredit} />
-          <PanelAction testId="panel-send-proposal" icon={Send} label="Send to friends" onClick={onSendProposal} />
-          <PanelAction testId="panel-mark-settled" icon={CreditCard} label="Mark collected" onClick={onMarkSettled} />
+          <PanelAction testId="panel-void-credit" icon={X} label="Void claim" onClick={onVoidCredit} />
+          {shouldSend ? <PanelAction testId="panel-send-proposal" icon={Send} label="Send split" onClick={onSendProposal} /> : null}
+          {needsOrganizerDecision ? <PanelAction testId="panel-accept-change" icon={Check} label="Accept change" onClick={onAcceptChange} /> : null}
         </OverflowActions>
       </>
     );
@@ -332,12 +352,8 @@ function ProposalPanelActions({
   if (shouldSend) {
     return (
       <>
-        <PanelAction testId="panel-send-proposal" icon={Send} label="Send to friends" onClick={onSendProposal} primary />
-        <PanelAction testId="panel-mark-settled" icon={CreditCard} label="Mark collected" onClick={onMarkSettled} />
-        <OverflowActions open={moreOpen} onToggle={() => setMoreOpen((current) => !current)}>
-          <PanelAction testId="panel-accept-change" icon={Check} label="Use change" onClick={onAcceptChange} />
-          <PanelAction testId="panel-mark-paid" icon={CreditCard} label="Mark friend paid" onClick={onMarkPaid} />
-        </OverflowActions>
+        <PanelAction testId="panel-send-proposal" icon={Send} label="Send split" onClick={onSendProposal} primary />
+        <PanelAction testId="panel-view-share" icon={UserRoundCheck} label="View Your Share" onClick={onViewShare} />
       </>
     );
   }
@@ -345,24 +361,41 @@ function ProposalPanelActions({
   if (needsOrganizerDecision) {
     return (
       <>
-        <PanelAction testId="panel-accept-change" icon={Check} label="Use change" onClick={onAcceptChange} primary />
-        <PanelAction testId="panel-mark-settled" icon={CreditCard} label="Mark collected" onClick={onMarkSettled} />
+        <PanelAction testId="panel-accept-change" icon={Check} label="Accept change" onClick={onAcceptChange} primary />
+        <PanelAction testId="panel-reject-change" icon={X} label="Reject change" onClick={onRejectChange} />
         <OverflowActions open={moreOpen} onToggle={() => setMoreOpen((current) => !current)}>
-          <PanelAction testId="panel-send-proposal" icon={Send} label="Send to friends" onClick={onSendProposal} />
-          <PanelAction testId="panel-mark-paid" icon={CreditCard} label="Mark friend paid" onClick={onMarkPaid} />
+          <PanelAction testId="panel-copy-reminder" icon={Copy} label="Copy reminder" onClick={onCopyReminder} />
         </OverflowActions>
+      </>
+    );
+  }
+
+  if (waitingForResponses || proposal.status === "needs_reconfirmation") {
+    return (
+      <>
+        <PanelAction testId="panel-copy-reminder" icon={Copy} label="Copy reminder" onClick={onCopyReminder} primary />
+        <PanelAction testId="panel-view-share" icon={UserRoundCheck} label="View Your Share" onClick={onViewShare} />
+      </>
+    );
+  }
+
+  if (readiness.state === "ready") {
+    return <PanelAction testId="panel-mark-settled" icon={CreditCard} label="Mark settled" onClick={onMarkSettled} primary />;
+  }
+
+  if (readiness.state === "settled") {
+    return (
+      <>
+        <PanelAction testId="panel-close" icon={X} label="Close" onClick={onClose} primary />
+        <PanelAction testId="panel-copy-summary" icon={Copy} label="Copy summary" onClick={onCopySummary} />
       </>
     );
   }
 
   return (
     <>
-      <PanelAction testId="panel-mark-settled" icon={CreditCard} label="Mark collected" onClick={onMarkSettled} primary />
-      <PanelAction testId="panel-send-proposal" icon={Send} label="Send to friends" onClick={onSendProposal} />
-      <OverflowActions open={moreOpen} onToggle={() => setMoreOpen((current) => !current)}>
-        <PanelAction testId="panel-accept-change" icon={Check} label="Use change" onClick={onAcceptChange} />
-        <PanelAction testId="panel-mark-paid" icon={CreditCard} label="Mark friend paid" onClick={onMarkPaid} />
-      </OverflowActions>
+      <PanelAction testId="panel-copy-reminder" icon={Copy} label="Copy reminder" onClick={onCopyReminder} primary />
+      <PanelAction testId="panel-view-share" icon={UserRoundCheck} label="View Your Share" onClick={onViewShare} />
     </>
   );
 }

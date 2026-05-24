@@ -5,11 +5,12 @@ import { useChat } from "@ai-sdk/react";
 import { createSplitFlowChatTransport } from "@/lib/ai/splitflow-chat-transport";
 import { useSplitFlow } from "@/lib/store";
 import type { AgentRunContext } from "@/lib/types";
-import { AgentProgress, agentProgress } from "@/components/chat/agent-progress";
-import { ArtifactPreviewGrid } from "@/components/chat/artifact-preview-grid";
+import { AgentRunCard, agentProgress } from "@/components/chat/agent-progress";
+import { ArtifactPreviewGroup } from "@/components/chat/artifact-preview-grid";
 import { ChatComposer } from "@/components/chat/chat-composer";
-import { ChatMessages } from "@/components/chat/chat-messages";
-import { ReadinessChecklist, SafeToBookSummary } from "@/components/readiness-widgets";
+import { ChatThread } from "@/components/chat/chat-messages";
+import { ChatEmptyState } from "@/components/chat/chat-empty-state";
+import { DecisionSummaryCard } from "@/components/chat/decision-summary-card";
 import { WorkspaceDetailPanel } from "@/components/workspace-detail-panel";
 import { deriveReadinessSummary } from "@/lib/readiness";
 
@@ -24,7 +25,8 @@ export function ChatWorkspace() {
     applyAgentResponse,
     applyAgentRunEvent,
     failAgentRun,
-    openArtifact
+    openArtifact,
+    openProposalPanel
   } = useSplitFlow();
   const [chatError, setChatError] = useState<string | undefined>();
   const [progressIndex, setProgressIndex] = useState(0);
@@ -45,6 +47,9 @@ export function ChatWorkspace() {
   const activeRun = state.agentRuns.find((run) => run.id === pendingRunRef.current?.runId);
   const showProgress = submitting && pendingRunRef.current?.groupId === activeGroup.id && pendingRunRef.current?.chatId === activeChat.id;
   const readiness = deriveReadinessSummary(activeProposal);
+  const latestRun = activeRun ?? state.agentRuns.find((run) => run.groupId === activeGroup.id && run.chatId === activeChat.id);
+  const shouldShowRun = showProgress || Boolean(latestRun) || activeArtifacts.length > 0;
+  const hasConversation = activeChat.messages.length > 0;
 
   useEffect(() => {
     if (!submitting) {
@@ -82,30 +87,37 @@ export function ChatWorkspace() {
   }
 
   return (
-    <div className="flex min-h-[calc(100vh-68px)] flex-col lg:h-[calc(100vh-76px)] lg:min-h-0 lg:flex-row" data-testid="chat-route">
+    <div className="flex min-h-[calc(100vh-68px)] flex-col bg-page lg:h-[calc(100vh-76px)] lg:min-h-0 lg:flex-row" data-testid="chat-route">
       <section className="flex min-h-0 flex-1 flex-col">
-        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4 md:p-5">
-          <SafeToBookSummary summary={readiness} totalCost={activeProposal.calculationResult?.totalCost ?? activeProposal.totalCost} />
-          <ReadinessChecklist items={readiness.checklist} />
+        <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 md:px-6 md:py-5">
+          <div className="mx-auto flex w-full max-w-[820px] flex-col gap-4" data-testid="chat-centered-column">
+            <DecisionSummaryCard
+              proposal={activeProposal}
+              summary={readiness}
+              onReview={() => openProposalPanel(activeProposal.id)}
+            />
 
-          <ChatMessages messages={activeChat.messages} />
+            {hasConversation ? <ChatThread messages={activeChat.messages} /> : <ChatEmptyState onPrompt={(prompt) => void handleSend(prompt)} />}
 
-          {showProgress ? <AgentProgress progressIndex={progressIndex} run={activeRun} /> : null}
+            {shouldShowRun ? <AgentRunCard progressIndex={progressIndex} run={latestRun} showEstimated={!latestRun && !showProgress} /> : null}
 
-          <ArtifactPreviewGrid artifacts={activeArtifacts} onOpenArtifact={openArtifact} />
+            <ArtifactPreviewGroup artifacts={activeArtifacts} onOpenArtifact={openArtifact} />
 
-          {state.aiUnavailable || error || chatError ? (
-            <div data-testid="ai-unavailable" className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-app-text">
-              AI unavailable: {chatError ?? error?.message ?? state.lastAiError ?? "Configure the server API key to enable live AI drafting."}
-            </div>
-          ) : null}
+            {state.aiUnavailable || error || chatError ? (
+              <div data-testid="ai-unavailable" className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-app-text">
+                AI unavailable: {chatError ?? error?.message ?? state.lastAiError ?? "Configure the server API key to enable live AI drafting."}
+              </div>
+            ) : null}
+          </div>
         </div>
 
-        <ChatComposer
-          isLoading={submitting}
-          onSend={handleSend}
-          placeholder={`Message ${activeGroup.name}...`}
-        />
+        <div className="sticky bottom-0">
+          <ChatComposer
+            isLoading={submitting}
+            onSend={handleSend}
+            placeholder={`Message ${activeGroup.name}...`}
+          />
+        </div>
       </section>
 
       <WorkspaceDetailPanel desktopPersistent />

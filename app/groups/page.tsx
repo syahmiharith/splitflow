@@ -21,14 +21,22 @@ export default function GroupsPage() {
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
+  const [members, setMembers] = useState("Syahmi, Ali, Sarah, Daniel, Mira, Hakim, Adam, Minji");
+  const [organizer, setOrganizer] = useState("Syahmi");
+  const [currency, setCurrency] = useState("KRW");
+  const [starterPrompt, setStarterPrompt] = useState("");
 
   function onCreate(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const trimmed = name.trim();
     if (!trimmed) return;
-    const groupId = createGroup({ name: trimmed, description, members: ["Syahmi", "Ali", "Sarah"] });
+    const groupId = createGroup({ name: trimmed, description, members: parseMembers(members, organizer) });
     setName("");
     setDescription("");
+    setMembers("Syahmi, Ali, Sarah, Daniel, Mira, Hakim, Adam, Minji");
+    setOrganizer("Syahmi");
+    setCurrency("KRW");
+    setStarterPrompt("");
     setCreating(false);
     router.push(`/groups/${groupId}/chat`);
   }
@@ -144,14 +152,28 @@ export default function GroupsPage() {
         <CreateGroupModal
           name={name}
           description={description}
+          members={members}
+          organizer={organizer}
+          currency={currency}
+          starterPrompt={starterPrompt}
           onNameChange={setName}
           onDescriptionChange={setDescription}
+          onMembersChange={setMembers}
+          onOrganizerChange={setOrganizer}
+          onCurrencyChange={setCurrency}
+          onStarterPromptChange={setStarterPrompt}
           onCancel={() => setCreating(false)}
           onSubmit={onCreate}
         />
       ) : null}
     </div>
   );
+}
+
+function parseMembers(value: string, organizer: string): string[] {
+  const names = value.split(",").map((item) => item.trim()).filter(Boolean);
+  const organizerName = organizer.trim() || names[0] || "Syahmi";
+  return [organizerName, ...names.filter((name) => name.toLowerCase() !== organizerName.toLowerCase())];
 }
 
 function Summary({ icon: Icon, label, value, tone }: { icon: typeof Users; label: string; value: string; tone: "blue" | "green" | "amber" }) {

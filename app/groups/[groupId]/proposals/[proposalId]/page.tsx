@@ -19,7 +19,7 @@ export default function GroupProposalDetailPage() {
     <div className="flex min-h-[calc(100vh-76px)] flex-col lg:flex-row" data-testid="proposal-detail-route">
       <GroupRouteSync groupId={params.groupId} />
       <div className="min-w-0 flex-1 p-6">
-        <p className="text-sm text-app-muted">Trip Split details open in the review panel.</p>
+        <p className="text-sm text-app-muted">Split details, deterministic math, claimed payments, and settlement readiness open in the review panel.</p>
       </div>
       <WorkspaceDetailPanel fallbackProposal={proposal} />
     </div>

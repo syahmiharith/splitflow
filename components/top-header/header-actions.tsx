@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Bell, MoreHorizontal, RotateCcw } from "lucide-react";
+import { MoreHorizontal, RotateCcw, UserRoundCheck } from "lucide-react";
 import { useState } from "react";
 
 export function HeaderActions({
@@ -20,9 +20,9 @@ export function HeaderActions({
       <Link
         href={`/groups/${activeGroupId}/inbox`}
         className="relative grid h-11 w-11 place-items-center rounded-xl border border-app-border bg-white text-app-text hover:bg-slate-50"
-        aria-label="Notifications"
+        aria-label="Your Share"
       >
-        <Bell className="h-5 w-5" aria-hidden="true" />
+        <UserRoundCheck className="h-5 w-5" aria-hidden="true" />
         <span className="absolute -right-1 -top-1 grid h-5 min-w-5 place-items-center rounded-full bg-app-red px-1 text-xs font-bold text-white">
           {unresolvedChangeRequests}
         </span>

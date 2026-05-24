@@ -354,6 +354,7 @@ export type AppState = {
   currentUser: UserMode;
   selectedGroupId?: string;
   selectedChatIdByGroupId?: Record<string, string>;
+  selectedProfileByGroupId?: Record<string, string>;
   groups: SplitFlowGroup[];
   workspacePanel?: WorkspacePanel;
   globalNotifications?: Notification[];

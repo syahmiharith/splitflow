@@ -19,6 +19,10 @@ export function TopHeader({ layoutMode = "unknown", onMenuClick }: { layoutMode?
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
+  const [members, setMembers] = useState("Syahmi, Ali, Sarah, Daniel, Mira, Hakim, Adam, Minji");
+  const [organizer, setOrganizer] = useState("Syahmi");
+  const [currency, setCurrency] = useState("KRW");
+  const [starterPrompt, setStarterPrompt] = useState("");
   const isChatRoute = /\/groups\/[^/]+\/chat/.test(pathname);
   const copy = isChatRoute ? { title: activeChat.title, subtitle: activeGroup.name } : routeTitle(pathname);
   const groupRoute = pathname.startsWith("/groups/");
@@ -31,10 +35,14 @@ export function TopHeader({ layoutMode = "unknown", onMenuClick }: { layoutMode?
     const groupId = createGroup({
       name: trimmed,
       description,
-      members: ["Syahmi", "Ali", "Sarah"]
+      members: parseMembers(members, organizer)
     });
     setName("");
     setDescription("");
+    setMembers("Syahmi, Ali, Sarah, Daniel, Mira, Hakim, Adam, Minji");
+    setOrganizer("Syahmi");
+    setCurrency("KRW");
+    setStarterPrompt("");
     setCreating(false);
     setOpen(false);
     router.push(`/groups/${groupId}/chat`);
@@ -76,12 +84,26 @@ export function TopHeader({ layoutMode = "unknown", onMenuClick }: { layoutMode?
         <CreateGroupModal
           name={name}
           description={description}
+          members={members}
+          organizer={organizer}
+          currency={currency}
+          starterPrompt={starterPrompt}
           onNameChange={setName}
           onDescriptionChange={setDescription}
+          onMembersChange={setMembers}
+          onOrganizerChange={setOrganizer}
+          onCurrencyChange={setCurrency}
+          onStarterPromptChange={setStarterPrompt}
           onCancel={() => setCreating(false)}
           onSubmit={onCreate}
         />
       ) : null}
     </header>
   );
+}
+
+function parseMembers(value: string, organizer: string): string[] {
+  const names = value.split(",").map((item) => item.trim()).filter(Boolean);
+  const organizerName = organizer.trim() || names[0] || "Syahmi";
+  return [organizerName, ...names.filter((name) => name.toLowerCase() !== organizerName.toLowerCase())];
 }

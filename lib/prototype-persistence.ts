@@ -6,7 +6,7 @@ import { recalculateProposal } from "@/lib/prototype-proposals";
 import type { AgentRun, AppState, ChatSession, ParticipantStatus, Proposal, SplitFlowGroup } from "@/lib/types";
 
 export const SPLITFLOW_STORAGE_KEY = "splitflow.demoState.v4";
-export const CURRENT_SCHEMA_VERSION = 5;
+export const CURRENT_SCHEMA_VERSION = 7;
 const STALE_STORAGE_KEYS = ["splitflow.demoState.v1", "splitflow.demoState.v2", "splitflow.demoState.v3"];
 
 function canUseStorage(): boolean {
@@ -135,12 +135,21 @@ function normalizePersistedState(value: unknown): AppState {
   if (!selectedChatIdByGroupId[selectedGroupId] && activeGroup.chats[0]) {
     selectedChatIdByGroupId[selectedGroupId] = activeGroup.chats[0].id;
   }
+  const selectedProfileByGroupId = normalizeSelectedProfiles(
+    groups,
+    isRecord(value.selectedProfileByGroupId)
+      ? (value.selectedProfileByGroupId as Record<string, string>)
+      : typeof value.currentUser === "string"
+        ? { [selectedGroupId]: value.currentUser }
+        : {}
+  );
   return {
     schemaVersion: CURRENT_SCHEMA_VERSION,
     migrationLog: nextMigrationLog,
-    currentUser: typeof value.currentUser === "string" ? (value.currentUser as AppState["currentUser"]) : initialState.currentUser,
+    currentUser: selectedProfileByGroupId[selectedGroupId] ?? initialState.currentUser,
     selectedGroupId,
     selectedChatIdByGroupId,
+    selectedProfileByGroupId,
     groups,
     workspacePanel: null,
     globalNotifications: Array.isArray(value.globalNotifications) ? value.globalNotifications : initialState.globalNotifications,
@@ -173,6 +182,23 @@ function normalizePersistedGroup(value: unknown): SplitFlowGroup | undefined {
   };
 
   return { ...group, analyticsSummary: deriveGroupAnalytics(group) };
+}
+
+function defaultProfileIdForGroup(group: SplitFlowGroup): string {
+  const organizerId = group.proposals.find((proposal) => proposal.organizerId)?.organizerId;
+  if (organizerId && group.members.some((member) => member.id === organizerId)) return organizerId;
+  const explicitOrganizer = group.members.find((member) => member.id === "you");
+  return explicitOrganizer?.id ?? group.members[0]?.id ?? "you";
+}
+
+function normalizeSelectedProfiles(groups: SplitFlowGroup[], selectedProfileByGroupId: Record<string, string>): Record<string, string> {
+  return Object.fromEntries(
+    groups.map((group) => {
+      const selected = selectedProfileByGroupId[group.id];
+      const valid = selected && group.members.some((member) => member.id === selected);
+      return [group.id, valid ? selected : defaultProfileIdForGroup(group)];
+    })
+  );
 }
 
 function normalizePersistedProposal(value: unknown): Proposal | undefined {

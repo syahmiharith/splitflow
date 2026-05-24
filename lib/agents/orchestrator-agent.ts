@@ -1,4 +1,4 @@
-import type { AgentTraceStep, OrchestratorEvent, OrchestratorResponse } from "@/lib/agents/agent-types";
+import type { AgentRuntimeMetadata, AgentTraceStep, OpenAiAgentsSdkRuntimeMetadata, OrchestratorEvent, OrchestratorResponse } from "@/lib/agents/agent-types";
 import { runIntakeAgent } from "@/lib/agents/intake-agent";
 import { createOrganizerSendPreview } from "@/lib/agents/participant-communication-agent";
 import { runProposalAgent } from "@/lib/agents/proposal-agent";
@@ -21,7 +21,30 @@ function trace(agent: AgentTraceStep["agent"], action: string, detail: string, s
   return { agent, action, status, detail };
 }
 
+function createSdkRuntimeMetadata(agentsRuntime?: OpenAiAgentsRuntime): OpenAiAgentsSdkRuntimeMetadata {
+  const envFlagEnabled = process.env.SPLITFLOW_USE_OPENAI_AGENTS_SDK === "1";
+  const apiKeyPresent = Boolean(process.env.OPENAI_API_KEY);
+  return {
+    envFlagEnabled,
+    apiKeyPresent,
+    runtimeCreated: Boolean(agentsRuntime),
+    attempted: false,
+    invoked: false,
+    returnedOutput: false
+  };
+}
+
+function createRuntimeMetadata(agentsRuntime?: OpenAiAgentsRuntime): AgentRuntimeMetadata {
+  return {
+    route: "/api/agent",
+    backend: "runOrchestrator",
+    openAiAgentsSdk: createSdkRuntimeMetadata(agentsRuntime)
+  };
+}
+
 export async function runOrchestrator(event: OrchestratorEvent, options: OrchestratorOptions = {}): Promise<OrchestratorResponse> {
+  const runtime = createRuntimeMetadata(options.agentsRuntime);
+
   if (event.type === "direct_agent_call") {
     return {
       message: "Specialized agents cannot be called directly. Route workflow requests through the Orchestrator Agent.",
@@ -33,7 +56,8 @@ export async function runOrchestrator(event: OrchestratorEvent, options: Orchest
           status: "blocked",
           detail: `Rejected direct call to ${event.agentName}.`
         }
-      ]
+      ],
+      runtime
     };
   }
 
@@ -43,7 +67,8 @@ export async function runOrchestrator(event: OrchestratorEvent, options: Orchest
       return {
         message: "Tell me what you are splitting, the total amount, and who is involved.",
         nextActions: ["Ask for missing fields"],
-        trace: steps
+        trace: steps,
+        runtime
       };
     }
 
@@ -54,7 +79,8 @@ export async function runOrchestrator(event: OrchestratorEvent, options: Orchest
       return {
         message: `I need ${intake.missingFields.join(" and ")} before I can draft the proposal.`,
         nextActions: ["Ask clarifying question"],
-        trace: steps
+        trace: steps,
+        runtime
       };
     }
 
@@ -73,15 +99,32 @@ export async function runOrchestrator(event: OrchestratorEvent, options: Orchest
     const recommendation = runRecommendationAgent({ proposal, risk });
     steps.push(trace("Recommendation Agent", "recommend_next_action", recommendation.primaryAction));
 
-    const sdkMessage = await options.agentsRuntime?.draftOrganizerMessage({
-      userMessage: event.message,
-      proposal,
-      risk,
-      recommendation,
-      trace: steps
-    });
-    if (sdkMessage) {
-      steps.push(trace("Orchestrator Agent", "run_openai_agents_sdk", "Drafted organizer-facing message through @openai/agents."));
+    let sdkMessage: string | undefined;
+    if (!options.agentsRuntime) {
+      steps.push(trace("Orchestrator Agent", "check_openai_agents_sdk", "OpenAI Agents SDK runtime is disabled.", "blocked"));
+    } else {
+      steps.push(trace("Orchestrator Agent", "check_openai_agents_sdk", "OpenAI Agents SDK runtime is enabled."));
+      runtime.openAiAgentsSdk.attempted = true;
+      const sdkResult = await options.agentsRuntime.draftOrganizerMessage({
+        userMessage: event.message,
+        proposal,
+        risk,
+        recommendation,
+        trace: steps
+      });
+      runtime.openAiAgentsSdk.invoked = true;
+
+      if (sdkResult.status === "invoked") {
+        sdkMessage = sdkResult.output;
+        runtime.openAiAgentsSdk.returnedOutput = true;
+        steps.push(trace("Orchestrator Agent", "run_openai_agents_sdk", "Drafted organizer-facing message through @openai/agents."));
+      } else if (sdkResult.status === "no_output") {
+        runtime.openAiAgentsSdk.errorCode = "no_output";
+        steps.push(trace("Orchestrator Agent", "run_openai_agents_sdk", "SDK returned no string output; deterministic fallback used.", "blocked"));
+      } else {
+        runtime.openAiAgentsSdk.errorCode = sdkResult.errorCode;
+        steps.push(trace("Orchestrator Agent", "run_openai_agents_sdk", "SDK call failed; deterministic fallback used.", "blocked"));
+      }
     }
 
     await options.repository?.save(proposal);
@@ -92,7 +135,8 @@ export async function runOrchestrator(event: OrchestratorEvent, options: Orchest
       risk,
       recommendation,
       nextActions: [recommendation.primaryAction, "review_proposal", "send_proposal"],
-      trace: steps
+      trace: steps,
+      runtime
     };
   }
 
@@ -102,7 +146,8 @@ export async function runOrchestrator(event: OrchestratorEvent, options: Orchest
       return {
         message: "Proposal was not found.",
         nextActions: ["Create proposal"],
-        trace: [trace("Orchestrator Agent", "load_proposal", "Proposal was not found.", "blocked")]
+        trace: [trace("Orchestrator Agent", "load_proposal", "Proposal was not found.", "blocked")],
+        runtime
       };
     }
 
@@ -123,7 +168,8 @@ export async function runOrchestrator(event: OrchestratorEvent, options: Orchest
         trace("Participant Communication Agent", "prepare_send_preview", preview),
         trace("Risk Decision Agent", "evaluate_payment_readiness", risk.recommendedNextAction),
         trace("Recommendation Agent", "recommend_next_action", recommendation.primaryAction)
-      ]
+      ],
+      runtime
     };
   }
 
@@ -132,7 +178,8 @@ export async function runOrchestrator(event: OrchestratorEvent, options: Orchest
     return {
       message: "Proposal was not found.",
       nextActions: ["Create proposal"],
-      trace: [trace("Orchestrator Agent", "load_proposal", "Proposal was not found.", "blocked")]
+      trace: [trace("Orchestrator Agent", "load_proposal", "Proposal was not found.", "blocked")],
+      runtime
     };
   }
 
@@ -164,6 +211,7 @@ export async function runOrchestrator(event: OrchestratorEvent, options: Orchest
     risk,
     recommendation,
     nextActions: [recommendation.primaryAction],
-    trace: steps
+    trace: steps,
+    runtime
   };
 }

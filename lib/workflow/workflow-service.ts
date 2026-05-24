@@ -67,9 +67,9 @@ function proposalArtifacts(proposal: Proposal, parserDetails: string[] = [], sou
   const version = proposal.version ?? 1;
   return [
     artifact("parser_review", `${proposal.title} split details`, "Review extracted costs, friends, payers, exclusions, credits, assumptions, and confidence before sending.", proposal.id, parserDetails, sourceText, version),
-    artifact("proposal_draft", `${proposal.title}`, "Trip Split preview created from server-side parsed expense details.", proposal.id, parserDetails, sourceText, version),
+    artifact("proposal_draft", `${proposal.title}`, "Proposal artifact created from server-side parsed expense details.", proposal.id, parserDetails, sourceText, version),
     artifact("itemized_breakdown", `${proposal.title} split math`, "Deterministic itemized calculation and who is included in each cost.", proposal.id, proposal.calculationResult?.auditExplanation, sourceText, version),
-    artifact("settlement_plan", `${proposal.title} ready check`, "Shows who should pay whom and whether booking is ready.", proposal.id, proposal.calculationResult?.settlementInstructions.map((instruction) => instruction.text), sourceText, version),
+    artifact("settlement_plan", `${proposal.title} ready check`, "Shows who should pay whom and whether settlement is ready.", proposal.id, proposal.calculationResult?.settlementInstructions?.map((instruction) => instruction.text), sourceText, version),
     artifact("settlement_ledger", `${proposal.title} payment notes`, "Proof-aware notes for claimed and confirmed payments.", proposal.id, createSettlementLedgerLines(proposal), sourceText, version)
   ];
 }
@@ -377,7 +377,7 @@ export async function executeWorkflowRun(runId: string, repository: FileWorkflow
 
     let proposal: Proposal | undefined;
     let stagedArtifacts: Artifact[] = [];
-    let reply = "I need a little more detail before I can create a Trip Split.";
+    let reply = "I need a little more detail before I can create a proposal artifact.";
 
     if (parsed.proposal) {
       await persistRunEvents(repository, runId, [
@@ -505,7 +505,7 @@ export async function applyWorkflowAction(request: WorkflowActionRequest, reposi
     let actor = "Organizer";
 
     if (request.type === "send_proposal") {
-      next = appendTimeline(participantStatusesAfterSend(previous), "Organizer", "Sent Your Share to friends for review.");
+      next = appendTimeline(participantStatusesAfterSend(previous), "Organizer", "Sent proposal to participants for agreement.");
       transitionType = "sent";
       reason = "Organizer sent proposal.";
     } else if (request.type === "participant_response") {

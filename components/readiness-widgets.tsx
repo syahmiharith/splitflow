@@ -31,7 +31,7 @@ export function SafeToBookSummary({ summary, totalCost, compact = false }: { sum
           <p className="mt-2 text-sm leading-6 text-app-text">{summary.message}</p>
         </div>
         <div className="grid grid-cols-2 gap-2 sm:min-w-56">
-          <SummaryMetric label="Trip total" value={formatKrw(totalCost)} />
+          <SummaryMetric label="Proposal total" value={formatKrw(totalCost)} />
           <SummaryMetric label="Replies" value={summary.replyProgress.label} />
         </div>
       </div>
@@ -78,7 +78,7 @@ export function ActionQueueList({ items, groupId }: { items: ActionQueueItem[]; 
       <div className="flex items-center justify-between gap-3">
         <div>
           <h2 className="text-base font-bold text-app-text">Needs attention</h2>
-          <p className="mt-1 text-sm text-app-muted">The shortest path to a safe booking decision.</p>
+          <p className="mt-1 text-sm text-app-muted">The shortest path to settlement readiness.</p>
         </div>
         <Clock3 className="h-5 w-5 text-app-muted" aria-hidden="true" />
       </div>
@@ -101,7 +101,7 @@ export function ActionQueueList({ items, groupId }: { items: ActionQueueItem[]; 
           ))
         ) : (
           <div className="rounded-md border border-green-200 bg-green-50 px-3 py-3 text-sm font-semibold text-app-green">
-            Nothing is blocking this group right now.
+            Nothing is blocking settlement readiness right now.
           </div>
         )}
       </div>

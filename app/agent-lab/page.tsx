@@ -31,6 +31,8 @@ export default function AgentLabPage() {
   const [error, setError] = useState<string | null>(null);
   const proposal = result?.proposal;
   const activeParticipants = useMemo(() => proposal?.participants ?? [], [proposal]);
+  const sdk = result?.runtime?.openAiAgentsSdk;
+  const sdkTraceCount = result?.trace.filter((step) => step.action === "run_openai_agents_sdk").length ?? 0;
 
   async function submit(event?: FormEvent<HTMLFormElement>) {
     event?.preventDefault();
@@ -169,6 +171,20 @@ export default function AgentLabPage() {
           </section>
 
           <aside className="space-y-4">
+            <div className="rounded-lg border border-app-border bg-white p-4">
+              <div className="text-sm font-semibold text-app-muted">Runtime</div>
+              <div className="mt-3 grid gap-2 text-sm">
+                <RuntimeRow testId="agent-backend" label="Backend" value={result.runtime?.backend ?? "unknown"} />
+                <RuntimeRow testId="sdk-flag-status" label="SDK flag enabled" value={yesNo(sdk?.envFlagEnabled)} />
+                <RuntimeRow testId="sdk-api-key-present" label="API key present" value={yesNo(sdk?.apiKeyPresent)} />
+                <RuntimeRow testId="sdk-runtime-created" label="SDK runtime created" value={yesNo(sdk?.runtimeCreated)} />
+                <RuntimeRow testId="sdk-attempted" label="SDK attempted" value={yesNo(sdk?.attempted)} />
+                <RuntimeRow testId="sdk-invoked" label="SDK invoked" value={yesNo(sdk?.invoked)} />
+                <RuntimeRow testId="sdk-returned-output" label="SDK returned output" value={yesNo(sdk?.returnedOutput)} />
+                <RuntimeRow testId="sdk-trace-count" label="SDK trace count" value={String(sdkTraceCount)} />
+              </div>
+            </div>
+
             {result.risk ? (
               <div className="rounded-lg border border-app-border bg-white p-4">
                 <div className="text-sm font-semibold text-app-muted">Risk</div>
@@ -199,6 +215,21 @@ export default function AgentLabPage() {
           </aside>
         </div>
       ) : null}
+    </div>
+  );
+}
+
+function yesNo(value: boolean | undefined): string {
+  return value ? "true" : "false";
+}
+
+function RuntimeRow({ testId, label, value }: { testId: string; label: string; value: string }) {
+  return (
+    <div className="flex min-w-0 items-center justify-between gap-3 rounded-md border border-app-border bg-slate-50 px-3 py-2">
+      <span className="min-w-0 text-app-muted">{label}</span>
+      <span data-testid={testId} className="shrink-0 font-bold text-app-text">
+        {value}
+      </span>
     </div>
   );
 }

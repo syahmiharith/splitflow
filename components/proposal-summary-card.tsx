@@ -28,7 +28,7 @@ export function ProposalSummaryCard({ proposal, onReview, onAdjust, onSend }: Pr
         <span className="grid h-9 w-9 place-items-center rounded-lg bg-blue-50 text-app-blue md:h-auto md:w-auto md:bg-transparent md:text-app-text">
           <FileText className="h-5 w-5" aria-hidden="true" />
         </span>
-        <h2 className="min-w-0 flex-1 text-lg font-bold text-app-text md:text-base">Draft Trip Split</h2>
+        <h2 className="min-w-0 flex-1 text-lg font-bold text-app-text md:text-base">Draft Proposal</h2>
         <ChevronDown className="h-5 w-5 text-app-muted md:hidden" aria-hidden="true" />
       </div>
 
@@ -79,7 +79,7 @@ export function ProposalSummaryCard({ proposal, onReview, onAdjust, onSend }: Pr
           className="inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-app-blue px-4 text-base font-semibold text-white hover:bg-blue-700 md:h-10 md:rounded-md md:text-sm"
         >
           <FileText className="h-4 w-4" aria-hidden="true" />
-          Review Trip Split
+          Review Proposal
         </button>
         <button
           type="button"
@@ -97,7 +97,7 @@ export function ProposalSummaryCard({ proposal, onReview, onAdjust, onSend }: Pr
           className="inline-flex h-12 items-center justify-center gap-2 rounded-xl border border-app-border bg-white px-4 text-base font-semibold text-app-text hover:bg-slate-50 md:h-10 md:rounded-md md:text-sm"
         >
           <Send className="h-4 w-4" aria-hidden="true" />
-          Send to Friends
+          Send Proposal
         </button>
       </div>
     </AppCard>

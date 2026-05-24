@@ -138,7 +138,12 @@ export function createSplitFlowChatTransport({ getRunContext, onResponse, onRunE
     async sendMessages({ messages, abortSignal }) {
       const lastUserMessage = [...messages].reverse().find((message) => message.role === "user");
       const message = lastUserMessage ? getMessageText(lastUserMessage) : "";
-      const context = getRunContext?.();
+      const sourceMessageId = lastUserMessage?.id ?? crypto.randomUUID();
+      const context = getRunContext?.() ?? {
+        runId: crypto.randomUUID(),
+        groupId: "jeju-trip",
+        chatId: "chat-jeju-intake"
+      };
       lastRunContext = context;
       lastSourceMessage = message;
       lastEventId = undefined;
@@ -150,6 +155,7 @@ export function createSplitFlowChatTransport({ getRunContext, onResponse, onRunE
           runId: context?.runId,
           groupId: context?.groupId ?? "jeju-trip",
           chatId: context?.chatId ?? "chat-jeju-intake",
+          sourceMessageId,
           message,
           idempotencyKey: context?.runId ?? `${Date.now()}:${message}`
         }),

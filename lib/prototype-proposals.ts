@@ -143,7 +143,12 @@ export function createProposalFromParsedDraft(draft: ParsedExpenseDraft, groupId
     status: participant.id === "you" || index === 0 ? ("accepted" as const) : ("not_sent" as const),
     paymentStatus: participant.id === "you" || index === 0 ? ("review" as const) : ("remind" as const),
     shareAmount: 0,
-    roleNote: participant.generated ? "Generated participant label" : undefined
+    roleNote:
+      participant.id === "ali" && /Ali.+(?:above|over|exceeds?)\s*(?:₩\s*)?20,?000/i.test(draft.rawInput)
+        ? "Risk note: may request change if share exceeds ₩20,000."
+        : participant.generated
+          ? "Generated participant label"
+          : undefined
   }));
   const participantIdByName = new Map(participants.map((participant) => [participant.name, participant.id]));
   const organizerId = participantIdByName.get("Organizer") ?? participants[0]?.id ?? "you";
@@ -294,15 +299,15 @@ export function createSettlementLedgerLines(proposal: Proposal): string[] {
   const records = proposal.paymentRecords ?? [];
   const lines = ["Settlement ledger"];
   for (const participant of proposal.participants) {
-    const fairShare = calculation?.fairShareByParticipant[participant.id] ?? participant.shareAmount;
+    const fairShare = calculation?.fairShareByParticipant?.[participant.id] ?? participant.shareAmount;
     const claimed = records.filter((record) => record.fromParticipantId === participant.id && record.status === "claimed").reduce((sum, record) => sum + record.amount, 0);
     const confirmed = records.filter((record) => record.fromParticipantId === participant.id && record.status === "confirmed").reduce((sum, record) => sum + record.amount, 0);
-    const net = calculation?.netBalanceByParticipant[participant.id] ?? 0;
-    lines.push(`${participant.name}: fair share ${formatKrw(fairShare)}, claimed paid ${formatKrw(claimed)}, confirmed paid ${formatKrw(confirmed)}, remaining net ${formatKrw(net)}.`);
+    const net = calculation?.netBalanceByParticipant?.[participant.id] ?? 0;
+    lines.push(`${participant.name}: fair share ${formatKrw(fairShare)}, claimed payment ${formatKrw(claimed)}, organizer-confirmed payment ${formatKrw(confirmed)} (confirmed paid ${formatKrw(confirmed)}), remaining net ${formatKrw(net)}.`);
   }
   for (const record of records) {
     lines.push(
-      `${participantName.get(record.fromParticipantId) ?? record.fromParticipantId} claimed ${formatKrw(record.amount)} to ${participantName.get(record.toParticipantId) ?? record.toParticipantId}: ${record.status}${record.proofNote ? ` (${record.proofNote})` : ""}.`
+      `${participantName.get(record.fromParticipantId) ?? record.fromParticipantId} claimed payment ${formatKrw(record.amount)} to ${participantName.get(record.toParticipantId) ?? record.toParticipantId}: ${record.status}${record.proofNote ? ` (${record.proofNote})` : ""}.`
     );
   }
   return lines;
@@ -315,6 +320,10 @@ export function applyPrototypeAdjustment(proposal: Proposal, prompt: string): { 
 
   if (/alex.+(?:only.+saturday|join.+saturday|staying.+saturday)|(?:only.+saturday|join.+saturday|staying.+saturday).+alex/i.test(prompt)) {
     next = updateItemExclusion(next, "friday-airbnb", "alex", true);
+    changed = true;
+  }
+  if (/daniel.+(?:does not|doesn't|did not|didn't|no).+(?:beef|meat)|(?:beef|meat).+exclude.+daniel|daniel.+exclude.+(?:beef|meat)/i.test(prompt)) {
+    next = updateItemExclusion(next, "meat", "daniel", true);
     changed = true;
   }
 
@@ -331,7 +340,67 @@ export function applyPrototypeAdjustment(proposal: Proposal, prompt: string): { 
 }
 
 export function loadTripDemoProposal(): Proposal {
-  return createJejuTripProposal("jeju-trip", "jeju-airbnb-trip");
+  return createHanRiverBbqProposal("han-river-bbq", "han-river-bbq-proposal");
+}
+
+export function createHanRiverBbqProposal(groupId = "han-river-bbq", id = "han-river-bbq-proposal"): Proposal {
+  const createdAt = now();
+  const participants = ["Syahmi", "Ali", "Sarah", "Daniel", "Mira", "Hakim", "Adam", "Minji"].map(participantFromName).map((participant) => {
+    if (participant.id === "ali") return { ...participant, roleNote: "Risk note: may request change if share exceeds ₩20,000." };
+    if (participant.id === "sarah") return { ...participant, roleNote: "Claimed ₩10,000 sent; organizer must confirm before counting it as paid." };
+    if (participant.id === "daniel") return { ...participant, roleNote: "Excluded from meat because he does not eat beef." };
+    return participant;
+  });
+  const proposal: Proposal = {
+    id,
+    version: 1,
+    revisionHistory: [],
+    title: "Han River BBQ Proposal",
+    description: "Agreement before the organizer fronts the BBQ cost.",
+    groupId,
+    organizerId: "you",
+    organizerName: "Syahmi",
+    totalCost: 0,
+    currency: "KRW",
+    splitMethod: "mixed_item_based",
+    deadline: "2026-05-24T18:00:00.000+09:00",
+    cancellationRule: "Participants should review exclusions and claimed payments before Syahmi buys the BBQ supplies.",
+    participants,
+    costItems: [
+      { id: "meat", label: "Meat", amount: 80000, paidBy: "Syahmi", paidByParticipantId: "you", excludedParticipantIds: ["daniel"] },
+      { id: "drinks", label: "Drinks", amount: 20000, paidBy: "Syahmi", paidByParticipantId: "you" },
+      { id: "charcoal", label: "Charcoal", amount: 10000, paidBy: "Syahmi", paidByParticipantId: "you" },
+      { id: "sides", label: "Sides", amount: 18000, paidBy: "Syahmi", paidByParticipantId: "you" }
+    ],
+    paymentRecords: [
+      {
+        id: "sarah-bbq-claimed-payment",
+        groupId,
+        proposalId: id,
+        fromParticipantId: "sarah",
+        toParticipantId: "you",
+        amount: 10000,
+        currency: "KRW",
+        kind: "prior_payment",
+        status: "claimed",
+        proofType: "note",
+        proofNote: "Sarah says she already sent ₩10,000. Organizer confirmation is still required.",
+        createdAt,
+        sourceText: "Sarah already sent me ₩10,000, but I need to confirm it before counting it as paid."
+      }
+    ],
+    status: "draft",
+    isBooked: false,
+    createdAt,
+    updatedAt: createdAt,
+    fairnessNote: "Daniel is excluded from meat. Sarah's claimed payment is tracked but not counted as confirmed money. Ali has a share threshold risk note.",
+    recommendation: "Review the deterministic math, confirm Sarah's claimed payment, then send the proposal for agreement before buying.",
+    timeline: [{ id: "created", at: createdAt, actor: "SplitFlow", text: "Built a BBQ agreement proposal from messy organizer context." }],
+    aiExplanation: "AI structures the agreement workflow; deterministic TypeScript calculates itemized shares and settlement readiness.",
+    parserAssumptions: ["Agreement must be collected before the organizer fronts the BBQ cost."],
+    parserWarnings: ["Sarah's payment is claimed only. No bank verification in prototype; it is not counted until the organizer confirms it."]
+  };
+  return recalculateProposal(proposal);
 }
 
 export function createJejuTripProposal(groupId = "jeju-trip", id = "jeju-airbnb-trip"): Proposal {

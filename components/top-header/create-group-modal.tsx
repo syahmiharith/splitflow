@@ -5,8 +5,16 @@ import type { FormEvent } from "react";
 type CreateGroupModalProps = {
   name: string;
   description: string;
+  members: string;
+  organizer: string;
+  currency: string;
+  starterPrompt: string;
   onNameChange: (value: string) => void;
   onDescriptionChange: (value: string) => void;
+  onMembersChange: (value: string) => void;
+  onOrganizerChange: (value: string) => void;
+  onCurrencyChange: (value: string) => void;
+  onStarterPromptChange: (value: string) => void;
   onCancel: () => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
 };
@@ -14,8 +22,16 @@ type CreateGroupModalProps = {
 export function CreateGroupModal({
   name,
   description,
+  members,
+  organizer,
+  currency,
+  starterPrompt,
   onNameChange,
   onDescriptionChange,
+  onMembersChange,
+  onOrganizerChange,
+  onCurrencyChange,
+  onStarterPromptChange,
   onCancel,
   onSubmit
 }: CreateGroupModalProps) {
@@ -39,6 +55,44 @@ export function CreateGroupModal({
             value={description}
             onChange={(event) => onDescriptionChange(event.target.value)}
             className="mt-2 min-h-20 w-full rounded-lg border border-app-border px-3 py-2 outline-none focus:border-app-blue"
+          />
+        </label>
+        <label className="mt-3 block">
+          <span className="text-sm font-semibold text-app-muted">Members, comma-separated</span>
+          <textarea
+            data-testid="create-group-members"
+            value={members}
+            onChange={(event) => onMembersChange(event.target.value)}
+            className="mt-2 min-h-16 w-full rounded-lg border border-app-border px-3 py-2 outline-none focus:border-app-blue"
+          />
+        </label>
+        <div className="mt-3 grid gap-3 sm:grid-cols-2">
+          <label className="block">
+            <span className="text-sm font-semibold text-app-muted">Default organizer</span>
+            <input
+              data-testid="create-group-organizer"
+              value={organizer}
+              onChange={(event) => onOrganizerChange(event.target.value)}
+              className="mt-2 h-11 w-full rounded-lg border border-app-border px-3 outline-none focus:border-app-blue"
+            />
+          </label>
+          <label className="block">
+            <span className="text-sm font-semibold text-app-muted">Default currency</span>
+            <input
+              data-testid="create-group-currency"
+              value={currency}
+              onChange={(event) => onCurrencyChange(event.target.value)}
+              className="mt-2 h-11 w-full rounded-lg border border-app-border px-3 outline-none focus:border-app-blue"
+            />
+          </label>
+        </div>
+        <label className="mt-3 block">
+          <span className="text-sm font-semibold text-app-muted">Optional starter prompt</span>
+          <textarea
+            data-testid="create-group-starter-prompt"
+            value={starterPrompt}
+            onChange={(event) => onStarterPromptChange(event.target.value)}
+            className="mt-2 min-h-16 w-full rounded-lg border border-app-border px-3 py-2 outline-none focus:border-app-blue"
           />
         </label>
         <div className="mt-4 flex justify-end gap-2">

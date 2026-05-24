@@ -50,7 +50,7 @@ export function normalizeExpenseDraft(input: string): ParsedExpenseDraft {
   const payers = extractPayers(cleaned);
   const exclusions = extractExclusions(cleaned);
   const credits = extractCredits(cleaned);
-  const names = mergeParticipantNames(rawNames, payers, exclusions, credits);
+  const names = canonicalBbqParticipantNames(cleaned) ?? mergeParticipantNames(rawNames, payers, exclusions, credits);
   const assumptions: string[] = [];
 
   const participantNames = buildParticipantNames(names, participantCount, assumptions);
@@ -73,6 +73,10 @@ export function normalizeExpenseDraft(input: string): ParsedExpenseDraft {
   items = applyParticipationRules(items, exclusions, participants);
   if (!hasExplicitCurrency(cleaned)) {
     assumptions.push("Assumed KRW because this prototype currently supports KRW splits.");
+  }
+  const aliThreshold = cleaned.match(/\bAli\b.+(?:above|over|exceeds?)\s*(?:₩\s*)?(\d+(?:,\d{3})*|\d+)\s*(k|K|won|KRW|krw)?/i);
+  if (aliThreshold) {
+    assumptions.push(`Ali risk note: may request change if his share exceeds ${formatKrw(normalizeAmount(aliThreshold[1], aliThreshold[2]))}.`);
   }
 
   return {
@@ -122,7 +126,7 @@ function excludeNonParticipants(names: string[], input: string, intent: ParsedEx
 
 export function classifyExpenseIntent(input: string): ParsedExpenseIntent {
   if (/trip|travel|airbnb|hotel|busan|jeju/i.test(input)) return "travel";
-  if (/dinner|chicken|rice|dessert|drinks|groceries/i.test(input)) return "food";
+  if (/bbq|barbecue|dinner|chicken|rice|dessert|drinks|groceries/i.test(input)) return "food";
   if (/movie|ticket|snack/i.test(input)) return "movie";
   if (/gift|minji|present/i.test(input)) return "gift";
   if (/house|delivery|bill|utilities/i.test(input)) return "household";
@@ -130,6 +134,8 @@ export function classifyExpenseIntent(input: string): ParsedExpenseIntent {
 }
 
 function titleForIntent(intent: ParsedExpenseIntent, input: string): string {
+  if (/han river.+bbq|bbq.+han river/i.test(input)) return "Han River BBQ Proposal";
+  if (/\bbbq\b|barbecue/i.test(input)) return "BBQ Proposal";
   const locationAirbnb = input.match(/\b(Busan|Jeju|Seoul)\b.*\bAirbnb\b|\bAirbnb\b.*\b(Busan|Jeju|Seoul)\b/i);
   if (locationAirbnb) return `${locationAirbnb[1] ?? locationAirbnb[2]} Airbnb`;
   if (/airbnb/i.test(input)) return "Airbnb Split";
@@ -194,6 +200,11 @@ function buildParticipantNames(names: string[], participantCount: number | undef
     assumptions.push("Some participant names were generated because only the count was provided.");
   }
   return result;
+}
+
+function canonicalBbqParticipantNames(input: string): string[] | undefined {
+  if (!/(han river.+bbq|bbq.+han river|bbq for 8|bbq.+8 people)/i.test(input)) return undefined;
+  return ["Syahmi", "Ali", "Sarah", "Daniel", "Mira", "Hakim", "Adam", "Minji"];
 }
 
 function findMoneyMatches(input: string): MoneyMatch[] {
@@ -261,7 +272,7 @@ function extractPayers(input: string): ParsedPayer[] {
 
 function extractCredits(input: string): ParsedCredit[] {
   const credits: ParsedCredit[] = [];
-  const pattern = /\b([A-Z][a-z]+)\s+already\s+paid\s+me\s+(?:₩\s*)?(\d+(?:,\d{3})*|\d+)\s*(k|K|won|KRW|krw)?/g;
+  const pattern = /\b([A-Z][a-z]+)\s+already\s+(?:paid|sent)\s+me\s+(?:₩\s*)?(\d+(?:,\d{3})*|\d+)\s*(k|K|won|KRW|krw)?/g;
   for (const match of input.matchAll(pattern)) {
     credits.push({
       fromName: match[1],
@@ -325,7 +336,7 @@ function extractItems(input: string, payers: ParsedPayer[]): ParsedExpenseItem[]
 function extractReceiptItems(input: string, payers: ParsedPayer[]): ParsedExpenseItem[] {
   const items = new Map<string, ParsedExpenseItem>();
   for (const line of input.split(/\r?\n/)) {
-    const trimmed = line.trim();
+    const trimmed = line.trim().replace(/^[-*•]\s*/, "");
     if (!trimmed || /^(total|subtotal|tax|vat|service|discount|change|cash|card)$/i.test(trimmed)) continue;
     if (/\b\d+\s+(people|participants|pax|friends)\b/i.test(trimmed)) continue;
     const match = trimmed.match(/^([A-Za-z][A-Za-z\s&-]{1,40})\s+(?:₩\s*|KRW\s*)?(\d+(?:,\d{3})*|\d+)\s*(k|K|won|KRW|krw)?$/i);

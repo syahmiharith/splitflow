@@ -11,34 +11,63 @@ SplitFlow is not just an AI bill splitter. It is an agreement workflow system. A
 - `/` is global Home across groups.
 - `/groups/[groupId]` is the selected group overview and analytics surface.
 - `/groups/[groupId]/chat` is the group-scoped chat workspace.
-- `/groups/[groupId]/proposals` is the group proposal list with right-side detail panel.
-- `/groups/[groupId]/proposals/[proposalId]` deep-links a proposal record into the same panel model.
-- `/groups/[groupId]/inbox` is the simulated participant review surface for reviewer testing.
+- `/groups/[groupId]/proposals` is the Splits page: group-scoped agreement records with blockers, response progress, claimed payments, and settlement readiness.
+- `/groups/[groupId]/proposals/[proposalId]` deep-links a split record into the same panel model.
+- `/groups/[groupId]/inbox` is the Your Share / Participant Review simulation page.
 - `/groups/[groupId]/settings` manages group context.
 
 Shortcut `/chat`, `/dashboard`, `/proposals`, and `/inbox` routes redirect into the default group. They are compatibility routes, not the canonical product flow.
 
-If localStorage is empty, stale, or invalid, SplitFlow recreates and selects the canonical `Jeju Trip` demo group.
+If localStorage is empty, stale, or invalid, SplitFlow recreates and selects the canonical `Han River BBQ Crew` demo group.
 
-## Reviewer Walkthrough
+## Product Demo
 
-1. Open `/`.
-2. Create or select a group from the header switcher.
-3. Open `/groups/[groupId]/chat`.
-4. Enter a realistic prompt, for example:
+### Han River BBQ: Agreement Before the Organizer Fronts Money
+
+Problem: the organizer does not only need math. They need agreement before spending money.
+
+Canonical demo prompt:
 
 ```text
-Jeju Airbnb is 570,000 won for 7 friends. Friday night is 220k, Saturday night is 260k, van rental is 90k. Alex only joins Saturday.
+I’m organizing a Han River BBQ for 8 people and need agreement before I front ₩128,000.
+
+Estimated costs:
+- meat ₩80,000
+- drinks ₩20,000
+- charcoal ₩10,000
+- sides ₩18,000
+
+Daniel does not eat beef, so exclude him from meat.
+Sarah already sent me ₩10,000, but I need to confirm it before counting it as paid.
+Ali says he may request a change if his share goes above ₩20,000.
+
+Create a proposal I can send to the group before I buy everything.
 ```
 
-5. Watch the agent progress steps.
-6. Open the parser/proposal artifact in the right panel.
-7. Review detected items, participants, payers, exclusions, credits, assumptions, and deterministic math.
-8. Send/create the proposal from the sticky right-panel footer.
-9. Open `/groups/[groupId]/proposals`.
-10. Click the proposal and inspect itemized costs, participant balances, settlement plan, timeline, and ledger records.
-11. Use the sticky footer actions to accept changes, confirm credits, mark paid, or mark settled.
-12. Refresh the page and confirm localStorage preserved the selected group and group-scoped state.
+Reviewer walkthrough:
+
+1. Open `/`.
+2. Select Han River BBQ Crew.
+3. Open Chat.
+4. Submit the canonical demo prompt.
+5. Watch agent progress.
+6. Open the proposal artifact.
+7. Review deterministic math.
+8. Send proposal.
+9. Open Your Share.
+10. Use the left sidebar footer profile switcher to view as Daniel and request/verify the meat exclusion.
+11. Return to the proposal.
+12. Confirm or dispute Sarah’s claimed payment.
+13. Review settlement readiness.
+
+What the demo proves:
+
+- natural prompt to structured proposal
+- deterministic itemized split
+- exclusions
+- claimed vs confirmed payments
+- human-in-the-loop change handling
+- settlement readiness
 
 ## Architecture Map
 
@@ -47,8 +76,8 @@ app/
   page.tsx                         Global Home
   groups/[groupId]/page.tsx        Group overview
   groups/[groupId]/chat/page.tsx   Group chat workspace
-  groups/[groupId]/proposals/      Group proposal list and detail panel
-  groups/[groupId]/inbox/page.tsx  Simulated participant review
+  groups/[groupId]/proposals/      Splits page and detail panel
+  groups/[groupId]/inbox/page.tsx  Your Share / Participant Review simulation
   groups/[groupId]/settings/page.tsx
   chat/, dashboard/, inbox/, proposals/  Compatibility redirects
   api/agent/route.ts               Primary structured orchestrator API
@@ -64,7 +93,7 @@ components/
 lib/
   store.tsx                        Group-scoped local state and workflow actions
   prototype-persistence.ts         localStorage schema, migrations, validation, fallback, reset
-  demo-data.ts                     Canonical Jeju trip group and seeded artifacts
+  demo-data.ts                     Canonical Han River BBQ group and seeded artifacts
   analytics.ts                     Derived group/global analytics
   parser/*                         Prototype natural-language and receipt-text parser
   domain/itemized-split-engine.ts  Deterministic itemized split and settlement engine
@@ -86,7 +115,9 @@ Groups are the workspace boundary. Group-owned data is the source of truth:
 - proposal payment/credit records
 - proposal timeline and settlement state
 
-Top-level app state only keeps app context such as selected group, selected chat IDs, workspace panel state, simulated global notifications, and current reviewer user mode.
+Top-level app state only keeps app context such as selected group, selected chat IDs, selected view-as profiles by group, workspace panel state, simulated global notifications, and legacy reviewer user mode.
+
+`selectedProfileByGroupId` stores the active simulated profile for each group. The left sidebar footer controls this "View as" profile, and `/groups/[groupId]/inbox` reads that group-scoped selection to render the selected participant's personal Your Share view.
 
 Analytics are derived from group proposal state through pure helpers, not manually maintained dashboard metrics.
 
@@ -133,7 +164,7 @@ Currently supported:
 - participant counts and simple named participant lists
 - exclusions like `Daniel does not eat beef`, `Hakim does not drink`, and `Mira only had drinks`
 - multiple payers like `Adam paid 50k upfront and I paid the rest`
-- simple previous payments like `Sarah already paid me 10,000`
+- simple previous payment claims like `Sarah already sent me 10,000`
 
 Ambiguous item allocation becomes a reviewable artifact instead of a silent guess. Credits become proof-aware claimed/confirmed ledger records, not verified bank transactions.
 
@@ -141,7 +172,28 @@ Ambiguous item allocation becomes a reviewable artifact instead of a silent gues
 
 Groups are isolated in the prototype state model. Production auth, invite links, server-side authorization, and multi-device sync are intentionally out of scope for this build.
 
-Participant switching is simulated for reviewer/demo flow. Notifications are simulated in-app indicators. Credit/proof records are local ledger records; they are not bank verification. There is no real payment processing, no payment collection, and no production database.
+Participant review is simulated through the left sidebar footer profile switcher. Group members are the available "View as" profiles, including the organizer and participants. Production auth, invite links, server-side authorization, and multi-device sync are intentionally out of scope for this build.
+
+`/groups/[groupId]/inbox` shows the selected participant's personal Your Share view: what they owe or receive, included/excluded items, payment claims, and next actions. If the organizer is selected, the page shows a safe preview state and asks the reviewer to choose a participant from the sidebar footer.
+
+Credit/proof records are local ledger records; they are not bank verification. Participant-side payment actions create payment claims that need organizer confirmation. There is no real payment processing, no payment collection, and no production database.
+
+## Splits Page
+
+The Splits page is currently served from `/groups/[groupId]/proposals`. The route name remains for compatibility, but the product surface is Splits.
+
+A split is an agreement record, not just a bill calculation. It combines the structured expense, deterministic share math, participant responses, change requests, claimed payment records, readiness blockers, and the organizer's next action. The organizer should be able to answer what exists in the current group, who is blocking agreement, which claimed payments need confirmation, and whether a split is ready to send, reconfirm, settle, or archive.
+
+Split statuses:
+
+- `draft`: organizer must review and send the split before participants can agree.
+- `waiting_for_responses` / `sent`: participants have been asked to confirm, but not everyone has responded.
+- `changes_requested`: at least one participant asked for a change.
+- `needs_reconfirmation`: amounts changed after earlier responses, so participants need to check again.
+- `safe_to_book`: deterministic readiness says the split is ready to settle.
+- `settled`: organizer marked the agreement resolved.
+
+Payment records are trust-safe prototype ledger entries. "Claimed payment" means a participant says they paid. "Confirmed by organizer" means the organizer accepted that claim inside the prototype. There is no real bank verification, payment processing, or payment collection.
 
 ## Run Locally
 
@@ -156,7 +208,13 @@ Open:
 http://localhost:3000
 ```
 
-Optional server-side AI configuration:
+Normal prototype mode uses the deterministic parser/proposal path. It does not require an OpenAI key, and the normal e2e suite is allowed to run without live AI:
+
+```bash
+pnpm test:e2e
+```
+
+Optional server-side AI configuration for live SDK mode:
 
 ```env
 OPENAI_API_KEY=your_server_side_key
@@ -164,7 +222,34 @@ OPENAI_MODEL=gpt-5.4-mini
 SPLITFLOW_USE_OPENAI_AGENTS_SDK=1
 ```
 
-Without API configuration, the deterministic reviewer path still works.
+Without API configuration, the deterministic reviewer path still works. With `SPLITFLOW_USE_OPENAI_AGENTS_SDK=1`, `/api/agent` uses `runOrchestrator` and records safe runtime metadata:
+
+```json
+{
+  "runtime": {
+    "route": "/api/agent",
+    "backend": "runOrchestrator",
+    "openAiAgentsSdk": {
+      "envFlagEnabled": true,
+      "apiKeyPresent": true,
+      "runtimeCreated": true,
+      "attempted": true,
+      "invoked": true,
+      "returnedOutput": true
+    }
+  }
+}
+```
+
+This metadata never exposes `OPENAI_API_KEY`; it only reports whether a key is present. A live SDK invocation is proven when the trace includes `run_openai_agents_sdk` and `runtime.openAiAgentsSdk.invoked === true`.
+
+Run the live SDK e2e check with:
+
+```bash
+pnpm test:agent:live
+```
+
+That script loads `.env`, starts a local Next server, sets `RUN_LIVE_AGENT_TESTS=1` and `SPLITFLOW_USE_OPENAI_AGENTS_SDK=1`, and runs `tests/e2e/agent-live.spec.ts`.
 
 ## Verification
 
@@ -176,25 +261,29 @@ pnpm build
 pnpm test:e2e
 ```
 
+Live SDK verification:
+
+```bash
+SPLITFLOW_USE_OPENAI_AGENTS_SDK=1 RUN_LIVE_AGENT_TESTS=1 pnpm test:agent:live
+```
+
+The SDK may draft organizer-facing prose, but deterministic TypeScript remains authoritative for totals, rounding, participant shares, risk, and readiness.
+
 ## Persistence
 
-Prototype state is stored in browser localStorage under one canonical key from `lib/prototype-persistence.ts`. Reset Demo Data clears old known keys and restores the canonical Jeju trip group.
+Prototype state is stored in browser localStorage under one canonical key from `lib/prototype-persistence.ts`. Reset Demo Data clears old known keys and restores the canonical Han River BBQ group.
 
 No production database is used.
 
 ## Known Limitations
 
-- localStorage persistence only
-- no production auth or server-side group authorization
-- no real notifications
-- no real payments or payment collection
-- no bank/payment-provider verification
-- no OCR
-- pasted receipt-like text is supported, but arbitrary receipt parsing is not
-- simulated agents and agent progress
-- simulated participant switching
+- localStorage only
+- simulated participants
+- no real auth
+- no real payment or bank verification
+- no production notifications
+- parser is prototype-grade, not full OCR
 - no multi-device sync
-- no immutable audit log
 
 ## Suggested Next Steps
 

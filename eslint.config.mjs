@@ -5,7 +5,7 @@ export default [
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {
-    ignores: [".next/**", "node_modules/**", "playwright-report/**", "test-results/**", "next-env.d.ts"]
+    ignores: [".next/**", ".next-e2e/**", "node_modules/**", "playwright-report/**", "test-results/**", "next-env.d.ts"]
   },
   {
     files: ["**/*.ts", "**/*.tsx"],

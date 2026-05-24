@@ -108,6 +108,7 @@ describe("SplitFlow chat transport", () => {
           runId: "run-123",
           groupId: "group-a",
           chatId: "chat-a",
+          sourceMessageId: "message-1",
           message: "Split dinner four ways.",
           idempotencyKey: "run-123"
         })

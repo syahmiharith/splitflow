@@ -26,6 +26,7 @@ import type {
   BotMessage,
   ChatSession,
   ParticipantStatus,
+  PaymentRecord,
   Proposal,
   SplitFlowGroup,
   UserMode
@@ -42,7 +43,9 @@ type StoreContextValue = {
   activeArtifacts: Artifact[];
   selectedArtifact?: Artifact;
   selectedPanelProposal?: Proposal;
+  selectedProfile?: SplitFlowGroup["members"][number];
   setCurrentUser: (user: UserMode) => void;
+  setSelectedProfile: (groupId: string, participantId: string) => void;
   createGroup: (input: { name: string; description?: string; members?: string[] }) => string;
   updateGroup: (groupId: string, input: Partial<Pick<SplitFlowGroup, "name" | "description" | "members">>) => void;
   selectGroup: (groupId: string) => void;
@@ -66,9 +69,11 @@ type StoreContextValue = {
   ) => void;
   applyAdjustment: (prompt: string, proposalId?: string) => void;
   acceptRequestedChange: (proposalId?: string) => void;
+  rejectRequestedChange: (proposalId?: string) => void;
   requestReconfirmation: (proposalId?: string) => void;
   markBooked: () => void;
   markPaid: (participantId: string, proposalId?: string) => void;
+  claimParticipantPayment: (participantId: string, proposalId?: string, note?: string) => void;
   markSettled: (proposalId?: string) => void;
   archiveProposal: (proposalId?: string) => void;
   resolveAllocation: (strategy: "single_total_equal_items" | "unallocated_remainder") => void;
@@ -182,7 +187,7 @@ function createEmptyChat(title = "New chat"): ChatSession {
   return {
     id: crypto.randomUUID(),
     title,
-    messages: [createMessage("bot", "Describe the shared cost, who is involved, and what needs to be decided.")],
+    messages: [createMessage("bot", "Describe the shared cost, who needs to agree, exclusions, claimed payments, and what must be decided before anyone fronts money.")],
     artifactIds: [],
     createdAt: now,
     updatedAt: now
@@ -270,6 +275,23 @@ function appendTimeline(proposal: Proposal, actor: string, text: string): Propos
   };
 }
 
+function defaultProfileIdForGroup(group: SplitFlowGroup): string {
+  const organizerId = group.proposals.find((proposal) => proposal.organizerId)?.organizerId;
+  if (organizerId && group.members.some((member) => member.id === organizerId)) return organizerId;
+  const explicitOrganizer = group.members.find((member) => member.id === "you");
+  return explicitOrganizer?.id ?? group.members[0]?.id ?? "you";
+}
+
+function normalizeSelectedProfiles(groups: SplitFlowGroup[], selectedProfileByGroupId: Record<string, string> = {}): Record<string, string> {
+  return Object.fromEntries(
+    groups.map((group) => {
+      const selected = selectedProfileByGroupId[group.id];
+      const valid = selected && group.members.some((member) => member.id === selected);
+      return [group.id, valid ? selected : defaultProfileIdForGroup(group)];
+    })
+  );
+}
+
 function hydrateDerivedState(state: AppState): AppState {
   const groups = state.groups.length > 0 ? state.groups : [defaultGroup];
   const selectedGroupId = state.selectedGroupId && groups.some((group) => group.id === state.selectedGroupId) ? state.selectedGroupId : groups[0].id;
@@ -278,12 +300,18 @@ function hydrateDerivedState(state: AppState): AppState {
   if (!selectedChatIdByGroupId[selectedGroupId] || !activeGroup.chats.some((chat) => chat.id === selectedChatIdByGroupId[selectedGroupId])) {
     selectedChatIdByGroupId[selectedGroupId] = activeGroup.chats[0]?.id ?? createEmptyChat().id;
   }
+  const selectedProfileByGroupId = normalizeSelectedProfiles(
+    groups,
+    state.selectedProfileByGroupId ?? (state.currentUser ? { [selectedGroupId]: state.currentUser } : {})
+  );
   return {
     ...state,
     schemaVersion: state.schemaVersion ?? initialState.schemaVersion,
     migrationLog: state.migrationLog ?? [],
     selectedGroupId,
     selectedChatIdByGroupId,
+    selectedProfileByGroupId,
+    currentUser: selectedProfileByGroupId[selectedGroupId] ?? state.currentUser,
     groups: groups.map((group) => ({ ...group, analyticsSummary: deriveGroupAnalytics(group) })),
     agentSteps: state.agentSteps.length > 0 ? state.agentSteps : initialState.agentSteps,
     agentRuns: state.agentRuns ?? []
@@ -366,6 +394,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const activeGroup = derived.activeGroup;
   const activeChat = derived.activeChat;
   const activeProposal = activeGroup.proposals[0] ?? defaultGroup.proposals[0];
+  const selectedProfileId = state.selectedProfileByGroupId?.[activeGroup.id] ?? defaultProfileIdForGroup(activeGroup);
+  const selectedProfile = activeGroup.members.find((member) => member.id === selectedProfileId) ?? activeGroup.members[0];
   const workspacePanel = state.workspacePanel;
   const activeArtifacts = activeChat.artifactIds
     .map((artifactId) => activeGroup.artifacts.find((artifact) => artifact.id === artifactId))
@@ -375,7 +405,24 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     workspacePanel?.type === "proposal" ? activeGroup.proposals.find((proposal) => proposal.id === workspacePanel.proposalId) : undefined;
 
   const setCurrentUser = useCallback((user: UserMode) => {
-    setState((current) => ({ ...current, currentUser: user }));
+    setState((current) => {
+      const { activeGroup: group } = selectedIds(current);
+      return hydrateDerivedState({
+        ...current,
+        currentUser: user,
+        selectedProfileByGroupId: { ...(current.selectedProfileByGroupId ?? {}), [group.id]: user }
+      });
+    });
+  }, []);
+
+  const setSelectedProfile = useCallback((groupId: string, participantId: string) => {
+    setState((current) =>
+      hydrateDerivedState({
+        ...current,
+        currentUser: current.selectedGroupId === groupId ? participantId : current.currentUser,
+        selectedProfileByGroupId: { ...(current.selectedProfileByGroupId ?? {}), [groupId]: participantId }
+      })
+    );
   }, []);
 
   const createGroup = useCallback((input: { name: string; description?: string; members?: string[] }) => {
@@ -386,6 +433,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         groups: [group, ...current.groups.filter((item) => item.id !== group.id)],
         selectedGroupId: group.id,
         selectedChatIdByGroupId: { ...(current.selectedChatIdByGroupId ?? {}), [group.id]: group.chats[0].id },
+        selectedProfileByGroupId: { ...(current.selectedProfileByGroupId ?? {}), [group.id]: defaultProfileIdForGroup(group) },
         workspacePanel: null
       })
     );
@@ -463,15 +511,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         const groups = current.groups.some((group) => group.id === result.group.id)
           ? current.groups.map((group) => (group.id === result.group.id ? result.group : group))
           : [result.group, ...current.groups];
-        const artifactId = result.artifacts.find((artifactItem) => artifactItem.type === "parser_review" || artifactItem.type === "change_request_summary")?.id ?? result.artifacts[0]?.id;
         return hydrateDerivedState({
           ...current,
           selectedGroupId: current.selectedGroupId,
           groups,
-          workspacePanel:
-            artifactId && current.selectedGroupId === result.group.id
-              ? { type: "artifact", artifactId }
-              : current.workspacePanel,
+          workspacePanel: current.workspacePanel,
           agentRuns: [result.run, ...(current.agentRuns ?? []).filter((run) => run.id !== result.run.id)].slice(0, 20),
           agentSteps:
             result.run.events.filter((event) => event.type === "step_completed").length > 0
@@ -518,9 +562,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       const artifacts = proposal
         ? [
             createArtifact("parser_review", `${proposal.title} split details`, "Review extracted costs, friends, payers, exclusions, credits, assumptions, and confidence before sending.", proposal.id, parserDetails),
-            createArtifact("proposal_draft", `${proposal.title}`, "Trip Split preview created from the parsed expense details.", proposal.id, parserDetails),
+            createArtifact("proposal_draft", `${proposal.title}`, "Ready for organizer review: total, itemized costs, exclusions, claimed payments, risk notes, and deterministic math.", proposal.id, parserDetails),
             createArtifact("itemized_breakdown", `${proposal.title} split math`, "Deterministic itemized calculation and who is included in each cost.", proposal.id, proposal.calculationResult?.auditExplanation),
-            createArtifact("settlement_plan", `${proposal.title} ready check`, "Shows who should pay whom and whether booking is ready.", proposal.id, proposal.calculationResult?.settlementInstructions.map((instruction) => instruction.text)),
+            createArtifact("settlement_plan", `${proposal.title} ready check`, "Shows who should pay whom and whether settlement is ready.", proposal.id, proposal.calculationResult?.settlementInstructions?.map((instruction) => instruction.text)),
             createArtifact("settlement_ledger", `${proposal.title} payment notes`, "Proof-aware notes for claimed and confirmed payments.", proposal.id, createSettlementLedgerLines(proposal))
           ]
         : parsed?.parserResult.issues.some((issue) => issue.code === "allocation_required")
@@ -541,7 +585,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         : [];
       const parserReply =
         parsed?.parserResult.status === "needs_clarification"
-          ? `I found a likely split, but need clarification before creating a Trip Split:\n${parsed.parserResult.clarificationQuestions.map((question) => `- ${question.question}`).join("\n")}`
+          ? `I found a likely split, but need clarification before creating a proposal artifact:\n${parsed.parserResult.clarificationQuestions.map((question) => `- ${question.question}`).join("\n")}`
           : parsed?.parserResult.status === "unsupported"
             ? parsed.parserResult.normalizedSummary
             : response.message;
@@ -550,19 +594,17 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       const nextState = updateGroup(
         {
           ...current,
-          workspacePanel:
-            artifacts[0] && current.selectedGroupId === group.id
-              ? { type: "artifact", artifactId: artifacts[0].id }
-              : current.workspacePanel,
+          workspacePanel: current.workspacePanel,
           agentSteps:
             parsed?.parserResult
               ? [
-                  { id: "parser-read", name: "Understood", description: "Identified the shared-cost scenario.", status: "completed", time: new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit" }).format(new Date()) },
-                  { id: "parser-items", name: "Costs", description: parsed.parserResult.normalizedSummary, status: "completed", time: new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit" }).format(new Date()) },
-                  { id: "parser-rules", name: "Rules", description: `${parsed.parserResult.draft?.exclusions.length ?? 0} rules and ${parsed.parserResult.draft?.credits.length ?? 0} credits detected.`, status: "completed", time: new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit" }).format(new Date()) },
-                  { id: "parser-validation", name: "Ready Check", description: parsed.parserResult.issues.length > 0 ? parsed.parserResult.issues.map((issue) => issue.message).join(" ") : "No blocking validation issues.", status: "completed", time: new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit" }).format(new Date()) },
-                  { id: "parser-engine", name: "Shares", description: proposal ? "Final amounts computed by deterministic TypeScript." : "Waiting for clarification before calculating final amounts.", status: proposal ? "completed" : "pending", time: new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit" }).format(new Date()) },
-                  { id: "parser-artifact", name: "Send", description: proposal ? "Trip Split is ready for review." : "No preview created until clarification is resolved.", status: proposal ? "completed" : "pending", time: new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit" }).format(new Date()) }
+                  { id: "parser-read", name: "Reading organizer request", description: "Identified the shared-cost agreement scenario.", status: "completed", time: new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit" }).format(new Date()) },
+                  { id: "parser-items", name: "Extracting items and participants", description: parsed.parserResult.normalizedSummary, status: "completed", time: new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit" }).format(new Date()) },
+                  { id: "parser-rules", name: "Checking exclusions and claimed payments", description: `${parsed.parserResult.draft?.exclusions.length ?? 0} exclusions and ${parsed.parserResult.draft?.credits.length ?? 0} claimed payments detected.`, status: "completed", time: new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit" }).format(new Date()) },
+                  { id: "parser-validation", name: "Validating total against itemized costs", description: parsed.parserResult.issues.length > 0 ? parsed.parserResult.issues.map((issue) => issue.message).join(" ") : "Itemized costs reconcile with the proposal total.", status: "completed", time: new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit" }).format(new Date()) },
+                  { id: "parser-engine", name: "Running deterministic split engine", description: proposal ? "Final amounts computed by deterministic TypeScript." : "Waiting for clarification before calculating final amounts.", status: proposal ? "completed" : "pending", time: new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit" }).format(new Date()) },
+                  { id: "parser-artifact", name: "Creating proposal artifact", description: proposal ? "Ready for organizer review." : "No preview created until clarification is resolved.", status: proposal ? "completed" : "pending", time: new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit" }).format(new Date()) },
+                  { id: "parser-actions", name: "Preparing human review actions", description: proposal ? "Send proposal, resolve changes, and confirm claimed payments before settlement." : "Human review actions will appear after proposal creation.", status: proposal ? "completed" : "pending", time: new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit" }).format(new Date()) }
                 ]
               : response.trace.length > 0
               ? response.trace.map((step, index) => ({
@@ -665,11 +707,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, [activeChat.id, activeGroup.id, activeProposal.id, applyServerAction]);
 
   const reviewProposal = useCallback(() => {
-    setState((current) => updateGroup(current, activeGroup.id, (group) => appendChatMessage(group, activeChat.id, createMessage("bot", "The Trip Split is ready. Open the panel to review the deterministic amounts before sending it to friends.", activeProposal.id))));
+    setState((current) => updateGroup(current, activeGroup.id, (group) => appendChatMessage(group, activeChat.id, createMessage("bot", "The proposal artifact is ready. Open the panel to review deterministic amounts, exclusions, claimed payments, and settlement readiness before sending.", activeProposal.id))));
   }, [activeChat.id, activeGroup.id, activeProposal.id]);
 
   const askAiToAdjust = useCallback(() => {
-    setState((current) => updateGroup(current, activeGroup.id, (group) => appendChatMessage(group, activeChat.id, createMessage("bot", "Describe the change, for example: Alex is only joining Saturday night.", activeProposal.id))));
+    setState((current) => updateGroup(current, activeGroup.id, (group) => appendChatMessage(group, activeChat.id, createMessage("bot", "Describe the change, for example: Daniel should be excluded from meat.", activeProposal.id))));
   }, [activeChat.id, activeGroup.id, activeProposal.id]);
 
   const applyAdjustment = useCallback((prompt: string, proposalId?: string) => {
@@ -682,6 +724,27 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const respondAsParticipant = useCallback((participantId: string, status: Extract<ParticipantStatus, "accepted" | "opted_out" | "requested_changes">, note?: string, proposalId?: string) => {
     const targetId = proposalId ?? activeProposal.id;
+    updateProposalInActiveGroup(targetId, (proposal) =>
+      appendTimeline(
+        {
+          ...proposal,
+          status: status === "requested_changes" ? "changes_requested" : status === "opted_out" ? "recalculation_needed" : proposal.status,
+          participants: proposal.participants.map((participant) =>
+            participant.id === participantId
+              ? {
+                  ...participant,
+                  status,
+                  paymentStatus: status === "accepted" ? "unpaid" : "review",
+                  changeRequestNote: status === "requested_changes" ? note ?? "Asked for a change." : participant.changeRequestNote,
+                  lastRespondedAt: new Date().toISOString()
+                }
+              : participant
+          )
+        },
+        proposal.participants.find((participant) => participant.id === participantId)?.name ?? participantId,
+        status === "accepted" ? "Accepted proposal." : status === "opted_out" ? "Opted out." : `Requested change: ${note ?? "No note provided."}`
+      )
+    );
     applyServerAction({
       type: "participant_response",
       groupId: activeGroup.id,
@@ -690,9 +753,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       participantId,
       status,
       note,
-      idempotencyKey: `response:${targetId}:${participantId}:${status}:${note ?? ""}`
+      idempotencyKey: `response:${targetId}:${participantId}:${status}:${note ?? ""}:${crypto.randomUUID()}`
     });
-  }, [activeChat.id, activeGroup.id, activeProposal.id, applyServerAction]);
+  }, [activeChat.id, activeGroup.id, activeProposal.id, applyServerAction, updateProposalInActiveGroup]);
 
   const acceptRequestedChange = useCallback((proposalId?: string) => {
     const targetId = proposalId ?? activeProposal.id;
@@ -704,6 +767,24 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       idempotencyKey: `accept-change:${targetId}`
     });
   }, [activeChat.id, activeGroup.id, activeProposal.id, applyServerAction]);
+
+  const rejectRequestedChange = useCallback((proposalId?: string) => {
+    updateProposalInActiveGroup(proposalId, (proposal) =>
+      appendTimeline(
+        {
+          ...proposal,
+          status: "waiting_for_responses",
+          participants: proposal.participants.map((participant) =>
+            participant.status === "requested_changes"
+              ? { ...participant, status: "pending", paymentStatus: "review", changeRequestNote: undefined }
+              : participant
+          )
+        },
+        "Organizer",
+        "Rejected participant change request; deterministic proposal amounts remain unchanged."
+      )
+    );
+  }, [updateProposalInActiveGroup]);
 
   const requestReconfirmation = useCallback((proposalId?: string) => {
     updateProposalInActiveGroup(proposalId, (proposal) =>
@@ -737,6 +818,73 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     });
   }, [activeChat.id, activeGroup.id, activeProposal.id, applyServerAction]);
 
+  const claimParticipantPayment = useCallback((participantId: string, proposalId?: string, note?: string) => {
+    const targetId = proposalId ?? activeProposal.id;
+    updateProposalInActiveGroup(targetId, (proposal) => {
+      const participant = proposal.participants.find((item) => item.id === participantId);
+      if (!participant) return proposal;
+      const calculation = proposal.calculationResult;
+      const net = calculation?.netBalanceByParticipant?.[participantId] ?? 0;
+      const fairShare = calculation?.fairShareByParticipant?.[participantId] ?? participant.shareAmount ?? 0;
+      const amount = Math.max(0, net < 0 ? Math.abs(net) : fairShare);
+      const organizerId = proposal.organizerId ?? proposal.participants[0]?.id ?? "you";
+      const createdAt = new Date().toISOString();
+      const proofNote = note?.trim() || "Participant claimed payment in prototype. Needs organizer confirmation.";
+      const existingClaim = (proposal.paymentRecords ?? []).find(
+        (record) =>
+          record.fromParticipantId === participantId &&
+          record.toParticipantId === organizerId &&
+          record.status === "claimed"
+      );
+      const paymentRecords: PaymentRecord[] = existingClaim
+        ? (proposal.paymentRecords ?? []).map((record) =>
+            record.id === existingClaim.id
+              ? {
+                  ...record,
+                  amount: amount || record.amount,
+                  status: "claimed",
+                  proofType: "reference",
+                  proofNote,
+                  reference: proofNote,
+                  createdAt
+                }
+              : record
+          )
+        : [
+            ...(proposal.paymentRecords ?? []),
+            {
+              id: `claim-${proposal.id}-${participantId}-${createdAt.replace(/[^0-9]/g, "")}`,
+              groupId: proposal.groupId ?? activeGroup.id,
+              proposalId: proposal.id,
+              fromParticipantId: participantId,
+              toParticipantId: organizerId,
+              amount,
+              currency: proposal.currency,
+              kind: "settlement_payment",
+              status: "claimed",
+              proofType: "reference",
+              proofNote,
+              reference: proofNote,
+              createdAt,
+              sourceText: proofNote
+            }
+          ];
+
+      return appendTimeline(
+        {
+          ...proposal,
+          paymentRecords,
+          participants: proposal.participants.map((item) =>
+            item.id === participantId ? { ...item, paymentStatus: "review", lastRespondedAt: createdAt } : item
+          ),
+          updatedAt: createdAt
+        },
+        participant.name,
+        "Added a payment claim. Needs organizer confirmation; no bank verification in prototype."
+      );
+    });
+  }, [activeGroup.id, activeProposal.id, updateProposalInActiveGroup]);
+
   const markSettled = useCallback((proposalId?: string) => {
     const targetId = proposalId ?? activeProposal.id;
     applyServerAction({
@@ -766,12 +914,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           `Allocation: ${strategy}`,
           ...(parserResult.draft?.assumptions ?? []).map((assumption) => `Assumption: ${assumption}`)
         ]),
-        createArtifact("proposal_draft", `${proposal.title}`, "Trip Split preview created after allocation resolution.", proposal.id),
+        createArtifact("proposal_draft", `${proposal.title}`, "Proposal artifact created after allocation resolution.", proposal.id),
         createArtifact("settlement_ledger", `${proposal.title} payment notes`, "Proof-aware notes for claimed and confirmed payments.", proposal.id, createSettlementLedgerLines(proposal))
       ];
       return updateGroup({ ...current, workspacePanel: { type: "artifact", artifactId: artifacts[0].id } }, group.id, (currentGroup) => {
         let nextGroup = upsertProposal(currentGroup, proposal);
-        nextGroup = appendChatMessage(nextGroup, chat.id, createMessage("bot", `Resolved allocation using ${strategy.replaceAll("_", " ")}. The Trip Split is ready for review.`, proposal.id));
+        nextGroup = appendChatMessage(nextGroup, chat.id, createMessage("bot", `Resolved allocation using ${strategy.replaceAll("_", " ")}. The proposal is ready for review.`, proposal.id));
         return appendArtifactsToChat(nextGroup, chat.id, artifacts);
       });
     });
@@ -826,7 +974,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       activeArtifacts,
       selectedArtifact,
       selectedPanelProposal,
+      selectedProfile,
       setCurrentUser,
+      setSelectedProfile,
       createGroup,
       updateGroup: updateGroupAction,
       selectGroup,
@@ -845,9 +995,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       respondAsParticipant,
       applyAdjustment,
       acceptRequestedChange,
+      rejectRequestedChange,
       requestReconfirmation,
       markBooked,
       markPaid,
+      claimParticipantPayment,
       markSettled,
       archiveProposal,
       resolveAllocation,
@@ -867,7 +1019,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       activeArtifacts,
       selectedArtifact,
       selectedPanelProposal,
+      selectedProfile,
       setCurrentUser,
+      setSelectedProfile,
       createGroup,
       updateGroupAction,
       selectGroup,
@@ -886,9 +1040,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       respondAsParticipant,
       applyAdjustment,
       acceptRequestedChange,
+      rejectRequestedChange,
       requestReconfirmation,
       markBooked,
       markPaid,
+      claimParticipantPayment,
       markSettled,
       archiveProposal,
       resolveAllocation,

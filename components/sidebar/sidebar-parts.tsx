@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import type { PointerEvent } from "react";
-import { Bell, Check, FileText, Grid2X2, Home, MessageCircle, Plus, Settings, Waypoints, X } from "lucide-react";
+import { Check, ChevronsUpDown, FileText, Grid2X2, Home, MessageCircle, Plus, Settings, UserRoundCheck, Waypoints, X } from "lucide-react";
 import type { ChatSession, SplitFlowGroup } from "@/lib/types";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 
@@ -48,7 +48,7 @@ export function WorkspaceNav({
     { href: "/", label: "Home", testIdLabel: "home", icon: Home },
     { href: groupBase, label: "Overview", testIdLabel: "overview", icon: Grid2X2 },
     { href: `${groupBase}/proposals`, label: "Splits", testIdLabel: "proposals", icon: FileText },
-    { href: `${groupBase}/inbox`, label: "Your Share", testIdLabel: "notifications", icon: Bell }
+    { href: `${groupBase}/inbox`, label: "Your Share", testIdLabel: "notifications", icon: UserRoundCheck }
   ];
 
   return (
@@ -216,17 +216,18 @@ export function SidebarFooter({
         <button
           type="button"
           onClick={onOpenProfile}
-          className="flex min-w-0 flex-1 items-center gap-3 rounded-lg text-left"
+          className="flex min-w-0 flex-1 items-center gap-3 rounded-lg px-2 py-1 text-left hover:bg-slate-50"
           data-testid={testId("sidebar-profile-button")}
-          aria-label="Open account settings"
+          aria-label="Open view as profile switcher"
         >
           <span className="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-full bg-slate-200 text-xs font-bold text-app-text">
-            {currentParticipant?.name.slice(0, 2) ?? "You"}
+            {currentParticipant?.name.slice(0, 1) ?? "Y"}
           </span>
           <span className="min-w-0 flex-1">
             <span className="block truncate text-sm font-semibold text-app-text">{currentParticipant?.name ?? "You"}</span>
             <span className="block truncate text-xs text-app-muted">{currentParticipantRole}</span>
           </span>
+          <ChevronsUpDown className="h-4 w-4 shrink-0 text-app-muted" aria-hidden="true" />
         </button>
         <Link
           href={`${groupBase}/settings`}
@@ -247,36 +248,39 @@ export function ProfileSheet({
   activeGroup,
   currentParticipant,
   groupBase,
-  currentUser,
+  selectedProfileId,
   onClose,
   onNavigate,
   onPointerDown,
   onPointerUp,
-  onSetCurrentUser,
+  onSetSelectedProfile,
   testId
 }: {
   open: boolean;
   activeGroup: SplitFlowGroup;
   currentParticipant?: Participant;
   groupBase: string;
-  currentUser: string;
+  selectedProfileId: string;
   onClose: () => void;
   onNavigate?: () => void;
   onPointerDown: (event: PointerEvent<HTMLDivElement>) => void;
   onPointerUp: (event: PointerEvent<HTMLDivElement>) => void;
-  onSetCurrentUser: (userId: string) => void;
+  onSetSelectedProfile: (userId: string) => void;
   testId: TestId;
 }) {
+  const organizerId = activeGroup.proposals[0]?.organizerId ?? "you";
+  const roleFor = (participantId: string) => (participantId === organizerId ? "Organizer" : "Participant");
+
   return (
     <div
-      className={`fixed inset-0 z-[60] flex items-end transition-colors duration-200 ${
+      className={`fixed inset-0 z-[60] flex items-end transition-colors duration-200 md:items-center md:justify-center md:p-6 ${
         open ? "pointer-events-auto bg-slate-900/30" : "pointer-events-none bg-slate-900/0"
       }`}
       data-testid={testId("profile-sheet-backdrop")}
       aria-hidden={!open}
     >
       <div
-        className={`max-h-[86vh] w-full overflow-y-auto rounded-t-2xl border border-app-border bg-white p-4 shadow-soft transition-transform duration-200 ease-out ${
+        className={`max-h-[86vh] w-full overflow-y-auto rounded-t-2xl border border-app-border bg-white p-4 shadow-soft transition-transform duration-200 ease-out md:max-w-md md:rounded-lg ${
           open ? "translate-y-0" : "translate-y-full"
         }`}
         data-testid={testId("profile-bottom-sheet")}
@@ -286,12 +290,12 @@ export function ProfileSheet({
         <div className="mx-auto mb-3 h-1.5 w-12 rounded-full bg-slate-300" aria-hidden="true" />
         <div className="flex items-start gap-3">
           <span className="grid h-14 w-14 shrink-0 place-items-center overflow-hidden rounded-full bg-slate-200 text-sm font-bold text-app-text">
-            {currentParticipant?.name.slice(0, 2) ?? "You"}
+            {currentParticipant?.name.slice(0, 1) ?? "Y"}
           </span>
           <div className="min-w-0 flex-1">
-            <div className="text-xs font-semibold uppercase tracking-wide text-app-muted">Account</div>
+            <div className="text-xs font-semibold uppercase tracking-wide text-app-muted">View as</div>
             <h2 className="mt-1 truncate text-lg font-bold">{currentParticipant?.name ?? "You"}</h2>
-            <p className="mt-1 text-sm text-app-muted">Demo profile controls for reviewer testing.</p>
+            <p className="mt-1 text-sm text-app-muted">Prototype profile switching. Production auth is out of scope.</p>
           </div>
           <button
             type="button"
@@ -318,29 +322,35 @@ export function ProfileSheet({
         </Link>
 
         <div className="mt-5">
-          <div className="text-xs font-semibold uppercase tracking-wide text-app-muted">Switch demo user</div>
+          <div className="text-xs font-semibold uppercase tracking-wide text-app-muted">View as</div>
           <div className="mt-2 space-y-2">
             {activeGroup.members.map((participant) => {
-              const active = participant.id === currentUser;
+              const active = participant.id === selectedProfileId;
               return (
                 <button
                   key={participant.id}
                   type="button"
-                  onClick={() => onSetCurrentUser(participant.id)}
+                  onClick={() => onSetSelectedProfile(participant.id)}
                   className={`flex min-h-11 w-full items-center gap-3 rounded-lg border px-3 text-left text-sm font-semibold ${
                     active ? "border-blue-200 bg-blue-50 text-app-blue" : "border-app-border bg-white text-app-text hover:bg-slate-50"
                   }`}
                   data-testid={testId(`profile-switch-${participant.id}`)}
                 >
                   <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-slate-200 text-[11px] text-app-text">
-                    {participant.name.slice(0, 2)}
+                    {participant.name.slice(0, 1)}
                   </span>
-                  <span className="min-w-0 flex-1 truncate">{participant.name}</span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate">{participant.name}</span>
+                    <span className="block truncate text-xs font-normal text-app-muted">{roleFor(participant.id)}</span>
+                  </span>
                   {active ? <Check className="h-4 w-4" aria-hidden="true" /> : null}
                 </button>
               );
             })}
           </div>
+          <p className="mt-3 rounded-md border border-app-border bg-slate-50 px-3 py-2 text-xs leading-5 text-app-muted" data-testid={testId("profile-switcher-note")}>
+            Prototype profile switching. Production auth is out of scope.
+          </p>
         </div>
       </div>
     </div>

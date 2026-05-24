@@ -78,8 +78,13 @@ describe("full orchestrator workflow", () => {
       "Orchestrator Agent",
       "Proposal Agent",
       "Risk Decision Agent",
-      "Recommendation Agent"
+      "Recommendation Agent",
+      "Orchestrator Agent"
     ]);
+    expect(result.trace.at(-1)).toMatchObject({
+      action: "check_openai_agents_sdk",
+      status: "blocked"
+    });
   });
 
   it("can route organizer-facing prose through an injected Agents SDK runtime", async () => {
@@ -88,7 +93,7 @@ describe("full orchestrator workflow", () => {
       {
         agentsRuntime: {
           async draftOrganizerMessage() {
-            return "SDK drafted organizer update.";
+            return { status: "invoked", output: "SDK drafted organizer update.", model: "test-model" };
           }
         }
       }
@@ -101,6 +106,63 @@ describe("full orchestrator workflow", () => {
         action: "run_openai_agents_sdk"
       })
     );
+    expect(result.runtime?.openAiAgentsSdk).toMatchObject({
+      runtimeCreated: true,
+      attempted: true,
+      invoked: true,
+      returnedOutput: true
+    });
     expect(result.proposal?.participants.map((participant) => participant.amountOwed)).toEqual([30000, 30000, 30000, 30000]);
+  });
+
+  it("records SDK no-output fallback without breaking deterministic proposal creation", async () => {
+    const result = await runOrchestrator(
+      { type: "user_message", message: dinnerMessage },
+      {
+        agentsRuntime: {
+          async draftOrganizerMessage() {
+            return { status: "no_output", model: "test-model" };
+          }
+        }
+      }
+    );
+
+    expect(result.message).toContain("Drafted");
+    expect(result.trace).toContainEqual(
+      expect.objectContaining({
+        action: "run_openai_agents_sdk",
+        status: "blocked",
+        detail: "SDK returned no string output; deterministic fallback used."
+      })
+    );
+    expect(result.runtime?.openAiAgentsSdk).toMatchObject({
+      attempted: true,
+      invoked: true,
+      returnedOutput: false,
+      errorCode: "no_output"
+    });
+  });
+
+  it("records SDK failures without breaking deterministic proposal creation", async () => {
+    const result = await runOrchestrator(
+      { type: "user_message", message: dinnerMessage },
+      {
+        agentsRuntime: {
+          async draftOrganizerMessage() {
+            return { status: "failed", model: "test-model", errorCode: "rate_limit_exceeded" };
+          }
+        }
+      }
+    );
+
+    expect(result.proposal).toBeDefined();
+    expect(result.trace).toContainEqual(
+      expect.objectContaining({
+        action: "run_openai_agents_sdk",
+        status: "blocked",
+        detail: "SDK call failed; deterministic fallback used."
+      })
+    );
+    expect(result.runtime?.openAiAgentsSdk.errorCode).toBe("rate_limit_exceeded");
   });
 });

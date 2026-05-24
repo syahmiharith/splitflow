@@ -7,8 +7,11 @@ function slug(value: string): string {
 }
 
 function extractAmount(message: string): number | undefined {
-  const marked = message.match(/(?:₩|krw\s*)(\d[\d,]*)|(\d[\d,]*)\s*(?:won|krw)/i);
-  if (marked) return Number((marked[1] ?? marked[2]).replace(/,/g, ""));
+  const markedAmounts = [...message.matchAll(/(?:₩|krw\s*)(\d[\d,]*)|(\d[\d,]*)\s*(?:won|krw)/gi)].map((match) =>
+    Number((match[1] ?? match[2]).replace(/,/g, ""))
+  );
+  if (markedAmounts.length === 1) return markedAmounts[0];
+  if (markedAmounts.length > 1) return markedAmounts.reduce((sum, amount) => sum + amount, 0);
 
   const unmarked = [...message.matchAll(/\b(\d[\d,]*)\b/g)]
     .map((match) => ({ value: Number(match[1].replace(/,/g, "")), index: match.index ?? 0 }))
@@ -21,7 +24,11 @@ function extractAmount(message: string): number | undefined {
 
 function extractParticipantCount(message: string): number | undefined {
   const match = message.match(/(?:between|for|among|with)\s+(\d+)\s+(?:people|participants|friends|members)/i);
-  return match ? Number(match[1]) : undefined;
+  if (match) return Number(match[1]);
+  const shorthand = message.match(/\b(?:for|between|among|with)\s+(\d+)(?:\.|,|$)/i);
+  if (!shorthand) return undefined;
+  const count = Number(shorthand[1]);
+  return count > 0 && count <= 50 ? count : undefined;
 }
 
 function inferExpenseType(message: string): ExpenseType {

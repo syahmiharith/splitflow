@@ -25,7 +25,7 @@ export type AgentName =
   | "Recommendation Agent";
 
 export type OrchestratorEvent =
-  | { type: "user_message"; message: string; workflowId?: string }
+  | { type: "user_message"; message: string; workflowId?: string; groupId?: string; chatId?: string; sourceMessageId?: string; idempotencyKey?: string }
   | { type: "send_proposal"; proposalId: string }
   | { type: "participant_response"; proposalId: string; participantId: string; response: "accepted" | "opted_out" | "requested_change"; note?: string }
   | { type: "direct_agent_call"; agentName: Exclude<AgentName, "Orchestrator Agent"> };
@@ -128,6 +128,22 @@ export type AgentResult<T = unknown> = {
   trace: AgentTraceStep[];
 };
 
+export type OpenAiAgentsSdkRuntimeMetadata = {
+  envFlagEnabled: boolean;
+  apiKeyPresent: boolean;
+  runtimeCreated: boolean;
+  attempted: boolean;
+  invoked: boolean;
+  returnedOutput: boolean;
+  errorCode?: string;
+};
+
+export type AgentRuntimeMetadata = {
+  route: "/api/agent";
+  backend: "runOrchestrator";
+  openAiAgentsSdk: OpenAiAgentsSdkRuntimeMetadata;
+};
+
 export type OrchestratorResponse = {
   message: string;
   proposal?: Proposal;
@@ -135,4 +151,5 @@ export type OrchestratorResponse = {
   recommendation?: RecommendationResult;
   nextActions: string[];
   trace: AgentTraceStep[];
+  runtime?: AgentRuntimeMetadata;
 };

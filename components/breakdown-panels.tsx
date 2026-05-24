@@ -27,19 +27,19 @@ export function BreakdownPanels({ proposal }: { proposal: Proposal }) {
             </div>
             <div className="grid gap-3 p-5 md:grid-cols-2">
               <div className="space-y-2">
-                {proposal.calculationResult.auditExplanation.map((line) => (
+                {(proposal.calculationResult.auditExplanation ?? []).map((line) => (
                   <div key={line} className="rounded-lg border border-app-border bg-slate-50 px-3 py-2 text-sm text-app-text">
                     {line}
                   </div>
                 ))}
-                {proposal.calculationResult.roundingAdjustments.length > 0 ? (
+                {(proposal.calculationResult.roundingAdjustments ?? []).length > 0 ? (
                   <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-app-text">
-                    Rounding adjustment: {proposal.calculationResult.roundingAdjustments.length} minor-unit assignment
+                    Rounding adjustment: {(proposal.calculationResult.roundingAdjustments ?? []).length} minor-unit assignment
                   </div>
                 ) : null}
               </div>
               <div className="space-y-2">
-                {proposal.calculationResult.settlementInstructions.map((instruction) => (
+                {(proposal.calculationResult.settlementInstructions ?? []).map((instruction) => (
                   <div key={`${instruction.fromParticipantId}-${instruction.toParticipantId}-${instruction.amount}`} className="rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-sm font-medium text-app-text">
                     {instruction.text}
                   </div>
@@ -120,11 +120,11 @@ function CostItemsPanel({ items, total }: { items: CostItem[]; total: number }) 
 function ParticipantBreakdown({ proposal }: { proposal: Proposal }) {
   const participants = proposal.participants;
   const calculation = proposal.calculationResult;
-  const fairShareTotal = calculation
+  const fairShareTotal = calculation?.fairShareByParticipant
     ? Object.values(calculation.fairShareByParticipant).reduce((sum, amount) => sum + amount, 0)
     : participants.reduce((sum, participant) => sum + participant.shareAmount, 0);
-  const paidTotal = calculation ? Object.values(calculation.totalPaidByParticipant).reduce((sum, amount) => sum + amount, 0) : 0;
-  const netTotal = calculation ? Object.values(calculation.netBalanceByParticipant).reduce((sum, amount) => sum + amount, 0) : -fairShareTotal;
+  const paidTotal = calculation?.totalPaidByParticipant ? Object.values(calculation.totalPaidByParticipant).reduce((sum, amount) => sum + amount, 0) : 0;
+  const netTotal = calculation?.netBalanceByParticipant ? Object.values(calculation.netBalanceByParticipant).reduce((sum, amount) => sum + amount, 0) : -fairShareTotal;
 
   return (
     <AppCard className="overflow-hidden" data-testid="participant-breakdown-panel">
@@ -149,10 +149,10 @@ function ParticipantBreakdown({ proposal }: { proposal: Proposal }) {
                     {participant.roleNote ?? "Participant"}
                   </span>
                 </Table.Cell>
-                <Table.Cell numeric className="font-medium">{formatKrw(calculation?.fairShareByParticipant[participant.id] ?? participant.shareAmount)}</Table.Cell>
-                <Table.Cell numeric muted>{formatKrw(calculation?.totalPaidByParticipant[participant.id] ?? 0)}</Table.Cell>
-                <Table.Cell numeric className={`font-bold ${(calculation?.netBalanceByParticipant[participant.id] ?? -participant.shareAmount) >= 0 ? "text-app-green" : "text-app-red"}`}>
-                  {formatKrw(calculation?.netBalanceByParticipant[participant.id] ?? -participant.shareAmount)}
+                <Table.Cell numeric className="font-medium">{formatKrw(calculation?.fairShareByParticipant?.[participant.id] ?? participant.shareAmount)}</Table.Cell>
+                <Table.Cell numeric muted>{formatKrw(calculation?.totalPaidByParticipant?.[participant.id] ?? 0)}</Table.Cell>
+                <Table.Cell numeric className={`font-bold ${(calculation?.netBalanceByParticipant?.[participant.id] ?? -participant.shareAmount) >= 0 ? "text-app-green" : "text-app-red"}`}>
+                  {formatKrw(calculation?.netBalanceByParticipant?.[participant.id] ?? -participant.shareAmount)}
                 </Table.Cell>
               </Table.Row>
             ))}

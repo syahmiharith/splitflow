@@ -16,15 +16,15 @@ describe("file-backed workflow repository", () => {
     const reloaded = await new FileWorkflowRepository(filePath).read();
 
     expect(seeded.schemaVersion).toBe(1);
-    expect(reloaded.groups[0].id).toBe("jeju-trip");
-    expect(reloaded.proposalRecords[0].currentVersionId).toBe("jeju-airbnb-trip-v1");
+    expect(reloaded.groups[0].id).toBe("han-river-bbq");
+    expect(reloaded.proposalRecords[0].currentVersionId).toBe("han-river-bbq-proposal-v1");
   });
 
   it("creates idempotent runs with persisted events and proposal versions", async () => {
     const repository = new FileWorkflowRepository(stateFile("run"));
     const request = {
-      groupId: "jeju-trip",
-      chatId: "chat-jeju-intake",
+      groupId: "han-river-bbq",
+      chatId: "chat-han-river-bbq",
       message: "Dinner was 120,000 won for 4 people.",
       idempotencyKey: "same-run-key"
     };
@@ -44,34 +44,34 @@ describe("file-backed workflow repository", () => {
     await applyWorkflowAction(
       {
         type: "participant_response",
-        groupId: "jeju-trip",
-        chatId: "chat-jeju-intake",
-        proposalId: "jeju-airbnb-trip",
-        participantId: "alex",
+        groupId: "han-river-bbq",
+        chatId: "chat-han-river-bbq",
+        proposalId: "han-river-bbq-proposal",
+        participantId: "daniel",
         status: "requested_changes",
-        note: "Alex is only joining Saturday night.",
-        idempotencyKey: "alex-change"
+        note: "Daniel does not eat beef, so exclude him from meat.",
+        idempotencyKey: "daniel-change"
       },
       repository
     );
     const accepted = await applyWorkflowAction(
       {
         type: "accept_change",
-        groupId: "jeju-trip",
-        chatId: "chat-jeju-intake",
-        proposalId: "jeju-airbnb-trip",
-        idempotencyKey: "accept-alex-change"
+        groupId: "han-river-bbq",
+        chatId: "chat-han-river-bbq",
+        proposalId: "han-river-bbq-proposal",
+        idempotencyKey: "accept-daniel-change"
       },
       repository
     );
     const state = await repository.read();
-    const record = state.proposalRecords.find((item) => item.id === "jeju-airbnb-trip");
-    const firstVersion = state.proposalVersions.find((version) => version.id === "jeju-airbnb-trip-v1");
+    const record = state.proposalRecords.find((item) => item.id === "han-river-bbq-proposal");
+    const firstVersion = state.proposalVersions.find((version) => version.id === "han-river-bbq-proposal-v1");
     const activeSummary = state.artifactRecords.find((recordItem) => recordItem.kind === "change_request_summary" && recordItem.state === "active");
 
     expect(record?.versionIds.length).toBeGreaterThanOrEqual(3);
     expect(firstVersion?.proposal.version).toBe(1);
     expect(accepted.proposal?.status).toBe("needs_reconfirmation");
-    expect(activeSummary?.proposalVersionId).toBe(`jeju-airbnb-trip-v${accepted.proposal?.version}`);
+    expect(activeSummary?.proposalVersionId).toBe(`han-river-bbq-proposal-v${accepted.proposal?.version}`);
   });
 });

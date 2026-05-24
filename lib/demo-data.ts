@@ -1,6 +1,7 @@
 import type { AgentStep, AppState, Artifact, BotMessage, ChatSession, Notification, Proposal, SplitFlowGroup } from "@/lib/types";
 import { createHanRiverBbqProposal } from "@/lib/prototype-proposals";
 import { deriveGroupAnalytics } from "@/lib/analytics";
+import { buildProposalArtifactSections, stableArtifactKey } from "@/lib/artifact-identity";
 
 const now = "2026-05-22T10:22:00.000+09:00";
 export const canonicalBbqPrompt = `I'm organizing a Han River BBQ for 8 people and need agreement before I front ₩128,000.
@@ -38,6 +39,14 @@ export const demoMessages: BotMessage[] = [
     createdAt: "2026-05-22T10:22:00.000+09:00"
   },
   {
+    id: "m2-workflow",
+    sender: "agent",
+    content: "SplitFlow workflow",
+    createdAt: "2026-05-22T10:22:00.000+09:00",
+    workflowRunId: "demo-run-han-river-bbq",
+    agentName: "SplitFlow workflow"
+  },
+  {
     id: "m3",
     sender: "bot",
     content: "I built a Han River BBQ proposal artifact. Review the deterministic math, Daniel's meat exclusion, Sarah's claimed payment, and Ali's risk note before sending it for agreement.",
@@ -73,16 +82,27 @@ export const demoArtifacts: Artifact[] = [
     id: "artifact-han-river-bbq-proposal",
     type: "proposal_draft",
     title: "Han River BBQ Proposal",
-    summary: "Ready for organizer review: ₩128,000 total, Daniel excluded from meat, Sarah claimed ₩10,000, Ali risk note captured.",
+    summary: "Proposal artifact bundle: review parser output, deterministic math, settlement readiness, payment ledger, and warnings in one place.",
     proposalId: "han-river-bbq-proposal",
-    createdAt: now
-  },
-  {
-    id: "artifact-han-river-bbq-readiness",
-    type: "settlement_plan",
-    title: "Settlement Readiness",
-    summary: "Not ready: organizer must send for agreement and confirm Sarah's claimed payment before settlement.",
-    proposalId: "han-river-bbq-proposal",
+    details: [
+      "Review: ₩128,000 total, Daniel excluded from meat, Sarah claimed ₩10,000, Ali risk note captured.",
+      "Math: deterministic itemized split engine calculated participant shares.",
+      "Settlement: not ready until organizer sends for agreement and confirms Sarah's claim.",
+      "Ledger: Sarah's payment remains claimed, not confirmed."
+    ],
+    sourceText: canonicalBbqPrompt,
+    ...stableArtifactKey({
+      groupId: "han-river-bbq",
+      chatId: "chat-han-river-bbq",
+      proposalId: "han-river-bbq-proposal",
+      type: "proposal_draft",
+      sourceText: canonicalBbqPrompt
+    }),
+    bundleSections: buildProposalArtifactSections(demoProposal, [
+      "Mode: itemized",
+      "Detected total: ₩128,000",
+      "Detected participants: Syahmi, Ali, Sarah, Daniel, Mira, Hakim, Adam, Minji"
+    ]),
     createdAt: now
   }
 ];

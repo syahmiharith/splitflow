@@ -3,6 +3,8 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import type { OrchestratorResponse } from "@/lib/agents/agent-types";
 import { deriveGroupAnalytics } from "@/lib/analytics";
+import { buildProposalArtifactSections, stableArtifactKey } from "@/lib/artifact-identity";
+import { upsertArtifactsForChat } from "@/lib/artifact-upsert";
 import type { Proposal as DomainProposal } from "@/lib/domain/proposal-types";
 import { defaultGroup, initialState } from "@/lib/demo-data";
 import { createGroupParticipant } from "@/lib/group-participant";
@@ -88,13 +90,14 @@ type StoreContextValue = {
 
 const StoreContext = createContext<StoreContextValue | null>(null);
 
-function createMessage(sender: BotMessage["sender"], content: string, relatedProposalId?: string): BotMessage {
+function createMessage(sender: BotMessage["sender"], content: string, relatedProposalId?: string, extra?: Partial<BotMessage>): BotMessage {
   return {
     id: crypto.randomUUID(),
     sender,
     content,
     createdAt: new Date().toISOString(),
-    relatedProposalId
+    relatedProposalId,
+    ...extra
   };
 }
 
@@ -126,18 +129,20 @@ function createAgentRun(context: AgentRunContext, sourceMessageId: string): Agen
 }
 
 function completeAgentRun(run: AgentRun, response: OrchestratorResponse, artifacts: Artifact[]): AgentRun {
-  const traceEvents = response.trace.map((step) =>
-    createRunEvent(run.id, "step_completed", step.detail, { step: step.agent })
-  );
-  const artifactEvents = artifacts.map((artifact) =>
-    createRunEvent(run.id, "artifact_staged", `Staged ${artifact.title}.`, { artifactId: artifact.id })
-  );
-  const completed = createRunEvent(run.id, "run_completed", "SplitFlow workflow response applied to the originating chat.");
-  const events = [...run.events, ...traceEvents, ...artifactEvents, completed];
+  const traceEvents = response.trace
+    .filter((step) => !run.events.some((event) => event.type === "step_completed" && event.step === step.agent && event.detail === step.detail))
+    .map((step) => createRunEvent(run.id, "step_completed", step.detail, { step: step.agent }));
+  const artifactEvents = artifacts
+    .filter((artifact) => !run.events.some((event) => event.type === "artifact_staged" && event.artifactId === artifact.id))
+    .map((artifact) => createRunEvent(run.id, "artifact_staged", `Staged ${artifact.title}.`, { artifactId: artifact.id }));
+  const completed = run.events.some((event) => event.type === "run_completed")
+    ? undefined
+    : createRunEvent(run.id, "run_completed", "SplitFlow workflow response applied to the originating chat.");
+  const events = [...run.events, ...traceEvents, ...artifactEvents, ...(completed ? [completed] : [])];
   return {
     ...run,
     status: "completed",
-    endedAt: completed.at,
+    endedAt: completed?.at ?? run.endedAt ?? new Date().toISOString(),
     eventIds: events.map((event) => event.id),
     events
   };
@@ -169,7 +174,15 @@ function applyRunEvent(run: AgentRun, event: AgentRunEvent): AgentRun {
   };
 }
 
-function createArtifact(type: Artifact["type"], title: string, summary: string, proposalId?: string, details?: string[], sourceText?: string): Artifact {
+function createArtifact(
+  type: Artifact["type"],
+  title: string,
+  summary: string,
+  proposalId?: string,
+  details?: string[],
+  sourceText?: string,
+  stable?: Pick<Artifact, "stableKey" | "sourceHash" | "bundleSections">
+): Artifact {
   return {
     id: crypto.randomUUID(),
     type,
@@ -178,8 +191,40 @@ function createArtifact(type: Artifact["type"], title: string, summary: string, 
     proposalId,
     details,
     sourceText,
+    ...stable,
     createdAt: new Date().toISOString()
   };
+}
+
+function createProposalBundleArtifact(groupId: string, chatId: string, proposal: Proposal, sourceText?: string, parserDetails: string[] = []): Artifact {
+  const identity = stableArtifactKey({
+    groupId,
+    chatId,
+    proposalId: proposal.id,
+    type: "proposal_draft",
+    sourceText: sourceText ?? `${proposal.title}:${proposal.id}`
+  });
+  const settlementLines = proposal.calculationResult?.settlementInstructions.map((instruction) => instruction.text) ?? [];
+  const ledgerLines = createSettlementLedgerLines(proposal);
+  const details = [
+    ...parserDetails,
+    ...(proposal.calculationResult?.auditExplanation ?? []).map((line) => `Math: ${line}`),
+    ...settlementLines.map((line) => `Settlement: ${line}`),
+    ...ledgerLines.map((line) => `Ledger: ${line}`),
+    ...(proposal.parserWarnings ?? []).map((line) => `Warning: ${line}`)
+  ];
+  return createArtifact(
+    "proposal_draft",
+    proposal.title,
+    "Proposal artifact bundle: review parser output, deterministic math, settlement readiness, payment ledger, and warnings in one place.",
+    proposal.id,
+    details,
+    sourceText,
+    {
+      ...identity,
+      bundleSections: buildProposalArtifactSections(proposal, parserDetails)
+    }
+  );
 }
 
 function createEmptyChat(title = "New chat"): ChatSession {
@@ -364,35 +409,20 @@ function upsertProposal(group: SplitFlowGroup, proposal: Proposal): SplitFlowGro
 }
 
 function appendChatMessage(group: SplitFlowGroup, chatId: string, message: BotMessage): SplitFlowGroup {
+  return appendChatMessages(group, chatId, [message]);
+}
+
+function appendChatMessages(group: SplitFlowGroup, chatId: string, messages: BotMessage[]): SplitFlowGroup {
   return {
     ...group,
     chats: group.chats.map((chat) =>
-      chat.id === chatId ? { ...chat, messages: [...chat.messages, message], updatedAt: new Date().toISOString() } : chat
+      chat.id === chatId ? { ...chat, messages: [...chat.messages, ...messages], updatedAt: new Date().toISOString() } : chat
     )
   };
 }
 
 function appendArtifactsToChat(group: SplitFlowGroup, chatId: string, artifacts: Artifact[]): SplitFlowGroup {
-  const replacementTypes = new Set(artifacts.map((artifact) => artifact.type));
-  const replacedArtifactIds = new Set(group.artifacts.filter((artifact) => replacementTypes.has(artifact.type)).map((artifact) => artifact.id));
-  return {
-    ...group,
-    artifacts: [
-      ...artifacts,
-      ...group.artifacts.filter(
-        (artifact) => !artifacts.some((item) => item.id === artifact.id || (item.proposalId === artifact.proposalId && item.type === artifact.type))
-      )
-    ],
-    chats: group.chats.map((chat) =>
-      chat.id === chatId
-        ? {
-            ...chat,
-            artifactIds: Array.from(new Set([...artifacts.map((artifact) => artifact.id), ...chat.artifactIds.filter((artifactId) => !replacedArtifactIds.has(artifactId))])),
-            updatedAt: new Date().toISOString()
-          }
-        : chat
-    )
-  };
+  return upsertArtifactsForChat(group, chatId, artifacts);
 }
 
 function selectedIds(state: AppState) {
@@ -514,7 +544,15 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       const group = current.groups.find((item) => item.id === targetGroupId);
       const targetChatId = context?.chatId ?? group?.chats[0]?.id ?? selectedIds(current).activeChat.id;
       const userMessage = createMessage("user", message);
-      const nextState = updateGroup(current, targetGroupId, (currentGroup) => appendChatMessage(currentGroup, targetChatId, userMessage));
+      const workflowMessage = context
+        ? createMessage("agent", "SplitFlow workflow", undefined, {
+            workflowRunId: context.runId,
+            agentName: "SplitFlow workflow"
+          })
+        : undefined;
+      const nextState = updateGroup(current, targetGroupId, (currentGroup) =>
+        appendChatMessages(currentGroup, targetChatId, workflowMessage ? [userMessage, workflowMessage] : [userMessage])
+      );
       if (!context) return nextState;
       return {
         ...nextState,
@@ -597,13 +635,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           ]
         : [];
       const artifacts = proposal
-        ? [
-            createArtifact("parser_review", `${proposal.title} split details`, "Review extracted costs, friends, payers, exclusions, credits, assumptions, and confidence before sending.", proposal.id, parserDetails),
-            createArtifact("proposal_draft", `${proposal.title}`, "Ready for organizer review: total, itemized costs, exclusions, claimed payments, risk notes, and deterministic math.", proposal.id, parserDetails),
-            createArtifact("itemized_breakdown", `${proposal.title} split math`, "Deterministic itemized calculation and who is included in each cost.", proposal.id, proposal.calculationResult?.auditExplanation),
-            createArtifact("settlement_plan", `${proposal.title} ready check`, "Shows who should pay whom and whether settlement is ready.", proposal.id, proposal.calculationResult?.settlementInstructions?.map((instruction) => instruction.text)),
-            createArtifact("settlement_ledger", `${proposal.title} payment notes`, "Proof-aware notes for claimed and confirmed payments.", proposal.id, createSettlementLedgerLines(proposal))
-          ]
+        ? [createProposalBundleArtifact(group.id, chat.id, proposal, sourceMessage, parserDetails)]
         : parsed?.parserResult.issues.some((issue) => issue.code === "allocation_required")
           ? [
               createArtifact(
@@ -616,7 +648,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
                   "Options: use equal item allocation, enter item amounts manually, or combine as one shared item.",
                   ...parserDetails
                 ],
-                sourceMessage
+                sourceMessage,
+                stableArtifactKey({
+                  groupId: group.id,
+                  chatId: chat.id,
+                  type: "allocation_resolution",
+                  sourceText: sourceMessage
+                })
               )
             ]
         : [];
@@ -658,7 +696,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         group.id,
         (currentGroup) => {
           let nextGroup = proposal ? upsertProposal(currentGroup, proposal) : currentGroup;
-          nextGroup = appendChatMessage(nextGroup, chat.id, createMessage("bot", parserReply, proposal?.id));
+          nextGroup = appendChatMessage(nextGroup, chat.id, createMessage("bot", parserReply, proposal?.id, { workflowRunId: context?.runId }));
           return appendArtifactsToChat(nextGroup, chat.id, artifacts);
         }
       );
@@ -939,15 +977,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       if (!artifact?.sourceText) return current;
       const { proposal, parserResult } = createProposalFromPromptWithAllocation(artifact.sourceText, group.id, strategy);
       if (!proposal) return current;
-      const artifacts = [
-        createArtifact("parser_review", `${proposal.title} split details`, "Allocation was resolved by organizer choice before deterministic calculation.", proposal.id, [
-          parserResult.normalizedSummary,
-          `Allocation: ${strategy}`,
-          ...(parserResult.draft?.assumptions ?? []).map((assumption) => `Assumption: ${assumption}`)
-        ]),
-        createArtifact("proposal_draft", `${proposal.title}`, "Proposal artifact created after allocation resolution.", proposal.id),
-        createArtifact("settlement_ledger", `${proposal.title} payment notes`, "Proof-aware notes for claimed and confirmed payments.", proposal.id, createSettlementLedgerLines(proposal))
+      const parserDetails = [
+        parserResult.normalizedSummary,
+        `Allocation: ${strategy}`,
+        ...(parserResult.draft?.assumptions ?? []).map((assumption) => `Assumption: ${assumption}`)
       ];
+      const artifacts = [createProposalBundleArtifact(group.id, chat.id, proposal, artifact.sourceText, parserDetails)];
       return updateGroup({ ...current, workspacePanel: { type: "artifact", artifactId: artifacts[0].id } }, group.id, (currentGroup) => {
         let nextGroup = upsertProposal(currentGroup, proposal);
         nextGroup = appendChatMessage(nextGroup, chat.id, createMessage("bot", `Resolved allocation using ${strategy.replaceAll("_", " ")}. The proposal is ready for review.`, proposal.id));

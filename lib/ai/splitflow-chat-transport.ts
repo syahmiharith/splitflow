@@ -1,4 +1,5 @@
 import type { OrchestratorResponse } from "@/lib/agents/agent-types";
+import { normalizeIdentityText, stableHash } from "@/lib/artifact-identity";
 import type { AgentRunContext, AgentRunEvent } from "@/lib/types";
 import type { WorkflowRunResult } from "@/lib/workflow/schema";
 import type { ChatTransport, UIMessage, UIMessageChunk } from "ai";
@@ -194,7 +195,7 @@ export function createSplitFlowChatTransport({ getRunContext, onResponse, onRunE
           chatId: context?.chatId ?? "chat-han-river-bbq",
           sourceMessageId,
           message,
-          idempotencyKey: context?.runId ?? `${Date.now()}:${message}`
+          idempotencyKey: context?.runId ?? `chat:${context?.groupId ?? "han-river-bbq"}:${context?.chatId ?? "chat-han-river-bbq"}:${stableHash(normalizeIdentityText(message))}`
         }),
         signal: abortSignal
       });

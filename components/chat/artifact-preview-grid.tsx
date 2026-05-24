@@ -11,12 +11,21 @@ export function ArtifactPreviewGroup({
   artifacts: Artifact[];
   onOpenArtifact: (artifactId: string) => void;
 }) {
-  if (artifacts.length === 0) return null;
+  const bundledProposalIds = new Set(
+    artifacts.filter((artifact) => artifact.type === "proposal_draft" && artifact.proposalId).map((artifact) => artifact.proposalId)
+  );
+  const visibleArtifacts = artifacts.filter((artifact) => {
+    if (!artifact.proposalId || artifact.type === "proposal_draft" || artifact.type === "allocation_resolution") return true;
+    if (!bundledProposalIds.has(artifact.proposalId)) return true;
+    return !["parser_review", "itemized_breakdown", "settlement_plan", "settlement_ledger"].includes(artifact.type);
+  });
+
+  if (visibleArtifacts.length === 0) return null;
 
   return (
     <div className="space-y-2 rounded-lg border border-app-border bg-white p-3" data-testid="artifact-preview-list">
       <div className="text-xs font-bold uppercase tracking-wide text-app-muted">Artifacts</div>
-      {artifacts.map((artifact) => (
+      {visibleArtifacts.map((artifact) => (
         <div
           key={artifact.id}
           data-testid={`artifact-preview-${artifact.type}`}
@@ -32,11 +41,26 @@ export function ArtifactPreviewGroup({
           className="flex cursor-pointer items-center gap-3 rounded-md border border-app-border bg-slate-50 px-3 py-2 hover:border-blue-200 hover:bg-blue-50"
         >
           <FileText className="h-4 w-4 shrink-0 text-app-blue" aria-hidden="true" />
-          <div className="min-w-0 flex-1">
-            <div className="truncate text-sm font-bold text-app-text">{artifact.title}</div>
+          <div className="min-w-0 flex-1" data-testid={artifact.type === "proposal_draft" ? "artifact-preview-proposal-bundle" : undefined}>
+            <div className="truncate text-sm font-bold text-app-text">{artifact.type === "proposal_draft" ? "Proposal artifact" : artifact.title}</div>
+            {artifact.type === "proposal_draft" ? <p className="truncate text-xs font-semibold text-app-text">{artifact.title}</p> : null}
             <p className="truncate text-xs text-app-muted">{artifact.summary}</p>
+            {artifact.bundleSections?.some((section) => section.available) ? (
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {artifact.bundleSections
+                  .filter((section) => section.available)
+                  .map((section) => (
+                    <span key={section.id} className="rounded-md border border-app-border bg-white px-2 py-0.5 text-[11px] font-bold text-app-muted">
+                      {section.label}
+                      {typeof section.count === "number" && section.count > 0 ? ` ${section.count}` : ""}
+                    </span>
+                  ))}
+              </div>
+            ) : null}
           </div>
-          <span className="hidden shrink-0 rounded-md bg-white px-2 py-1 text-xs font-bold text-app-muted sm:inline-flex">{humanStatus(artifact.type)}</span>
+          <span className="hidden shrink-0 rounded-md bg-white px-2 py-1 text-xs font-bold text-app-muted sm:inline-flex">
+            {artifact.type === "proposal_draft" ? "Bundle" : humanStatus(artifact.type)}
+          </span>
           <button
             type="button"
             onClick={(event) => {

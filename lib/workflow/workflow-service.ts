@@ -1,5 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { deriveGroupAnalytics } from "@/lib/analytics";
+import { buildProposalArtifactSections, stableArtifactKey } from "@/lib/artifact-identity";
+import { upsertArtifactsForChat } from "@/lib/artifact-upsert";
 import {
   applyPrototypeAdjustment,
   createProposalFromPrompt,
@@ -68,7 +70,16 @@ function upsertProposal(group: SplitFlowGroup, proposal: Proposal): SplitFlowGro
   };
 }
 
-function artifact(type: Artifact["type"], title: string, summary: string, proposalId?: string, details?: string[], sourceText?: string, proposalVersion?: number): Artifact {
+function artifact(
+  type: Artifact["type"],
+  title: string,
+  summary: string,
+  proposalId?: string,
+  details?: string[],
+  sourceText?: string,
+  proposalVersion?: number,
+  stable?: Pick<Artifact, "stableKey" | "sourceHash" | "bundleSections">
+): Artifact {
   return {
     id: randomUUID(),
     type,
@@ -79,49 +90,47 @@ function artifact(type: Artifact["type"], title: string, summary: string, propos
     state: "staged",
     details,
     sourceText,
+    ...stable,
     createdAt: now()
   };
 }
 
-function proposalArtifacts(proposal: Proposal, parserDetails: string[] = [], sourceText?: string): Artifact[] {
+function proposalArtifacts(groupId: string, chatId: string, proposal: Proposal, parserDetails: string[] = [], sourceText?: string): Artifact[] {
   const version = proposal.version ?? 1;
+  const settlementLines = proposal.calculationResult?.settlementInstructions.map((instruction) => instruction.text) ?? [];
+  const ledgerLines = createSettlementLedgerLines(proposal);
+  const details = [
+    ...parserDetails,
+    ...(proposal.calculationResult?.auditExplanation ?? []).map((line) => `Math: ${line}`),
+    ...settlementLines.map((line) => `Settlement: ${line}`),
+    ...ledgerLines.map((line) => `Ledger: ${line}`),
+    ...(proposal.parserWarnings ?? []).map((line) => `Warning: ${line}`)
+  ];
   return [
-    artifact("parser_review", `${proposal.title} split details`, "Review extracted costs, friends, payers, exclusions, credits, assumptions, and confidence before sending.", proposal.id, parserDetails, sourceText, version),
-    artifact("proposal_draft", `${proposal.title}`, "Proposal artifact created from server-side parsed expense details.", proposal.id, parserDetails, sourceText, version),
-    artifact("itemized_breakdown", `${proposal.title} split math`, "Deterministic itemized calculation and who is included in each cost.", proposal.id, proposal.calculationResult?.auditExplanation, sourceText, version),
-    artifact("settlement_plan", `${proposal.title} ready check`, "Shows who should pay whom and whether settlement is ready.", proposal.id, proposal.calculationResult?.settlementInstructions?.map((instruction) => instruction.text), sourceText, version),
-    artifact("settlement_ledger", `${proposal.title} payment notes`, "Proof-aware notes for claimed and confirmed payments.", proposal.id, createSettlementLedgerLines(proposal), sourceText, version)
+    artifact(
+      "proposal_draft",
+      proposal.title,
+      "Proposal artifact bundle: review parser output, deterministic math, settlement readiness, payment ledger, and warnings in one place.",
+      proposal.id,
+      details,
+      sourceText,
+      version,
+      {
+        ...stableArtifactKey({ groupId, chatId, proposalId: proposal.id, type: "proposal_draft", sourceText: sourceText ?? proposal.title }),
+        bundleSections: buildProposalArtifactSections(proposal, parserDetails)
+      }
+    )
   ];
 }
 
 function appendArtifacts(state: WorkflowServerState, group: SplitFlowGroup, chatId: string, artifacts: Artifact[], runId?: string): { state: WorkflowServerState; group: SplitFlowGroup } {
-  const artifactIds = new Set(artifacts.map((item) => item.id));
-  const supersededIds = new Set<string>();
-  const existingArtifacts = group.artifacts.map((existing) => {
-    const replacement = artifacts.find((item) => item.proposalId && item.proposalId === existing.proposalId && item.type === existing.type && existing.state !== "superseded");
-    if (!replacement) return existing;
-    supersededIds.add(existing.id);
-    replacement.supersedesArtifactId = existing.id;
-    return { ...existing, state: "superseded" as const };
-  });
-  const nextGroup = {
-    ...group,
-    artifacts: [...artifacts, ...existingArtifacts.filter((item) => !artifactIds.has(item.id))],
-    chats: group.chats.map((chat) =>
-      chat.id === chatId
-        ? {
-            ...chat,
-            artifactIds: Array.from(new Set([...artifacts.map((item) => item.id), ...chat.artifactIds.filter((id) => !supersededIds.has(id))])),
-            updatedAt: now()
-          }
-        : chat
-    )
-  };
-  const supersededRecords = state.artifactRecords.map((record) => {
-    const superseder = artifacts.find((item) => item.supersedesArtifactId === record.id);
-    return superseder ? { ...record, state: "superseded" as const, supersededByArtifactId: superseder.id } : record;
-  });
-  const newRecords = artifacts.map((item) => ({
+  const nextGroup = upsertArtifactsForChat(group, chatId, artifacts);
+  const activeArtifacts = artifacts.map((item) =>
+    item.stableKey ? nextGroup.artifacts.find((artifactItem) => artifactItem.stableKey === item.stableKey) ?? item : item
+  );
+  const activeIds = new Set(activeArtifacts.map((item) => item.id));
+  const preservedRecords = state.artifactRecords.filter((record) => !activeIds.has(record.id));
+  const newRecords = activeArtifacts.map((item) => ({
     id: item.id,
     artifact: item,
     groupId: group.id,
@@ -134,7 +143,7 @@ function appendArtifacts(state: WorkflowServerState, group: SplitFlowGroup, chat
     createdAt: item.createdAt
   }));
   return {
-    state: { ...state, artifactRecords: [...newRecords, ...supersededRecords] },
+    state: { ...state, artifactRecords: [...newRecords, ...preservedRecords] },
     group: nextGroup
   };
 }
@@ -425,7 +434,7 @@ export async function executeWorkflowRun(runId: string, repository: FileWorkflow
       ]);
       const draftProposal = { ...parsed.proposal, groupId: group.id, version: 1, revisionHistory: [] };
       proposal = draftProposal;
-      stagedArtifacts = proposalArtifacts(draftProposal, parserDetails, sourceMessage);
+      stagedArtifacts = proposalArtifacts(group.id, chatId, draftProposal, parserDetails, sourceMessage);
       const proposalEvents = [
         createRunEvent(runId, { type: "step_completed", step: "Split Planning Agent", detail: "Prepared deterministic itemized calculation." }),
         createRunEvent(runId, { type: "proposal_version_created", proposalId: draftProposal.id, proposalVersionId: `${draftProposal.id}-v1`, version: 1, detail: "Created immutable proposal v1." }),

@@ -4,6 +4,7 @@ import {
   type AgreementItem,
   type AgreementParticipant
 } from "@/lib/domain/itemized-split-engine";
+import { stableProposalIdFromDraft } from "@/lib/artifact-identity";
 import { parseExpensePrompt } from "@/lib/parser/expense-parser";
 import type { AllocationStrategy, ParsedExpenseDraft, ParserResult } from "@/lib/parser/expense-types";
 import type { CostItem, Participant, ParticipantCredit, PaymentRecord, PaymentRecordStatus, Proposal, TimelineEvent } from "@/lib/types";
@@ -159,11 +160,11 @@ export function createProposalFromParsedDraft(draft: ParsedExpenseDraft, groupId
     amount: credit.amount,
     note: credit.note
   }));
-  const idSeed = slug(draft.title);
+  const proposalId = stableProposalIdFromDraft(draft, groupId);
   const paymentRecords = draft.credits.map<PaymentRecord>((credit, index) => ({
-    id: `credit-${idSeed}-${index + 1}`,
+    id: `credit-${proposalId}-${index + 1}`,
     groupId,
-    proposalId: `proposal-${idSeed}`,
+    proposalId,
     fromParticipantId: participantIdByName.get(credit.fromName) ?? slug(credit.fromName),
     toParticipantId: participantIdByName.get(credit.toName) ?? organizerId,
     amount: credit.amount,
@@ -175,7 +176,6 @@ export function createProposalFromParsedDraft(draft: ParsedExpenseDraft, groupId
     createdAt,
     sourceText: credit.note
   }));
-  const proposalId = `proposal-${idSeed}-${Date.now()}`;
 
   const proposal: Proposal = {
     id: proposalId,

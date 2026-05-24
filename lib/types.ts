@@ -175,6 +175,7 @@ export type BotMessage = {
   createdAt: string;
   relatedProposalId?: string;
   agentName?: string;
+  workflowRunId?: string;
 };
 
 export type ArtifactType =
@@ -190,6 +191,16 @@ export type ArtifactType =
 
 export type ArtifactLifecycleState = "staged" | "review_required" | "ready" | "published" | "superseded" | "archived";
 
+export type ArtifactBundleSectionId = "review" | "math" | "settlement" | "ledger" | "warnings";
+
+export type ArtifactBundleSection = {
+  id: ArtifactBundleSectionId;
+  label: string;
+  available: boolean;
+  count?: number;
+  summary?: string;
+};
+
 export type Artifact = {
   id: string;
   type: ArtifactType;
@@ -201,6 +212,9 @@ export type Artifact = {
   supersedesArtifactId?: string;
   details?: string[];
   sourceText?: string;
+  stableKey?: string;
+  sourceHash?: string;
+  bundleSections?: ArtifactBundleSection[];
   createdAt: string;
 };
 

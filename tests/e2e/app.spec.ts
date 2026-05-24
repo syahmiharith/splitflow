@@ -449,14 +449,31 @@ test("chat creates revised BBQ proposal artifact", async ({ page }) => {
   await clearDemoStorage(page);
 
   await page.goto("/groups/han-river-bbq/chat");
+  const initialAssistantCount = await page.getByTestId("chat-assistant-message").count();
   await page.getByRole("textbox").fill(canonicalBbqPrompt);
   await page.keyboard.press("Enter");
-  await expect(page.getByTestId("agent-run-card")).toContainText(/Reading organizer request|Workflow Running|Agent run complete/);
-  await expect(page.getByTestId("agent-run-completed-summary")).toContainText("Split Agent ran deterministic math");
+
+  const workflow = page.getByTestId("chat-workflow-message").last();
+  await expect(workflow).toBeVisible();
+  await expect(workflow).toContainText(/Workflow running|Workflow complete/);
+  await expect(workflow.getByTestId("workflow-step").nth(1)).toBeVisible();
+  await expect(page.getByTestId("chat-assistant-message")).toHaveCount(initialAssistantCount + 1, { timeout: 10000 });
+  const workflowBox = await workflow.boundingBox();
+  const assistantBox = await page.getByTestId("chat-assistant-message").last().boundingBox();
+  expect(assistantBox?.y ?? 0).toBeGreaterThan(workflowBox?.y ?? 0);
+
   await expect(page.getByTestId("decision-summary-card")).toContainText(/Not ready|Needs review/);
   await expect(page.getByTestId("decision-primary-cta")).toBeVisible();
   await expect(page.getByTestId("artifact-preview-list")).toBeVisible();
+  await expect(page.getByTestId("artifact-preview-proposal-bundle")).toHaveCount(1);
   await expect(page.getByTestId("artifact-preview-proposal_draft").first()).toContainText("Han River BBQ Proposal");
+  await expect(page.getByTestId("artifact-preview-proposal-bundle")).toContainText("Review");
+  await expect(page.getByTestId("artifact-preview-proposal-bundle")).toContainText("Math");
+  await page.getByRole("textbox").fill(canonicalBbqPrompt);
+  await page.keyboard.press("Enter");
+  await expect(page.getByTestId("chat-assistant-message")).toHaveCount(initialAssistantCount + 2, { timeout: 10000 });
+  await expect(page.getByTestId("artifact-preview-proposal-bundle")).toHaveCount(1);
+
   if (!(await page.getByTestId("panel-decision").isVisible())) {
     await page.getByTestId("artifact-preview-proposal_draft").last().click();
   }

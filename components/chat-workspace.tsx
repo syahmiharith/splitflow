@@ -5,7 +5,6 @@ import { useChat } from "@ai-sdk/react";
 import { createSplitFlowChatTransport } from "@/lib/ai/splitflow-chat-transport";
 import { useSplitFlow } from "@/lib/store";
 import type { AgentRunContext } from "@/lib/types";
-import { AgentRunCard, agentProgress } from "@/components/chat/agent-progress";
 import { ArtifactPreviewGroup } from "@/components/chat/artifact-preview-grid";
 import { ChatComposer } from "@/components/chat/chat-composer";
 import { ChatThread } from "@/components/chat/chat-messages";
@@ -13,6 +12,8 @@ import { ChatEmptyState } from "@/components/chat/chat-empty-state";
 import { DecisionSummaryCard } from "@/components/chat/decision-summary-card";
 import { WorkspaceDetailPanel } from "@/components/workspace-detail-panel";
 import { deriveReadinessSummary } from "@/lib/readiness";
+
+const MIN_WORKFLOW_VISIBLE_MS = 2800;
 
 export function ChatWorkspace() {
   const {
@@ -28,8 +29,9 @@ export function ChatWorkspace() {
     openProposalPanel
   } = useSplitFlow();
   const [chatError, setChatError] = useState<string | undefined>();
-  const [progressIndex, setProgressIndex] = useState(0);
   const pendingRunRef = useRef<AgentRunContext | undefined>(undefined);
+  const runStartedAtRef = useRef<Map<string, number>>(new Map());
+  const responseTimersRef = useRef<number[]>([]);
   const { sendMessage, status, error } = useChat({
     messages: activeChat.messages.map((chatMessage) => ({
       id: chatMessage.id,
@@ -38,15 +40,24 @@ export function ChatWorkspace() {
     })),
     transport: createSplitFlowChatTransport({
       getRunContext: () => pendingRunRef.current,
-      onResponse: applyAgentResponse,
+      onResponse: (response, sourceMessage, context, result) => {
+        if (!context) {
+          applyAgentResponse(response, sourceMessage, context, result);
+          return;
+        }
+        const startedAt = runStartedAtRef.current.get(context.runId) ?? performance.now();
+        const remaining = Math.max(0, MIN_WORKFLOW_VISIBLE_MS - (performance.now() - startedAt));
+        const timer = window.setTimeout(() => {
+          applyAgentResponse(response, sourceMessage, context, result);
+          runStartedAtRef.current.delete(context.runId);
+          responseTimersRef.current = responseTimersRef.current.filter((item) => item !== timer);
+        }, remaining);
+        responseTimersRef.current.push(timer);
+      },
       onRunEvent: applyAgentRunEvent
     })
   });
   const submitting = status === "submitted" || status === "streaming";
-  const activeRun = state.agentRuns.find((run) => run.id === pendingRunRef.current?.runId);
-  const showProgress = submitting && pendingRunRef.current?.groupId === activeGroup.id && pendingRunRef.current?.chatId === activeChat.id;
-  const latestRun = activeRun ?? state.agentRuns.find((run) => run.groupId === activeGroup.id && run.chatId === activeChat.id);
-  const shouldShowRun = showProgress || Boolean(latestRun) || activeArtifacts.length > 0;
   const hasConversation = activeChat.messages.length > 0;
   const hasUserMessages = activeChat.messages.some((message) => message.sender === "user");
   const chatProposalId =
@@ -56,17 +67,11 @@ export function ChatWorkspace() {
   const readiness = chatProposal ? deriveReadinessSummary(chatProposal) : undefined;
 
   useEffect(() => {
-    if (!submitting) {
-      setProgressIndex(0);
-      return;
-    }
-
-    const interval = window.setInterval(() => {
-      setProgressIndex((current) => Math.min(current + 1, agentProgress.length - 1));
-    }, 900);
-
-    return () => window.clearInterval(interval);
-  }, [submitting]);
+    return () => {
+      responseTimersRef.current.forEach((timer) => window.clearTimeout(timer));
+      responseTimersRef.current = [];
+    };
+  }, []);
 
   async function handleSend(message: string, files?: File[]) {
     const trimmed = message.trim();
@@ -76,12 +81,14 @@ export function ChatWorkspace() {
     const outgoingMessage = `${trimmed}${attachmentNote}`;
     const runContext = { runId: crypto.randomUUID(), groupId: activeGroup.id, chatId: activeChat.id };
     pendingRunRef.current = runContext;
+    runStartedAtRef.current.set(runContext.runId, performance.now());
     recordChatUserMessage(outgoingMessage, runContext);
     try {
       await sendMessage({ text: outgoingMessage });
     } catch (sendError) {
       const message = sendError instanceof Error ? sendError.message : "Agent workflow unavailable.";
       failAgentRun(runContext.runId, message);
+      runStartedAtRef.current.delete(runContext.runId);
       setChatError(message);
     } finally {
       if (pendingRunRef.current?.runId === runContext.runId) {
@@ -95,7 +102,11 @@ export function ChatWorkspace() {
       <section className="flex min-h-0 flex-1 flex-col">
         <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-3 pt-4 md:px-6 md:pb-4 md:pt-5" data-testid="chat-scroll-region">
           <div className="mx-auto flex w-full max-w-[820px] flex-col gap-4" data-testid="chat-centered-column">
-            {hasConversation ? <ChatThread messages={activeChat.messages} /> : <ChatEmptyState onPrompt={(prompt) => void handleSend(prompt)} />}
+            {hasConversation ? (
+              <ChatThread messages={activeChat.messages} agentRuns={state.agentRuns} agentSteps={state.agentSteps} />
+            ) : (
+              <ChatEmptyState onPrompt={(prompt) => void handleSend(prompt)} />
+            )}
 
             {chatProposal && readiness ? (
               <DecisionSummaryCard
@@ -104,8 +115,6 @@ export function ChatWorkspace() {
                 onReview={() => openProposalPanel(chatProposal.id)}
               />
             ) : null}
-
-            {shouldShowRun ? <AgentRunCard progressIndex={progressIndex} run={latestRun} showEstimated={!latestRun && !showProgress} /> : null}
 
             <ArtifactPreviewGroup artifacts={activeArtifacts} onOpenArtifact={openArtifact} />
 

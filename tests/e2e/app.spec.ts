@@ -61,6 +61,8 @@ async function expectSidebarProfile(page: Page, name: string) {
 async function resetDemoData(page: Page) {
   await page.getByTestId("header-actions-more").click();
   await page.getByTestId("reset-demo-data").click();
+  await expect(page.getByTestId("reset-demo-data")).toContainText("Confirm reset");
+  await page.getByTestId("reset-demo-data").click();
 }
 
 async function createGroup(page: Page, name: string, description = "") {
@@ -285,6 +287,8 @@ test("home shows next best action for unresolved change request", async ({ page 
   await page.getByTestId("global-next-action-cta").click();
   await expect(page).toHaveURL(/\/groups\/han-river-bbq\/proposals\/daniel-change-split$/);
   await expect(page.getByTestId("proposal-detail-route")).toBeVisible();
+  await expect(page.getByTestId("proposal-detail-summary")).toContainText("Participant breakdown");
+  await expect(page.getByTestId("proposal-detail-summary")).not.toContainText("open in the review panel");
 });
 
 test("home shows active workflows before recent activity", async ({ page }) => {
@@ -331,13 +335,17 @@ test("sidebar uses Splits and Your Share navigation labels", async ({ page }) =>
   if (isMobile(page)) {
     await page.getByTestId("mobile-sidebar-open").click();
     const sidebar = page.getByTestId("mobile-sidebar-overlay");
+    await expect(sidebar.getByTestId("nav-chat")).toContainText("Chat");
     await expect(sidebar.getByTestId("nav-proposals")).toContainText("Splits");
     await expect(sidebar.getByTestId("nav-notifications")).toContainText("Your Share");
+    await expect(sidebar.getByTestId("nav-settings")).toContainText("Settings");
     return;
   }
 
+  await expect(page.getByTestId("nav-chat")).toContainText("Chat");
   await expect(page.getByTestId("nav-proposals")).toContainText("Splits");
   await expect(page.getByTestId("nav-notifications")).toContainText("Your Share");
+  await expect(page.getByTestId("nav-settings")).toContainText("Settings");
 });
 
 test("profile sheet only mounts while open", async ({ page }) => {
@@ -428,7 +436,7 @@ test("mobile sidebar opens from hamburger and left-edge swipe", async ({ page })
   await clearDemoStorage(page);
 
   await page.goto("/groups/han-river-bbq/chat");
-  await expect(page.getByTestId("mobile-swipe-hint")).toBeVisible();
+  await expect(page.getByTestId("mobile-swipe-hint")).toHaveCount(0);
   await page.getByTestId("mobile-sidebar-open").click();
   await expect(page.getByTestId("mobile-sidebar-overlay")).toBeVisible();
   await page.getByLabel("Close sidebar").click();
@@ -641,7 +649,8 @@ test("Your Share uses sidebar-selected participant profile", async ({ page }) =>
   await clearDemoStorage(page);
 
   await page.goto("/groups/han-river-bbq/inbox");
-  await expect(page.getByTestId("organizer-share-state")).toContainText("You are viewing as the organizer");
+  await expect(page.getByTestId("organizer-share-state")).toContainText("Preview a participant review");
+  await expect(page.getByTestId("participant-view-selector")).toBeVisible();
   await selectProfile(page, "daniel");
   await expect(page.getByTestId("participant-simulation-note")).toContainText("viewing as Daniel");
   await expect(page.getByTestId("participant-inbox-card")).toContainText("Your Share");
@@ -658,14 +667,14 @@ test("Your Share uses sidebar-selected participant profile", async ({ page }) =>
   await expect(page.getByTestId("credits-payment-claims")).toContainText("Needs organizer confirmation");
 });
 
-test("Your Share no longer exposes a large local participant switcher", async ({ page }) => {
+test("Your Share exposes an in-page participant selector", async ({ page }) => {
   await clearDemoStorage(page);
 
   await page.goto("/groups/han-river-bbq/inbox");
-  await selectProfile(page, "daniel");
-  await expect(page.getByTestId("participant-simulation-note")).toContainText("Change profile from the sidebar footer");
-  await expect(page.getByTestId("participant-switch-daniel")).toHaveCount(0);
-  await expect(page.getByTestId("participant-switch-sarah")).toHaveCount(0);
+  await expect(page.getByTestId("participant-view-selector")).toBeVisible();
+  await page.getByTestId("participant-switch-daniel").click();
+  await expect(page.getByTestId("participant-simulation-note")).toContainText("viewing as Daniel");
+  await expect(page.getByTestId("participant-inbox-card")).toContainText("Daniel");
 });
 
 test("selected profile persists across refresh", async ({ page }) => {
@@ -687,7 +696,7 @@ test("group switching falls back to a valid profile", async ({ page }) => {
   await page.goto("/groups/temporary-share-group/inbox");
   await expectSidebarProfile(page, "Syahmi");
   await expect(page.getByTestId("inbox-route")).toBeVisible();
-  await expect(page.getByTestId("organizer-share-state")).toContainText("You are viewing as the organizer");
+  await expect(page.getByTestId("organizer-share-state")).toContainText("Preview a participant review");
 });
 
 test("participant review simulation supports Daniel change request", async ({ page }) => {

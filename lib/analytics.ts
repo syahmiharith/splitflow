@@ -53,6 +53,16 @@ export type GlobalAnalyticsSummary = {
   }>;
 };
 
+export type OperationalAnalytics = {
+  totalFronted: number;
+  recovered: number;
+  stillOwed: number;
+  collectionRate: number;
+  slowResponseGroups: Array<{ groupId: string; groupName: string; pendingResponses: number }>;
+  frequentChangeRequesters: Array<{ participantId: string; participantName: string; count: number }>;
+  disputeProneMethods: Array<{ method: Proposal["splitMethod"]; count: number }>;
+};
+
 export function deriveGroupAnalytics(group: SplitFlowGroup): GroupAnalyticsSummary {
   return (group.proposals ?? []).reduce(
     (summary, proposal) => {
@@ -280,6 +290,56 @@ export function deriveActiveWorkflows(groups: SplitFlowGroup[], limit = 6): Acti
     )
     .sort((a, b) => workflowRank(a) - workflowRank(b))
     .slice(0, limit);
+}
+
+export function deriveOperationalAnalytics(groups: SplitFlowGroup[]): OperationalAnalytics {
+  const summary = deriveGlobalAnalytics(groups);
+  const requesterCounts = new Map<string, { participantId: string; participantName: string; count: number }>();
+  const methodCounts = new Map<Proposal["splitMethod"], number>();
+  const slowResponseGroups = (groups ?? [])
+    .map((group) => {
+      const pendingResponses = deriveGroupAnalytics(group).pendingResponses;
+      return { groupId: group.id, groupName: group.name, pendingResponses };
+    })
+    .filter((group) => group.pendingResponses > 0)
+    .sort((a, b) => b.pendingResponses - a.pendingResponses)
+    .slice(0, 3);
+
+  for (const group of groups ?? []) {
+    for (const proposal of group.proposals ?? []) {
+      const hasChangeRequest = proposal.participants.some((participant) => participant.status === "requested_changes" || Boolean(participant.changeRequestNote));
+      if (hasChangeRequest) {
+        methodCounts.set(proposal.splitMethod, (methodCounts.get(proposal.splitMethod) ?? 0) + 1);
+      }
+
+      for (const participant of proposal.participants) {
+        if (participant.status !== "requested_changes" && !participant.changeRequestNote) continue;
+        const existing = requesterCounts.get(participant.id) ?? {
+          participantId: participant.id,
+          participantName: participant.name,
+          count: 0
+        };
+        requesterCounts.set(participant.id, { ...existing, participantName: participant.name, count: existing.count + 1 });
+      }
+    }
+  }
+
+  const totalRecoverable = summary.confirmedPayments + summary.stillOwed;
+  const recovered = summary.confirmedPayments;
+  const collectionRate = totalRecoverable > 0 ? Math.round((recovered / totalRecoverable) * 100) : 0;
+
+  return {
+    totalFronted: summary.totalFronted,
+    recovered,
+    stillOwed: summary.stillOwed,
+    collectionRate,
+    slowResponseGroups,
+    frequentChangeRequesters: Array.from(requesterCounts.values()).sort((a, b) => b.count - a.count).slice(0, 3),
+    disputeProneMethods: Array.from(methodCounts.entries())
+      .map(([method, count]) => ({ method, count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 3)
+  };
 }
 
 function sumPaymentRecords(records: PaymentRecord[] | undefined, status: PaymentRecord["status"]): number {

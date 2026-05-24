@@ -14,6 +14,7 @@ export function HeaderActions({
   onResetDemo: () => void;
 }) {
   const [open, setOpen] = useState(false);
+  const [confirmingReset, setConfirmingReset] = useState(false);
 
   return (
     <>
@@ -31,7 +32,10 @@ export function HeaderActions({
         <button
           type="button"
           data-testid="header-actions-more"
-          onClick={() => setOpen((current) => !current)}
+          onClick={() => {
+            setOpen((current) => !current);
+            setConfirmingReset(false);
+          }}
           className="grid h-11 w-11 place-items-center rounded-xl border border-app-border bg-white text-app-text hover:bg-slate-50"
           aria-label="More actions"
           aria-expanded={open}
@@ -47,13 +51,20 @@ export function HeaderActions({
               type="button"
               data-testid="reset-demo-data"
               onClick={() => {
+                if (!confirmingReset) {
+                  setConfirmingReset(true);
+                  return;
+                }
                 onResetDemo();
+                setConfirmingReset(false);
                 setOpen(false);
               }}
-              className="flex min-h-10 w-full items-center gap-2 rounded-md px-3 text-left text-sm font-semibold text-app-text hover:bg-slate-50"
+              className={`flex min-h-10 w-full items-center gap-2 rounded-md px-3 text-left text-sm font-semibold hover:bg-slate-50 ${
+                confirmingReset ? "text-app-red" : "text-app-text"
+              }`}
             >
               <RotateCcw className="h-4 w-4 text-app-blue" aria-hidden="true" />
-              Reset demo data
+              {confirmingReset ? "Confirm reset" : "Reset demo data"}
             </button>
           </div>
         ) : null}

@@ -3,14 +3,21 @@
 import type { ComponentType, ReactNode } from "react";
 import { AlertTriangle, ChevronRight, CircleDollarSign, Database, Edit3, Lightbulb, Scale, ShieldCheck, WalletCards } from "lucide-react";
 import { AppCard } from "@/components/ui/app-card";
+import { deriveOperationalAnalytics } from "@/lib/analytics";
+import { formatKrw, humanStatus } from "@/lib/format";
+import { useSplitFlow } from "@/lib/store";
 
 export default function AnalyticsPage() {
+  const { state } = useSplitFlow();
+  const analytics = deriveOperationalAnalytics(state.groups);
+  const collectionRate = `${analytics.collectionRate}%`;
+
   return (
     <div className="space-y-4 px-4 py-5 md:p-6" data-testid="analytics-route">
       <div className="grid grid-cols-3 gap-2 sm:gap-3">
-        <MoneyMetric icon={WalletCards} label="Paid Upfront" value="₩310,000" tone="blue" />
-        <MoneyMetric icon={ShieldCheck} label="Recovered" value="₩240,000" tone="green" />
-        <MoneyMetric icon={AlertTriangle} label="Still Owed" value="₩70,000" tone="amber" />
+        <MoneyMetric icon={WalletCards} label="Paid Upfront" value={formatKrw(analytics.totalFronted)} tone="blue" />
+        <MoneyMetric icon={ShieldCheck} label="Recovered" value={formatKrw(analytics.recovered)} tone="green" />
+        <MoneyMetric icon={AlertTriangle} label="Still Owed" value={formatKrw(analytics.stillOwed)} tone="amber" />
       </div>
 
       <AppCard className="p-5">
@@ -19,17 +26,20 @@ export default function AnalyticsPage() {
           <h2 className="text-2xl font-bold">This Month</h2>
         </div>
         <div className="grid gap-5 sm:grid-cols-[220px_minmax(0,1fr)] sm:items-center">
-          <div className="mx-auto grid h-44 w-44 place-items-center rounded-full bg-[conic-gradient(#15803d_0_77%,#dcfce7_77%_100%)] p-4">
+          <div
+            className="mx-auto grid h-44 w-44 place-items-center rounded-full p-4"
+            style={{ background: `conic-gradient(#15803d 0 ${analytics.collectionRate}%, #dcfce7 ${analytics.collectionRate}% 100%)` }}
+          >
             <div className="grid h-full w-full place-items-center rounded-full bg-white text-center">
               <div>
-                <div className="text-4xl font-bold">77%</div>
+                <div className="text-4xl font-bold">{collectionRate}</div>
                 <div className="text-sm text-app-muted">Collection Rate</div>
               </div>
             </div>
           </div>
           <div className="space-y-5">
-            <SideMetric icon={Database} label="Total Shared Expenses" value="₩310,000" tone="blue" />
-            <SideMetric icon={ShieldCheck} label="Recovered" value="₩240,000" tone="green" />
+            <SideMetric icon={Database} label="Total Shared Expenses" value={formatKrw(analytics.totalFronted)} tone="blue" />
+            <SideMetric icon={ShieldCheck} label="Recovered" value={formatKrw(analytics.recovered)} tone="green" />
           </div>
         </div>
       </AppCard>
@@ -39,9 +49,27 @@ export default function AnalyticsPage() {
           <AlertTriangle className="h-8 w-8 text-app-blue" aria-hidden="true" />
           <h2 className="text-2xl font-bold">Friction Signals</h2>
         </div>
-        <Signal icon={Edit3} text="Daniel requested changes 3 times" tone="amber" />
-        <Signal icon={ClockIcon} text="Trip groups respond slowly" tone="red" />
-        <Signal icon={Scale} text="Equal split causes most disputes" tone="violet" />
+        {analytics.frequentChangeRequesters.length > 0 ? (
+          analytics.frequentChangeRequesters.map((item) => (
+            <Signal key={item.participantId} icon={Edit3} text={`${item.participantName} requested changes ${item.count} time${item.count === 1 ? "" : "s"}`} tone="amber" />
+          ))
+        ) : (
+          <Signal icon={Edit3} text="No repeat change requester yet" tone="amber" />
+        )}
+        {analytics.slowResponseGroups.length > 0 ? (
+          analytics.slowResponseGroups.map((item) => (
+            <Signal key={item.groupId} icon={ClockIcon} text={`${item.groupName} has ${item.pendingResponses} pending response${item.pendingResponses === 1 ? "" : "s"}`} tone="red" />
+          ))
+        ) : (
+          <Signal icon={ClockIcon} text="No slow-response group right now" tone="red" />
+        )}
+        {analytics.disputeProneMethods.length > 0 ? (
+          analytics.disputeProneMethods.map((item) => (
+            <Signal key={item.method} icon={Scale} text={`${humanStatus(item.method)} caused ${item.count} dispute signal${item.count === 1 ? "" : "s"}`} tone="violet" />
+          ))
+        ) : (
+          <Signal icon={Scale} text="No dispute-prone split method yet" tone="violet" />
+        )}
       </AppCard>
 
       <AppCard className="p-5">
@@ -49,9 +77,9 @@ export default function AnalyticsPage() {
           <Lightbulb className="h-8 w-8 text-app-blue" aria-hidden="true" />
           <h2 className="text-2xl font-bold">Insights</h2>
         </div>
-        <Insight text={<><strong>Food</strong> is your most common category.</>} />
-        <Insight text={<><strong>Housemates</strong> are your smoothest group.</>} />
-        <Insight text={<><strong>Weekend</strong> splits take the longest to settle.</>} />
+        <Insight text={<><strong>{formatKrw(analytics.stillOwed)}</strong> is still owed across active agreements.</>} />
+        <Insight text={<><strong>{collectionRate}</strong> of recoverable money is confirmed recovered.</>} />
+        <Insight text={<><strong>{analytics.slowResponseGroups[0]?.groupName ?? "No group"}</strong> is the current response follow-up focus.</>} />
       </AppCard>
     </div>
   );

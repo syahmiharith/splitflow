@@ -8,7 +8,9 @@ import { CreateGroupModal } from "@/components/top-header/create-group-modal";
 import { AppCard } from "@/components/ui/app-card";
 import { deriveGlobalAnalytics, deriveGroupAnalytics } from "@/lib/analytics";
 import { formatKrw } from "@/lib/format";
+import { deriveSplitReadiness } from "@/lib/readiness";
 import { useSplitFlow } from "@/lib/store";
+import type { SplitFlowGroup } from "@/lib/types";
 import { Table } from "@/components/ui/table";
 import { useDeviceProfile } from "@/lib/use-device-profile";
 
@@ -53,6 +55,7 @@ export default function GroupsPage() {
         <div className="space-y-4">
           {state.groups.map((group) => {
             const summary = deriveGroupAnalytics(group);
+            const blockers = groupBlockers(group);
             return (
               <AppCard key={group.id} className="p-5">
                 <div className="flex gap-4">
@@ -72,10 +75,22 @@ export default function GroupsPage() {
                         {group.members.length} members
                       </span>
                       <span>{summary.activeProposals} active splits</span>
+                      <span>{formatKrw(summary.stillOwed)} outstanding</span>
                       <span className="basis-full inline-flex items-center gap-1.5">
                         <Clock3 className="h-4 w-4" />
-                        Updated {new Date(group.updatedAt).toLocaleDateString()}
+                        {lastActivityLabel(group)}
                       </span>
+                    </div>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {blockers.length > 0 ? (
+                        blockers.slice(0, 2).map((blocker) => (
+                          <span key={blocker} className="rounded-md border border-amber-100 bg-amber-50 px-2 py-1 text-xs font-semibold text-app-amber">
+                            {blocker}
+                          </span>
+                        ))
+                      ) : (
+                        <span className="rounded-md border border-green-100 bg-green-50 px-2 py-1 text-xs font-semibold text-app-green">No blockers</span>
+                      )}
                     </div>
                     <div className="mt-5 flex items-center justify-between gap-3">
                       <AvatarStack names={group.members.map((member) => member.name)} />
@@ -96,20 +111,23 @@ export default function GroupsPage() {
       ) : null}
 
       {desktopLayout ? (
-        <Table minWidth="760px">
+        <Table minWidth="980px">
           <Table.Header>
-            <Table.Row>
-              <Table.Head>Group</Table.Head>
-              <Table.Head>Members</Table.Head>
-              <Table.Head>Active splits</Table.Head>
-              <Table.Head numeric>Outstanding</Table.Head>
-              <Table.Head>Status</Table.Head>
-              <Table.Head align="right">Action</Table.Head>
-            </Table.Row>
+              <Table.Row>
+                <Table.Head>Group</Table.Head>
+                <Table.Head>Members</Table.Head>
+                <Table.Head>Active splits</Table.Head>
+                <Table.Head numeric>Outstanding</Table.Head>
+                <Table.Head>Blockers</Table.Head>
+                <Table.Head>Last activity</Table.Head>
+                <Table.Head>Status</Table.Head>
+                <Table.Head align="right">Action</Table.Head>
+              </Table.Row>
           </Table.Header>
           <Table.Body interactive>
             {state.groups.map((group) => {
               const summary = deriveGroupAnalytics(group);
+              const blockers = groupBlockers(group);
               return (
                 <Table.Row key={group.id}>
                   <Table.Cell>
@@ -119,6 +137,20 @@ export default function GroupsPage() {
                   <Table.Cell nowrap>{group.members.length}</Table.Cell>
                   <Table.Cell nowrap>{summary.activeProposals}</Table.Cell>
                   <Table.Cell numeric nowrap>{formatKrw(summary.stillOwed)}</Table.Cell>
+                  <Table.Cell>
+                    <div className="flex max-w-[260px] flex-wrap gap-1.5">
+                      {blockers.length > 0 ? (
+                        blockers.slice(0, 2).map((blocker) => (
+                          <span key={blocker} className="rounded-md border border-amber-100 bg-amber-50 px-2 py-1 text-xs font-semibold text-app-amber">
+                            {blocker}
+                          </span>
+                        ))
+                      ) : (
+                        <span className="rounded-md border border-green-100 bg-green-50 px-2 py-1 text-xs font-semibold text-app-green">No blockers</span>
+                      )}
+                    </div>
+                  </Table.Cell>
+                  <Table.Cell nowrap>{lastActivityLabel(group)}</Table.Cell>
                   <Table.Cell nowrap>
                     <span className="rounded-md bg-green-50 px-2 py-1 text-xs font-semibold text-app-green">
                       {summary.openChangeRequests > 0 ? "Needs review" : "Active"}
@@ -129,7 +161,7 @@ export default function GroupsPage() {
                       href={`/groups/${group.id}`}
                       className="inline-flex min-h-9 items-center justify-center rounded-md border border-app-border px-3 text-sm font-semibold text-app-blue hover:bg-slate-50"
                     >
-                      Open
+                      Continue
                     </Link>
                   </Table.Cell>
                 </Table.Row>
@@ -199,4 +231,25 @@ function AvatarStack({ names }: { names: string[] }) {
       {names.length > 3 ? <span className="grid h-9 w-9 place-items-center rounded-full border-2 border-white bg-slate-100 text-xs font-bold text-app-muted">+{names.length - 3}</span> : null}
     </div>
   );
+}
+
+function groupBlockers(group: SplitFlowGroup): string[] {
+  return Array.from(
+    new Set(
+      group.proposals
+        .filter((proposal) => proposal.status !== "archived" && proposal.status !== "settled")
+        .flatMap((proposal) => deriveSplitReadiness(proposal).blockers)
+    )
+  );
+}
+
+function lastActivityLabel(group: SplitFlowGroup): string {
+  const latestTimelineAt = group.proposals
+    .flatMap((proposal) => proposal.timeline ?? [])
+    .map((event) => Date.parse(event.at))
+    .filter(Number.isFinite)
+    .sort((a, b) => b - a)[0];
+  const timestamp = latestTimelineAt ?? Date.parse(group.updatedAt);
+  if (!Number.isFinite(timestamp)) return "No recent activity";
+  return `Updated ${new Date(timestamp).toLocaleDateString()}`;
 }

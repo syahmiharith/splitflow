@@ -47,8 +47,10 @@ export function WorkspaceNav({
   const navItems = [
     { href: "/", label: "Home", testIdLabel: "home", icon: Home },
     { href: groupBase, label: "Overview", testIdLabel: "overview", icon: Grid2X2 },
+    { href: `${groupBase}/chat`, label: "Chat", testIdLabel: "chat", icon: MessageCircle },
     { href: `${groupBase}/proposals`, label: "Splits", testIdLabel: "proposals", icon: FileText },
-    { href: `${groupBase}/inbox`, label: "Your Share", testIdLabel: "notifications", icon: UserRoundCheck }
+    { href: `${groupBase}/inbox`, label: "Your Share", testIdLabel: "notifications", icon: UserRoundCheck },
+    { href: `${groupBase}/settings`, label: "Settings", testIdLabel: "settings", icon: Settings }
   ];
 
   return (

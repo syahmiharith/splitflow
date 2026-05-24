@@ -36,7 +36,7 @@ function getDeviceProfile(): DeviceProfile {
   const isTouchLike = window.matchMedia(touchQuery).matches;
   const layoutMode: DeviceLayoutMode = isMobileViewport
     ? "mobile"
-    : isTabletViewport || isTouchLike
+    : isTabletViewport
       ? "tablet"
       : isDesktopViewport
         ? "desktop"

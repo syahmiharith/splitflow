@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { deriveActiveWorkflows, deriveGlobalAnalytics, deriveGlobalNextAction, deriveGroupAnalytics } from "@/lib/analytics";
+import { deriveActiveWorkflows, deriveGlobalAnalytics, deriveGlobalNextAction, deriveGroupAnalytics, deriveOperationalAnalytics } from "@/lib/analytics";
 import { defaultGroup } from "@/lib/demo-data";
 import { updatePaymentRecordStatus } from "@/lib/prototype-proposals";
 import type { Proposal } from "@/lib/types";
@@ -105,5 +105,23 @@ describe("derived analytics", () => {
     expect(summary.stillOwed).toBe(0);
     expect(summary.claimedUnconfirmedCredits).toBe(0);
     expect(summary.recentActivity).toEqual([]);
+  });
+
+  it("derives operational analytics from proposal responses and payment records", () => {
+    const proposal = {
+      ...defaultGroup.proposals[0],
+      participants: defaultGroup.proposals[0].participants.map((participant) =>
+        participant.id === "daniel"
+          ? { ...participant, status: "requested_changes" as const, changeRequestNote: "Verify meat exclusion." }
+          : participant
+      )
+    };
+
+    const analytics = deriveOperationalAnalytics([{ ...defaultGroup, proposals: [proposal] }]);
+
+    expect(analytics.stillOwed).toBeGreaterThanOrEqual(0);
+    expect(analytics.slowResponseGroups[0].groupId).toBe(defaultGroup.id);
+    expect(analytics.frequentChangeRequesters[0]).toMatchObject({ participantId: "daniel", count: 1 });
+    expect(analytics.disputeProneMethods[0]).toMatchObject({ method: proposal.splitMethod, count: 1 });
   });
 });

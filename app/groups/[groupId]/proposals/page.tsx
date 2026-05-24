@@ -7,11 +7,13 @@ import { formatKrw, humanStatus } from "@/lib/format";
 import { filterProposals, matchesProposalFilter, type ProposalFilter } from "@/lib/proposal-filters";
 import { deriveSplitReadiness, type SplitReadiness } from "@/lib/readiness";
 import { useSplitFlow } from "@/lib/store";
+import { useDeviceProfile } from "@/lib/use-device-profile";
 import type { Proposal } from "@/lib/types";
 import { GroupRouteSync } from "@/components/group-route-sync";
 import { WorkspaceDetailPanel } from "@/components/workspace-detail-panel";
 import { AppCard } from "@/components/ui/app-card";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { Table } from "@/components/ui/table";
 
 const filters: Array<{ label: string; value: ProposalFilter }> = [
   { label: "Needs action", value: "needs_action" },
@@ -26,11 +28,13 @@ const filters: Array<{ label: string; value: ProposalFilter }> = [
 export default function GroupProposalsPage() {
   const params = useParams<{ groupId: string }>();
   const { activeGroup, openProposalPanel } = useSplitFlow();
+  const device = useDeviceProfile();
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<ProposalFilter>("needs_action");
   const visibleProposals = filterProposals(activeGroup.proposals, filter, query);
   const summary = deriveSplitSummary(activeGroup.proposals);
   const nextBestAction = deriveNextBestAction(activeGroup.proposals);
+  const desktopLayout = device.layoutMode === "desktop";
 
   return (
     <div className="h-full min-h-0 overflow-hidden" data-testid="group-proposals-route">
@@ -118,14 +122,102 @@ export default function GroupProposalsPage() {
         ) : null}
 
         {visibleProposals.length > 0 ? (
-          <div className="space-y-3" data-testid="split-card-list">
-            {visibleProposals.map((proposal) => (
-              <SplitCard key={proposal.id} proposal={proposal} onOpen={() => openProposalPanel(proposal.id)} />
-            ))}
-          </div>
+          desktopLayout ? (
+            <SplitTable proposals={visibleProposals} onOpen={openProposalPanel} />
+          ) : (
+            <div className="space-y-3" data-testid="split-card-list">
+              {visibleProposals.map((proposal) => (
+                <SplitCard key={proposal.id} proposal={proposal} onOpen={() => openProposalPanel(proposal.id)} />
+              ))}
+            </div>
+          )
         ) : null}
       </section>
       <WorkspaceDetailPanel desktopPersistent />
+    </div>
+  );
+}
+
+function SplitTable({ proposals, onOpen }: { proposals: Proposal[]; onOpen: (proposalId: string) => void }) {
+  return (
+    <div data-testid="split-card-list">
+      <Table minWidth="940px" data-testid="split-table">
+        <Table.Header>
+          <Table.Row>
+            <Table.Head>Split</Table.Head>
+            <Table.Head>Status</Table.Head>
+            <Table.Head numeric>Total</Table.Head>
+            <Table.Head>Responses</Table.Head>
+            <Table.Head>Blockers</Table.Head>
+            <Table.Head>Readiness</Table.Head>
+            <Table.Head align="right">Action</Table.Head>
+          </Table.Row>
+        </Table.Header>
+        <Table.Body interactive>
+          {proposals.map((proposal) => {
+            const readiness = deriveSplitReadiness(proposal);
+            const exceptions = exceptionChips(proposal);
+            const blockers = readiness.blockers.slice(0, 2);
+            return (
+              <Table.Row
+                key={proposal.id}
+                data-testid={`proposal-row-${proposal.id}`}
+                role="button"
+                tabIndex={0}
+                onClick={() => onOpen(proposal.id)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    onOpen(proposal.id);
+                  }
+                }}
+                className="cursor-pointer"
+              >
+                <Table.Cell>
+                  <div className="min-w-0">
+                    <div className="break-words font-bold text-app-text">{proposal.title}</div>
+                    <div className="mt-1 flex flex-wrap gap-1.5">
+                      {exceptions.slice(0, 2).map((exception) => (
+                        <Chip key={exception} tone="slate" label={exception} />
+                      ))}
+                    </div>
+                  </div>
+                </Table.Cell>
+                <Table.Cell nowrap>
+                  <StatusBadge status={proposal.status} />
+                </Table.Cell>
+                <Table.Cell numeric nowrap>{formatKrw(proposal.calculationResult?.totalCost ?? proposal.totalCost)}</Table.Cell>
+                <Table.Cell nowrap>{`${readiness.responseProgress.confirmed}/${readiness.responseProgress.total} confirmed`}</Table.Cell>
+                <Table.Cell>
+                  <div className="flex max-w-[260px] flex-wrap gap-1.5">
+                    {blockers.length > 0 ? blockers.map((blocker) => <Chip key={blocker} tone="amber" label={blocker} />) : <Chip tone="green" label="No blockers" />}
+                    {readiness.changeRequests > 0 ? <Chip tone="red" label={`${readiness.changeRequests} change request${readiness.changeRequests === 1 ? "" : "s"}`} /> : null}
+                    {readiness.claimedPayments > 0 ? <Chip tone="amber" label={`${readiness.claimedPayments} claimed payment${readiness.claimedPayments === 1 ? "" : "s"}`} /> : null}
+                  </div>
+                </Table.Cell>
+                <Table.Cell>
+                  <div className="max-w-[220px]">
+                    <div className="text-sm font-bold text-app-text">{readiness.label}</div>
+                    <div className="mt-1 break-words text-xs font-semibold text-app-blue">{readiness.nextAction}</div>
+                  </div>
+                </Table.Cell>
+                <Table.Cell align="right" nowrap>
+                  <button
+                    type="button"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      onOpen(proposal.id);
+                    }}
+                    className="inline-flex min-h-9 items-center justify-center rounded-md border border-app-border px-3 text-sm font-semibold text-app-blue hover:bg-slate-50"
+                  >
+                    Review
+                  </button>
+                </Table.Cell>
+              </Table.Row>
+            );
+          })}
+        </Table.Body>
+      </Table>
     </div>
   );
 }

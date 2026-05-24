@@ -3,21 +3,21 @@
 import type { ComponentType } from "react";
 import { useState } from "react";
 import { useParams } from "next/navigation";
-import { Check, CreditCard, MessageSquareWarning, XCircle } from "lucide-react";
-import { DemoToolbar } from "@/components/demo-toolbar";
+import { Check, CreditCard, HelpCircle, MessageSquareWarning, XCircle } from "lucide-react";
 import { GroupRouteSync } from "@/components/group-route-sync";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { formatKrw, humanStatus } from "@/lib/format";
 import { useSplitFlow } from "@/lib/store";
-import type { PaymentRecord, Proposal } from "@/lib/types";
+import type { PaymentRecord, Proposal, SplitFlowGroup } from "@/lib/types";
 
 const changeReasonChips = ["I did not join this item", "I already paid", "I joined late", "Amount looks wrong"];
 
 export default function GroupInboxPage() {
   const params = useParams<{ groupId: string }>();
   const groupId = params.groupId;
-  const { activeGroup, activeProposal, selectedProfile, respondAsParticipant, claimParticipantPayment } = useSplitFlow();
+  const { activeGroup, activeProposal, selectedProfile, setSelectedProfile, respondAsParticipant, claimParticipantPayment } = useSplitFlow();
   const [changeOpen, setChangeOpen] = useState(false);
+  const [whyOpen, setWhyOpen] = useState(false);
   const [reason, setReason] = useState("");
   const [paymentReference, setPaymentReference] = useState("");
   const proposal = activeGroup.proposals[0] ?? activeProposal;
@@ -30,7 +30,6 @@ export default function GroupInboxPage() {
     return (
       <div className="px-4 py-5 md:p-6" data-testid="inbox-route">
         <GroupRouteSync groupId={groupId} />
-        <DemoToolbar compact />
         <div className="rounded-lg border border-app-border bg-white p-5">No Your Share reviews are available for this group yet.</div>
       </div>
     );
@@ -40,14 +39,24 @@ export default function GroupInboxPage() {
     return (
       <div className="space-y-4 px-4 py-5 md:p-6" data-testid="inbox-route">
         <GroupRouteSync groupId={groupId} />
-        <DemoToolbar compact showLoaders={false} />
+        <ParticipantViewSelector
+          group={activeGroup}
+          organizerId={organizerId}
+          selectedProfileId={selectedProfileId}
+          onSelect={(participantId) => setSelectedProfile(activeGroup.id, participantId)}
+        />
         <SimulationNote name={selectedMember.name} />
         <section className="rounded-lg border border-app-border bg-white p-5" data-testid="organizer-share-state">
           <p className="text-sm font-semibold uppercase tracking-wide text-app-muted">Your Share</p>
-          <h1 className="mt-2 text-xl font-bold text-app-text">You are viewing as the organizer.</h1>
+          <h1 className="mt-2 text-xl font-bold text-app-text">Preview a participant review.</h1>
           <p className="mt-2 max-w-2xl text-sm leading-6 text-app-muted">
-            Choose a participant from the sidebar profile switcher to preview their share. Organizer pages like Overview and Splits still show the normal coordination workflow.
+            Choose a participant to see the exact decision surface they receive: amount owed, item eligibility, claimed payments, and reply actions.
           </p>
+          <ParticipantPreviewGrid
+            proposal={proposal}
+            organizerId={organizerId}
+            onSelect={(participantId) => setSelectedProfile(activeGroup.id, participantId)}
+          />
         </section>
       </div>
     );
@@ -56,7 +65,12 @@ export default function GroupInboxPage() {
   return (
     <div className="space-y-4 px-4 pb-28 pt-5 md:p-6" data-testid="inbox-route">
       <GroupRouteSync groupId={groupId} />
-      <DemoToolbar compact showLoaders={false} />
+      <ParticipantViewSelector
+        group={activeGroup}
+        organizerId={organizerId}
+        selectedProfileId={selectedProfileId}
+        onSelect={(participantId) => setSelectedProfile(activeGroup.id, participantId)}
+      />
       <SimulationNote name={selectedParticipant.name} />
       <YourShareCard proposal={proposal} participantId={selectedParticipant.id} participantName={selectedParticipant.name} />
       <AgreementActions
@@ -66,6 +80,8 @@ export default function GroupInboxPage() {
         reason={reason}
         paymentReference={paymentReference}
         onChangeOpen={() => setChangeOpen(true)}
+        whyOpen={whyOpen}
+        onWhyOpen={() => setWhyOpen((current) => !current)}
         onReasonChange={setReason}
         onPaymentReferenceChange={setPaymentReference}
         onAccept={() => respondAsParticipant(selectedParticipant.id, "accepted", undefined, proposal.id)}
@@ -79,6 +95,81 @@ export default function GroupInboxPage() {
           setPaymentReference("");
         }}
       />
+    </div>
+  );
+}
+
+function ParticipantViewSelector({
+  group,
+  organizerId,
+  selectedProfileId,
+  onSelect
+}: {
+  group: SplitFlowGroup;
+  organizerId: string;
+  selectedProfileId: string;
+  onSelect: (participantId: string) => void;
+}) {
+  return (
+    <section className="rounded-lg border border-app-border bg-white p-3" data-testid="participant-view-selector">
+      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+        <div>
+          <h2 className="text-sm font-bold text-app-text">View as participant</h2>
+          <p className="mt-1 text-xs leading-5 text-app-muted">Prototype profile switching. Production auth is out of scope.</p>
+        </div>
+        <div className="flex gap-2 overflow-x-auto pb-1 md:max-w-[70%]">
+          {group.members.map((member) => {
+            const active = member.id === selectedProfileId;
+            return (
+              <button
+                key={member.id}
+                type="button"
+                onClick={() => onSelect(member.id)}
+                data-testid={`participant-switch-${member.id}`}
+                className={`flex min-h-11 shrink-0 items-center gap-2 rounded-lg border px-3 text-sm font-semibold ${
+                  active ? "border-blue-200 bg-blue-50 text-app-blue" : "border-app-border bg-white text-app-text hover:bg-slate-50"
+                }`}
+                aria-pressed={active}
+              >
+                <span className="grid h-7 w-7 place-items-center rounded-full bg-slate-200 text-[11px] text-app-text">{member.name.slice(0, 1)}</span>
+                <span>{member.name}</span>
+                {member.id === organizerId ? <span className="text-xs font-normal text-app-muted">Organizer</span> : null}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function ParticipantPreviewGrid({ proposal, organizerId, onSelect }: { proposal: Proposal; organizerId: string; onSelect: (participantId: string) => void }) {
+  const participants = proposal.participants.filter((participant) => participant.id !== organizerId);
+
+  return (
+    <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3" data-testid="participant-preview-grid">
+      {participants.slice(0, 6).map((participant) => {
+        const fairShare = proposal.calculationResult?.fairShareByParticipant?.[participant.id] ?? participant.shareAmount;
+        const net = proposal.calculationResult?.netBalanceByParticipant?.[participant.id] ?? 0;
+        return (
+          <button
+            key={participant.id}
+            type="button"
+            onClick={() => onSelect(participant.id)}
+            className="min-w-0 rounded-lg border border-app-border bg-slate-50 p-3 text-left hover:border-blue-200 hover:bg-blue-50/30"
+            data-testid={`participant-preview-${participant.id}`}
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <div className="break-words text-sm font-bold text-app-text">{participant.name}</div>
+                <div className="mt-1 text-xs font-semibold text-app-muted">{humanStatus(participant.status)}</div>
+              </div>
+              <div className="shrink-0 text-right text-sm font-bold text-app-text">{amountLabel(net || -fairShare)}</div>
+            </div>
+            <div className="mt-2 text-xs leading-5 text-app-muted">Open their review screen.</div>
+          </button>
+        );
+      })}
     </div>
   );
 }
@@ -176,7 +267,9 @@ function AgreementActions({
   changeOpen,
   reason,
   paymentReference,
+  whyOpen,
   onChangeOpen,
+  onWhyOpen,
   onReasonChange,
   onPaymentReferenceChange,
   onAccept,
@@ -189,7 +282,9 @@ function AgreementActions({
   changeOpen: boolean;
   reason: string;
   paymentReference: string;
+  whyOpen: boolean;
   onChangeOpen: () => void;
+  onWhyOpen: () => void;
   onReasonChange: (value: string) => void;
   onPaymentReferenceChange: (value: string) => void;
   onAccept: () => void;
@@ -206,8 +301,14 @@ function AgreementActions({
           <ActionButton icon={Check} label="I'm in" onClick={onAccept} testId="participant-accept" />
           <ActionButton icon={MessageSquareWarning} label="Request a change" onClick={onChangeOpen} testId="participant-request-change-open" />
           <ActionButton icon={XCircle} label="Opt out" onClick={onOptOut} testId="participant-opt-out" />
+          <ActionButton icon={HelpCircle} label="Ask why" onClick={onWhyOpen} testId="participant-ask-why" />
           <ActionButton icon={CreditCard} label={paymentClaims.length > 0 ? "Add payment reference" : "Claim I paid"} onClick={onClaimPayment} testId="participant-claim-paid" />
         </div>
+        {whyOpen ? (
+          <div className="mt-4 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-sm leading-6 text-app-text" data-testid="participant-why-answer">
+            SplitFlow explains the amount from item eligibility and deterministic payer netting. AI can explain the reasoning, but TypeScript owns the final amount.
+          </div>
+        ) : null}
         <label className="mt-4 block text-sm font-semibold text-app-text" htmlFor="payment-reference-input">
           Payment reference
         </label>
@@ -273,7 +374,7 @@ function AgreementActions({
 function SimulationNote({ name }: { name: string }) {
   return (
     <div className="rounded-lg border border-app-border bg-slate-50 px-3 py-2 text-sm leading-6 text-app-muted" data-testid="participant-simulation-note">
-      Reviewer simulation: viewing as {name}. Change profile from the sidebar footer.
+      Reviewer simulation: viewing as {name}. Switch participant on this page or from the sidebar.
     </div>
   );
 }

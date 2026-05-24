@@ -1,6 +1,7 @@
 "use client";
 
 import { CreditCard, Map, RotateCcw } from "lucide-react";
+import { useState } from "react";
 import { useSplitFlow } from "@/lib/store";
 
 type DemoToolbarProps = {
@@ -10,6 +11,7 @@ type DemoToolbarProps = {
 
 export function DemoToolbar({ compact = false, showLoaders = true }: DemoToolbarProps) {
   const { loadDemo, resetDemo } = useSplitFlow();
+  const [confirmingReset, setConfirmingReset] = useState(false);
 
   return (
     <div className={`flex flex-wrap gap-2 rounded-2xl border border-app-border bg-white p-2 md:rounded-lg ${compact ? "mb-4" : ""}`} data-testid="demo-toolbar">
@@ -19,7 +21,19 @@ export function DemoToolbar({ compact = false, showLoaders = true }: DemoToolbar
           <DemoButton icon={CreditCard} label="Load Subscription Proposal" onClick={() => loadDemo("subscription")} />
         </>
       ) : null}
-      <DemoButton icon={RotateCcw} label="Reset Demo Data" onClick={resetDemo} testId="reset-demo-data" />
+      <DemoButton
+        icon={RotateCcw}
+        label={confirmingReset ? "Confirm Reset" : "Reset Demo Data"}
+        onClick={() => {
+          if (!confirmingReset) {
+            setConfirmingReset(true);
+            return;
+          }
+          resetDemo();
+          setConfirmingReset(false);
+        }}
+        testId="reset-demo-data"
+      />
     </div>
   );
 }

@@ -13,6 +13,8 @@ SplitFlow turns messy shared-cost conversations into reviewable, tool-verified p
 
 > AI structures the conversation. Tools verify the agreement.
 
+![SplitFlow product preview](public/splitflow-product-preview.png)
+
 ---
 
 ## Why SplitFlow Exists

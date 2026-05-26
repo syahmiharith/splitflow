@@ -12,6 +12,22 @@ SplitFlow is a full-stack AI-powered group payment coordination system. It conve
 
 The current repository is a production-style MVP prototype. It uses local and mock state where production infrastructure would normally exist, but the core workflow is interactive: create a proposal from chat, review the calculation, send it for participant agreement, simulate participant responses, resolve blockers, and decide whether settlement is ready.
 
+The core technical decision is: AI handles ambiguity; deterministic code handles money.
+
+- AI parses messy context into proposal intent.
+- Deterministic tools calculate shares, rounding, eligibility, and settlement instructions.
+- Domain rules validate participant responses, claims, and readiness.
+- Explicit state transitions decide whether a proposal is safe to confirm.
+- Tests prove the important financial and workflow invariants.
+
+Engineering proof docs:
+
+- [State Machine](engineering/STATE_MACHINE.md)
+- [Financial Invariants](engineering/FINANCIAL_INVARIANTS.md)
+- [Edge-Case Test Matrix](engineering/EDGE_CASE_TEST_MATRIX.md)
+- [Messy Prompt Examples](engineering/MESSY_PROMPT_EXAMPLES.md)
+- [Prototype Boundaries](engineering/PROTOTYPE_BOUNDARIES.md)
+
 ---
 
 ## Core Engineering Principle

@@ -1,4 +1,5 @@
 import { formatKrw } from "@/lib/format";
+import { hasUnresolvedPaymentClaims } from "@/lib/domain/financial-invariants";
 import { countParticipants, isSafeToBook } from "@/lib/split";
 import type { ParticipantCounts, Proposal, SplitFlowGroup } from "@/lib/types";
 
@@ -69,7 +70,7 @@ function friendNames(proposal: Proposal, statuses: string[]): string[] {
 }
 
 function hasClaimedCredit(proposal: Proposal): boolean {
-  return Boolean(proposal.paymentRecords?.some((record) => record.status === "claimed"));
+  return hasUnresolvedPaymentClaims(proposal);
 }
 
 function participantName(proposal: Proposal, participantId: string): string {
@@ -80,7 +81,7 @@ export function deriveSplitReadiness(proposal: Proposal): SplitReadiness {
   const counts = countParticipants(proposal);
   const activeParticipants = proposal.participants.filter((participant) => participant.status !== "opted_out");
   const confirmed = activeParticipants.filter((participant) => participant.status === "accepted" || participant.status === "paid").length;
-  const claimedRecords = (proposal.paymentRecords ?? []).filter((record) => record.status === "claimed");
+  const claimedRecords = (proposal.paymentRecords ?? []).filter((record) => record.status === "claimed" || record.status === "disputed");
   const changeRequestParticipants = proposal.participants.filter(
     (participant) => participant.status === "requested_changes" || Boolean(participant.changeRequestNote)
   );

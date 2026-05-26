@@ -67,6 +67,26 @@ For architecture, domain logic, AI workflow design, validation rules, and implem
 
 ---
 
+## Engineering Proof
+
+SplitFlow uses AI for interpretation and workflow guidance, but final money decisions are guarded by deterministic invariants:
+
+- AI can propose, but cannot finalize money.
+- A proposal cannot be ready while participant claims are unresolved.
+- Rounding must be deterministic and auditable.
+- Participant opt-outs trigger recalculation and reconfirmation.
+- Payment readiness is a state-machine decision.
+
+Technical proof:
+
+- [State Machine](docs/engineering/STATE_MACHINE.md)
+- [Financial Invariants](docs/engineering/FINANCIAL_INVARIANTS.md)
+- [Edge-Case Test Matrix](docs/engineering/EDGE_CASE_TEST_MATRIX.md)
+- [Messy Prompt Examples](docs/engineering/MESSY_PROMPT_EXAMPLES.md)
+- [Prototype Boundaries](docs/engineering/PROTOTYPE_BOUNDARIES.md)
+
+---
+
 ## Why It Is Different
 
 | Traditional Split Apps  | SplitFlow                                 |

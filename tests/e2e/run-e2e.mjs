@@ -4,6 +4,11 @@ import { spawn } from "node:child_process";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 
+// The regular suite is always offline, even if a developer has live credentials.
+process.env.OPENAI_API_KEY = "";
+process.env.SPLITFLOW_USE_OPENAI_AGENTS_SDK = "0";
+process.env.RUN_LIVE_AGENT_TESTS = "0";
+
 const port = process.env.SPLITFLOW_E2E_PORT || String(await findAvailablePort());
 const baseURL = process.env.PLAYWRIGHT_BASE_URL || `http://127.0.0.1:${port}`;
 const isWindows = process.platform === "win32";
@@ -129,7 +134,7 @@ try {
 
     await Promise.race([waitForServer(baseURL), waitForServerProcess(server)]);
     const command = isWindows ? "cmd.exe" : "pnpm";
-    const playwrightArgs = ["exec", "playwright", "test"];
+    const playwrightArgs = ["exec", "playwright", "test", "app.spec.ts"];
     if (isWindows) {
       playwrightArgs.push("--workers=1");
     }

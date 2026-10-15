@@ -5,6 +5,11 @@ const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? "http://127.0.0.1:3107";
 export default defineConfig({
   testDir: "./tests/e2e",
   timeout: 30_000,
+  forbidOnly: Boolean(process.env.CI),
+  // Tests share one prototype state file across desktop and mobile projects.
+  workers: 1,
+  retries: 0,
+  reporter: process.env.CI ? [["list"], ["html", { open: "never" }]] : "list",
   expect: { timeout: 8_000 },
   use: {
     baseURL,

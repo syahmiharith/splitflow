@@ -79,6 +79,9 @@ SplitFlow uses AI for interpretation and workflow guidance, but final money deci
 
 Technical proof:
 
+- [CI workflow](.github/workflows/ci.yml): locked dependencies, lint, typecheck, unit/API tests, production build, and desktop/mobile E2E. Run locally with `pnpm install --frozen-lockfile`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`, `pnpm exec playwright install chromium`, then `pnpm test:e2e`.
+- Regular E2E forces the deterministic mock runtime and disables live credentials; its shared prototype state runs with one worker. It does not exercise real payments or measure model quality. `pnpm test:agent:live` is a separate, opt-in paid connectivity/workflow check and is never run by CI.
+
 - [State Machine](docs/engineering/STATE_MACHINE.md)
 - [Financial Invariants](docs/engineering/FINANCIAL_INVARIANTS.md)
 - [Edge-Case Test Matrix](docs/engineering/EDGE_CASE_TEST_MATRIX.md)
@@ -101,6 +104,10 @@ Technical proof:
 ---
 
 ## Demo & Links
+
+The [ShardLab Product Intern Challenge case study](docs/shardlab-product-case-study.md) describes the canonical prototype scenario.
+
+Product moment: `Han River BBQ Crew` needs agreement before Syahmi fronts ₩128,000. Daniel does not eat beef, and Sarah's transfer remains a claimed payment until the organizer confirms it. These are simulated workflow states, not real payment processing.
 
 - **Live Demo:** [Try SplitFlow](https://splitflow-xi.vercel.app/)
 - **Technical Deep Dive:** [docs/TECHNICAL.md](docs/TECHNICAL.md)

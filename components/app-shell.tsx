@@ -1,12 +1,14 @@
 "use client";
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { usePathname } from "next/navigation";
 import { BottomNav } from "@/components/bottom-nav";
 import { MobileSidebarOverlay, Sidebar } from "@/components/sidebar";
 import { TopHeader } from "@/components/top-header";
 import { useDeviceProfile } from "@/lib/use-device-profile";
 
 export function AppShell({ children }: { children: ReactNode }) {
+  const pathname = usePathname();
   const device = useDeviceProfile();
   const compactLayout = device.layoutMode !== "desktop";
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
@@ -66,6 +68,8 @@ export function AppShell({ children }: { children: ReactNode }) {
       window.removeEventListener("keydown", onKeyDown);
     };
   }, [mobileSidebarOpen]);
+
+  if (pathname.startsWith("/pilot")) return <>{children}</>;
 
   return (
     <div

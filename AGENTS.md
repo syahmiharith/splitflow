@@ -1,3 +1,7 @@
+# Approved pilot direction
+
+The signed-in dinner and outing pilot at /pilot uses Supabase email-code authentication and Postgres. Manual creation is primary. Deterministic money logic remains mandatory. Older prototype instructions below apply to the labeled demo only. No payment processing. Keep demo records isolated from real accounts.
+
 # SplitFlow Agent Instructions
 
 ## Product Direction
@@ -88,9 +92,9 @@ Do not add:
 * shadcn/ui
 * another UI framework
 * real payment processing
-* real authentication
+* external billing beyond the approved pilot
 * real push notifications
-* production database
+* unrelated production services
 * external billing provider
 * unnecessary backend services
 
@@ -437,8 +441,8 @@ For this version:
 * mock data is acceptable
 * local deterministic state is acceptable
 * server actions/API routes are acceptable if already used
-* no production database
-* no real auth
+* Supabase Postgres for the signed-in pilot
+* Supabase email-code authentication for the signed-in pilot
 * no real payment settlement
 * no real push notifications
 

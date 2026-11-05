@@ -943,11 +943,10 @@ test("opening a split detail does not move the sidebar footer", async ({ page })
   expect(Math.abs(after.height - before.height)).toBeLessThan(1);
 });
 
-test("README documents the canonical demo", async () => {
+test("README documents the product and pilot readiness", async () => {
   const readme = await readFile("README.md", "utf8");
-  expect(readme).toContain("ShardLab Product Intern Challenge");
-  expect(readme).toContain("Product moment: `Han River BBQ Crew` needs agreement before Syahmi fronts ₩128,000.");
-  expect(readme).toContain("docs/shardlab-product-case-study.md");
-  expect(readme).toContain("Daniel does not eat beef");
-  expect(readme).toContain("claimed payment");
+  expect(readme).toContain("# SplitFlow");
+  expect(readme).toContain("docs/PILOT-READINESS.md");
+  expect(readme).toContain("Real-group deployment is pending.");
+  expect(readme).toContain("docs/TECHNICAL.md");
 });

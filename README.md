@@ -1,5 +1,7 @@
 # SplitFlow
 
+The dinner and outing pilot is being developed at `/pilot`. See [pilot setup and readiness](docs/PILOT-READINESS.md) for configuration, verified checks and outstanding release gates. Real-group deployment is pending.
+
 ### AI-Powered Copilot for Group Payments
 
 Most bill-splitting apps solve the math.<br>

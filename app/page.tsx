@@ -36,6 +36,8 @@ export default function HomePage() {
 
   return (
     <div className="space-y-4 px-4 py-5 md:p-6" data-testid="home-route">
+      <Link href="/pilot" className="block rounded bg-blue-600 p-4 font-semibold text-white">New split · Dinner and outing pilot</Link>
+      <p className="text-sm">Demo workspace below · Seeded records and profile switching</p>
       <section className="rounded-lg border border-app-border bg-white p-4 shadow-[0_1px_2px_rgba(24,33,47,0.04)] md:p-5">
         <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(280px,0.4fr)] lg:items-center">
           <div className="min-w-0">

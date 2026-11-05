@@ -5,6 +5,9 @@ import {
   balances,
   calculateExpense,
   itemShare,
+  settlements,
+  type Expense,
+  type PilotMutation,
   type Split,
 } from "@/lib/pilot/model";
 import {
@@ -19,6 +22,7 @@ import {
   clearPending,
 } from "@/lib/pilot/pending-operation";
 import { nextAction } from "@/lib/pilot/next-action";
+import { PilotFeedback } from "@/components/pilot-feedback";
 import { ExpenseForm } from "@/components/pilot-expense-form";
 const money = (amount: number) =>
   new Intl.NumberFormat("ko-KR", {
@@ -28,6 +32,7 @@ const money = (amount: number) =>
   }).format(amount);
 export default function PilotPage() {
   const loadSequence = useRef(0);
+  const loadedIdentity = useRef<string | undefined>(undefined);
   const [loading, setLoading] = useState(true);
   const [token, setToken] = useState("");
   const [email, setEmail] = useState("");
@@ -38,7 +43,14 @@ export default function PilotPage() {
   const [busy, setBusy] = useState(false);
   const [creating, setCreating] = useState(false);
   const [draftId, setDraftId] = useState("");
-  const [editing, setEditing] = useState<string>();
+  const [editing, setEditing] = useState<{
+    id: string;
+    revision: number;
+    expense: Expense;
+  }>();
+  const [viewedRevisions, setViewedRevisions] = useState<
+    Record<string, number>
+  >({});
   const [selected, setSelected] = useState<string>();
   const [pending, setPending] = useState<{ body: string; key: string }>();
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -48,10 +60,22 @@ export default function PilotPage() {
     const session = await getSession();
     if (sequence !== loadSequence.current) return;
     if (!session) {
+      loadedIdentity.current = undefined;
+      setEditing(undefined);
+      setCreating(false);
+      setPending(undefined);
+      setViewedRevisions({});
       setToken("");
       setSplits([]);
       setLoading(false);
       return;
+    }
+    if (loadedIdentity.current !== session.email) {
+      setSplits([]);
+      setEditing(undefined);
+      setCreating(false);
+      setViewedRevisions({});
+      loadedIdentity.current = session.email;
     }
     setToken(session.access_token);
     setEmail(session.email);
@@ -63,6 +87,14 @@ export default function PilotPage() {
     )
       return;
     setSplits(rows);
+    setViewedRevisions((previous) =>
+      Object.fromEntries(
+        rows.map((split: Split) => [
+          split.id,
+          previous[split.id] ?? split.revision,
+        ]),
+      ),
+    );
     setLoading(false);
   }
   useEffect(() => {
@@ -122,7 +154,7 @@ export default function PilotPage() {
       setMessage("Enter the code from your email.");
     }
   }
-  async function save(body: object) {
+  async function save(body: PilotMutation) {
     const serialized = JSON.stringify(body);
     const operation =
       pending?.body === serialized
@@ -134,8 +166,21 @@ export default function PilotPage() {
       method: "POST",
       body: JSON.stringify({ ...body, key: operation.key }),
     });
+    if (body.expected === 0)
+      void pilotRequest("/api/pilot/measurements", {
+        method: "POST",
+        body: JSON.stringify({
+          type: "published",
+          id: data.id,
+          splitId: data.id,
+        }),
+      }).catch(() => {});
     clearPending(email);
     setPending(undefined);
+    setViewedRevisions((previous) => ({
+      ...previous,
+      [data.id]: data.revision,
+    }));
     setCreating(false);
     setEditing(undefined);
     await load();
@@ -222,7 +267,12 @@ export default function PilotPage() {
             <button
               className="rounded bg-blue-600 p-3 text-white"
               onClick={() => {
-                setDraftId(crypto.randomUUID());
+                const id = crypto.randomUUID();
+                setDraftId(id);
+                void pilotRequest("/api/pilot/measurements", {
+                  method: "POST",
+                  body: JSON.stringify({ type: "started", id }),
+                }).catch(() => {});
                 setCreating(true);
                 setSelected(undefined);
               }}
@@ -237,6 +287,7 @@ export default function PilotPage() {
             </button>
             <button
               onClick={() => {
+                loadedIdentity.current = undefined;
                 loadSequence.current += 1;
                 clearSession();
                 setCreating(false);
@@ -266,6 +317,12 @@ export default function PilotPage() {
             <ExpenseForm
               email={email}
               busy={busy}
+              onDrafted={() => {
+                void pilotRequest("/api/pilot/measurements", {
+                  method: "POST",
+                  body: JSON.stringify({ type: "ai_used", id: draftId }),
+                }).catch(() => {});
+              }}
               onSave={(expense) =>
                 action(() => save({ id: draftId, expected: 0, expense }))
               }
@@ -302,6 +359,23 @@ export default function PilotPage() {
                     : "Your remaining balance"}{" "}
                   {money(Math.abs(remaining[email]))}
                 </p>
+                {split.expense.mode === "paid" && (
+                  <ul aria-label="Remaining repayments" className="space-y-2">
+                    {settlements(split)
+                      .filter(
+                        (transfer) =>
+                          transfer.from === email || transfer.to === email,
+                      )
+                      .map((transfer) => (
+                        <li key={`${transfer.from}-${transfer.to}`}>
+                          {transfer.from === email
+                            ? `You owe ${split.expense.participants.find((person) => person.email === transfer.to)?.name}`
+                            : `${split.expense.participants.find((person) => person.email === transfer.from)?.name} owes you`}{" "}
+                          {money(transfer.amount)}
+                        </li>
+                      ))}
+                  </ul>
+                )}
                 <ul className="space-y-2">
                   {split.expense.participants.map((p) => (
                     <li key={p.email}>
@@ -382,6 +456,24 @@ export default function PilotPage() {
                 >
                   Copy reminder
                 </button>
+                {viewedRevisions[split.id] !== split.revision && (
+                  <div role="status" className="rounded border p-3">
+                    <p>
+                      This split changed. Review the latest amounts before
+                      responding. An open revision keeps its original version.
+                    </p>
+                    <button
+                      onClick={() =>
+                        setViewedRevisions((previous) => ({
+                          ...previous,
+                          [split.id]: split.revision,
+                        }))
+                      }
+                    >
+                      I have reviewed this version
+                    </button>
+                  </div>
+                )}
                 {split.expense.mode === "planned" && (
                   <div className="flex gap-4">
                     {(["accepted", "declined"] as const).map((status) => (
@@ -392,7 +484,8 @@ export default function PilotPage() {
                           void action(() =>
                             save({
                               id: split.id,
-                              expected: split.revision,
+                              expected:
+                                viewedRevisions[split.id] ?? split.revision,
                               command: { type: "respond", status, reason: "" },
                             }),
                           )
@@ -413,11 +506,11 @@ export default function PilotPage() {
                     void action(() =>
                       save({
                         id: split.id,
-                        expected: split.revision,
+                        expected: viewedRevisions[split.id] ?? split.revision,
                         command: {
                           type: "respond",
                           status: "correction",
-                          reason: data.get("reason"),
+                          reason: String(data.get("reason") ?? ""),
                         },
                       }),
                     );
@@ -443,10 +536,10 @@ export default function PilotPage() {
                       void action(() =>
                         save({
                           id: split.id,
-                          expected: split.revision,
+                          expected: viewedRevisions[split.id] ?? split.revision,
                           command: {
                             type: "report",
-                            to: data.get("to"),
+                            to: String(data.get("to") ?? ""),
                             amount: Number(data.get("amount")),
                           },
                         }),
@@ -500,7 +593,8 @@ export default function PilotPage() {
                             void action(() =>
                               save({
                                 id: split.id,
-                                expected: split.revision,
+                                expected:
+                                  viewedRevisions[split.id] ?? split.revision,
                                 command: {
                                   type: "receipt",
                                   paymentId: payment.id,
@@ -520,22 +614,48 @@ export default function PilotPage() {
                 {email === split.organizer && (
                   <button
                     onClick={() =>
-                      setEditing(editing === split.id ? undefined : split.id)
+                      setEditing(
+                        editing?.id === split.id
+                          ? undefined
+                          : {
+                              id: split.id,
+                              revision: split.revision,
+                              expense: structuredClone(split.expense),
+                            },
+                      )
                     }
                   >
-                    Revise expense
+                    {editing?.id === split.id
+                      ? "Cancel revision"
+                      : "Revise expense"}
                   </button>
                 )}
-                {editing === split.id && (
+                {editing?.id === split.id &&
+                  editing.revision !== split.revision && (
+                    <button
+                      className="rounded border p-3"
+                      onClick={() =>
+                        setEditing({
+                          id: split.id,
+                          revision: split.revision,
+                          expense: structuredClone(split.expense),
+                        })
+                      }
+                    >
+                      Discard draft and use latest expense
+                    </button>
+                  )}
+                {editing?.id === split.id && (
                   <ExpenseForm
                     email={email}
-                    original={split.expense}
+                    key={`${editing.id}-${editing.revision}`}
+                    original={editing.expense}
                     busy={busy}
                     onSave={(expense, reason) =>
                       action(() =>
                         save({
                           id: split.id,
-                          expected: split.revision,
+                          expected: editing.revision,
                           command: { type: "revise", expense, reason },
                         }),
                       )
@@ -547,12 +667,15 @@ export default function PilotPage() {
           })}
         </>
       )}
-      <a
-        className="block underline"
-        href="https://github.com/syahmiharith/splitflow/issues"
-      >
-        Report a problem
-      </a>
+      {token && (
+        <PilotFeedback
+          splitId={
+            selected && splits.some((split) => split.id === selected)
+              ? selected
+              : undefined
+          }
+        />
+      )}
     </main>
   );
 }

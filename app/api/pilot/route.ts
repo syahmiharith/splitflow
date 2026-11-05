@@ -6,12 +6,12 @@ import {
   requireWritable,
 } from "@/lib/pilot/server";
 import { NextRequest, NextResponse } from "next/server";
-import { z } from "zod";
 import {
   applyCommand,
   calculateExpense,
   commandSchema,
   expenseSchema,
+  mutationSchema,
   type Split,
 } from "@/lib/pilot/model";
 
@@ -33,18 +33,11 @@ export async function GET(request: NextRequest) {
     return failure(error);
   }
 }
-const envelope = z.object({
-  id: z.uuid(),
-  key: z.uuid(),
-  expected: z.number().int().min(0),
-  expense: expenseSchema.optional(),
-  command: commandSchema.optional(),
-});
 export async function POST(request: NextRequest) {
   try {
     requireWritable();
     const user = await actor(request);
-    const input = envelope.parse(await request.json());
+    const input = mutationSchema.parse(await request.json());
     const prior = await database(
       `pilot_operations?actor=eq.${user.id}&key=eq.${input.key}&select=result,split_id`,
     );

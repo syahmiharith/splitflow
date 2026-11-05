@@ -1,16 +1,22 @@
 "use client";
 import { pilotRequest } from "@/lib/pilot/session";
-import { useRef, useState } from "react";
-import { calculateExpense, type Expense } from "@/lib/pilot/model";
+import { useEffect, useRef, useState } from "react";
+import {
+  calculateExpense,
+  expenseSchema,
+  type Expense,
+} from "@/lib/pilot/model";
 export function ExpenseForm({
   email,
   original,
   busy,
   onSave,
+  onDrafted,
 }: {
   email: string;
   original?: Expense;
   busy: boolean;
+  onDrafted?: () => void;
   onSave: (expense: Expense, reason: string) => Promise<void>;
 }) {
   const [draft, setDraft] = useState<Expense>(
@@ -24,6 +30,8 @@ export function ExpenseForm({
       items: [{ name: "Dinner", amount: 0, included: [] }],
     },
   );
+  const heading = useRef<HTMLHeadingElement>(null);
+  const [payer, setPayer] = useState(0);
   const [description, setDescription] = useState("");
   const [drafting, setDrafting] = useState(false);
   const [review, setReview] = useState(false);
@@ -31,6 +39,9 @@ export function ExpenseForm({
   const [reason, setReason] = useState("");
   const [advanced, setAdvanced] = useState(Boolean(original));
   const submission = useRef<Expense | undefined>(undefined);
+  useEffect(() => {
+    heading.current?.focus();
+  }, [review]);
   function prepare() {
     try {
       const expense = advanced
@@ -39,7 +50,7 @@ export function ExpenseForm({
             ...draft,
             participants: draft.participants.map((p, i) => ({
               ...p,
-              paid: i === 0 ? draft.items[0].amount : 0,
+              paid: i === payer ? draft.items[0].amount : 0,
             })),
             items: [
               {
@@ -50,13 +61,13 @@ export function ExpenseForm({
               },
             ],
           };
-      const normalized = {
+      const normalized = expenseSchema.parse({
         ...expense,
         participants: expense.participants.map((p) => ({
           ...p,
           email: p.email.trim().toLowerCase(),
         })),
-      };
+      });
       calculateExpense(normalized);
       submission.current = normalized;
       setDraft(normalized);
@@ -71,15 +82,38 @@ export function ExpenseForm({
     field: "name" | "email" | "paid",
     value: string,
   ) {
+    const previousEmail = draft.participants[index].email;
+    const nextValue =
+      field === "paid"
+        ? Number(value)
+        : field === "email"
+          ? value.trim().toLowerCase()
+          : value;
     setDraft({
       ...draft,
-      participants: draft.participants.map((p, i) =>
-        i === index
-          ? { ...p, [field]: field === "paid" ? Number(value) : value }
-          : p,
+      participants: draft.participants.map((person, personIndex) =>
+        personIndex === index ? { ...person, [field]: nextValue } : person,
       ),
+      items:
+        field === "email"
+          ? draft.items.map((item) => ({
+              ...item,
+              included: item.included.map((email) =>
+                email === previousEmail ? String(nextValue) : email,
+              ),
+              custom: item.custom
+                ? Object.fromEntries(
+                    Object.entries(item.custom).map(([email, amount]) => [
+                      email === previousEmail ? String(nextValue) : email,
+                      amount,
+                    ]),
+                  )
+                : undefined,
+            }))
+          : draft.items,
     });
   }
+
   return (
     <form
       className="space-y-4 rounded border p-4"
@@ -90,7 +124,7 @@ export function ExpenseForm({
         else prepare();
       }}
     >
-      <h2 className="text-lg font-semibold">
+      <h2 ref={heading} tabIndex={-1} className="text-lg font-semibold">
         {review
           ? "Review before publishing"
           : original
@@ -129,6 +163,7 @@ export function ExpenseForm({
               })
                 .then((expense) => {
                   setDraft(expense);
+                  onDrafted?.();
                   setAdvanced(true);
                 })
                 .catch((error) => setError(error.message))
@@ -163,7 +198,7 @@ export function ExpenseForm({
             <option value="planned">Plan an expense</option>
           </select>
         </label>
-        <p>Participants · First person pays by default</p>
+        <p>Participants</p>
         {draft.participants.map((p, i) => (
           <div key={i} className="grid gap-2 sm:grid-cols-2">
             <label>
@@ -236,6 +271,22 @@ export function ExpenseForm({
               }
               className="block w-full border p-3"
             />
+          </label>
+        )}
+        {!advanced && (
+          <label className="block">
+            {draft.mode === "paid" ? "Who paid" : "Who will pay"}
+            <select
+              className="block w-full border p-3"
+              value={payer}
+              onChange={(event) => setPayer(Number(event.target.value))}
+            >
+              {draft.participants.map((person, index) => (
+                <option key={index} value={index}>
+                  {person.name || `Participant ${index + 1}`}
+                </option>
+              ))}
+            </select>
           </label>
         )}
         <label className="block">

@@ -23,17 +23,15 @@ describe("pilot session recovery", () => {
       { access_token: "old", refresh_token: "refresh", expires_in: 0 },
       "a@example.com",
     );
-    const fetch = vi
-      .fn()
-      .mockResolvedValue(
-        new Response(
-          JSON.stringify({
-            access_token: "new",
-            refresh_token: "rotated",
-            expires_in: 3600,
-          }),
-        ),
-      );
+    const fetch = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          access_token: "new",
+          refresh_token: "rotated",
+          expires_in: 3600,
+        }),
+      ),
+    );
     vi.stubGlobal("fetch", fetch);
     const results = await Promise.all([getSession(), getSession()]);
     expect(results.map((s) => s?.access_token)).toEqual(["new", "new"]);
@@ -66,6 +64,35 @@ describe("pilot session recovery", () => {
   });
   it("recovers safely from malformed stored sessions", async () => {
     localStorage.setItem("splitflow-pilot-session", "{broken");
+    expect(await getSession()).toBeNull();
+  });
+  it("does not restore a session when sign-out happens during renewal", async () => {
+    storeSession(
+      { access_token: "old", refresh_token: "refresh", expires_in: 0 },
+      "a@example.com",
+    );
+    let resolve!: (response: Response) => void;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        () =>
+          new Promise<Response>((done) => {
+            resolve = done;
+          }),
+      ),
+    );
+    const pending = getSession();
+    clearSession();
+    resolve(
+      new Response(
+        JSON.stringify({
+          access_token: "new",
+          refresh_token: "rotated",
+          expires_in: 3600,
+        }),
+      ),
+    );
+    expect(await pending).toBeNull();
     expect(await getSession()).toBeNull();
   });
 });

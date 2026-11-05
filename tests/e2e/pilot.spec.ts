@@ -1,6 +1,9 @@
 import { expect, test, type Page } from "@playwright/test";
 import { calculateExpense, type Split } from "../../lib/pilot/model";
 async function session(page: Page) {
+  await page.route("**/api/pilot/measurements", (route) =>
+    route.fulfill({ json: { saved: true } }),
+  );
   await page.addInitScript(() =>
     localStorage.setItem(
       "splitflow-pilot-session",
@@ -48,9 +51,13 @@ test("manual dinner review, publish and reload with a simulated storage boundary
   await page
     .getByRole("button", { name: "Publish split", exact: true })
     .click();
-  await expect(page.getByText("Your share ₩20,000", { exact: true })).toBeVisible();
+  await expect(
+    page.getByText("Your share ₩20,000", { exact: true }),
+  ).toBeVisible();
   await page.reload();
-  await expect(page.getByText("Your share ₩20,000", { exact: true })).toBeVisible();
+  await expect(
+    page.getByText("Your share ₩20,000", { exact: true }),
+  ).toBeVisible();
   expect(
     await page.evaluate(
       () => document.documentElement.scrollWidth > innerWidth,
@@ -146,7 +153,9 @@ test("reload retries an interrupted save with the original operation key", async
   ).toBeVisible();
   await page.reload();
   await page.getByRole("button", { name: "Retry interrupted save" }).click();
-  await expect(page.getByText("Your share ₩30,000", { exact: true })).toBeVisible();
+  await expect(
+    page.getByText("Your share ₩30,000", { exact: true }),
+  ).toBeVisible();
   await expect(
     page.getByRole("button", { name: "Retry interrupted save" }),
   ).toHaveCount(0);

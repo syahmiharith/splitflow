@@ -23,6 +23,7 @@ export async function database(path: string, init?: RequestInit) {
       apikey: key,
       Authorization: `Bearer ${key}`,
       "Content-Type": "application/json",
+      ...init?.headers,
     },
   });
   if (!response.ok) {

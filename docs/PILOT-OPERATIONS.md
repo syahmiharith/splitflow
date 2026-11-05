@@ -21,3 +21,19 @@ Set `PILOT_READ_ONLY=true` in the deployment and redeploy. Confirm financial POS
 ## Feedback and pilot evidence
 
 Keep consented participant notes privately. Record organizer completion counts and assistance, task duration, corrections, participant completion, and the number of groups with another relevant outing. Record how many choose SplitFlow again. Compare manual and AI entry on equivalent tasks. Exclude internal and supervised testing from adoption counts. Carry two observed problems through issue, decision, fix, regression check, release and user retest before publishing a maintenance story. Public problem reports must use synthetic or redacted examples.
+
+## Reproduce the isolated local journeys
+
+Use Supabase CLI 3.0.0 with Docker. `npx --yes supabase@3.0.0 start --exclude realtime,storage-api,imgproxy,postgres-meta,studio,edge-runtime,logflare,vector,supavisor` starts this repository's local-only stack on ports 55421, 55422 and 55424. Configuration uses captured test email and never delivers the synthetic test messages externally. Copy local URL and key values from `supabase status` into the ignored `.env.local` using the variable names in `.env.example`. Keep service-role values out of browser variables and terminal transcripts.
+
+Run the app on port 3122 with `npm run dev -- --hostname 127.0.0.1 --port 3122`. Run `PILOT_LIVE_LOCAL=1 PLAYWRIGHT_BASE_URL=http://127.0.0.1:3122 npx playwright test tests/e2e/pilot-local.spec.ts --project=chromium --project=mobile --workers=1`. These opt-in tests enforce the isolated localhost Supabase URL and retrieve OTP codes only from the local captured-mail API. They create synthetic accounts and records. Normal browser regression runs skip these live-local tests.
+
+`npx --yes supabase@3.0.0 db reset --yes` erases local test records and replays all migrations. `tests/sql/pilot.sql` runs against a clean isolated database and rolls back its synthetic fixture. Run `npx --yes supabase@3.0.0 db advisors --level warn --fail-on warn` after schema changes. The service-only invitation, operation and measurement tables deliberately have no browser policies. Stop this specific stack with `supabase stop` from this checkout when finished.
+
+## Private feedback and completion measurements
+
+Signed-in participants can save a private problem report through the pilot. Reports include the expected and actual behavior, optional split association, verified actor ID and app version. Browser users can read their own reports. The operator reviews reports through authorized database access. Public GitHub is no longer the pilot's report entry point.
+
+Creation measurements record actor IDs, trial IDs, server timestamps, publication and optional AI use. They have no email, title or expense-description fields. Collection failures do not block financial saves. Review missing measurements alongside observed sessions before reporting denominators. Corrections and participant responses are verifiable through revision records. Record assistance and group return use in private research notes. Repeated organizer creation alone cannot establish that a group chose the product again.
+
+For an initial private completion summary, query `pilot_creation_measurements` grouped by `used_ai`, counting starts and non-null `published_at`, and calculating elapsed time from `published_at - started_at`. Exclude synthetic test actors and observed supervised sessions before publishing counts. Compare equivalent tasks and retain the denominator.

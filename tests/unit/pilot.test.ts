@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   applyCommand,
   balances,
+  settlements,
   calculateExpense,
   type Expense,
   type Split,
@@ -126,5 +127,25 @@ describe("pilot financial workflow", () => {
         reason: "Wrong share",
       }).responses["b@example.com"].status,
     ).toBe("correction");
+  });
+  it("provides exact remaining recipients for multiple payers and confirmed transfers", () => {
+    const s = structuredClone(split);
+    s.expense.participants[0].paid = 40001;
+    s.expense.participants[1].paid = 20000;
+    expect(settlements(s)).toEqual([
+      { from: "c@example.com", to: "a@example.com", amount: 20000 },
+    ]);
+    s.repayments = [
+      {
+        id: crypto.randomUUID(),
+        from: "c@example.com",
+        to: "a@example.com",
+        amount: 10000,
+        status: "confirmed",
+      },
+    ];
+    expect(settlements(s)).toEqual([
+      { from: "c@example.com", to: "a@example.com", amount: 10000 },
+    ]);
   });
 });

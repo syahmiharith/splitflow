@@ -151,6 +151,15 @@ export const commandSchema = z.discriminatedUnion("type", [
     status: z.enum(["confirmed", "disputed"]),
   }),
 ]);
+export const mutationSchema = z.object({
+  id: z.uuid(),
+  key: z.uuid(),
+  expected: z.number().int().min(0),
+  expense: expenseSchema.optional(),
+  command: commandSchema.optional(),
+});
+export type PilotMutation = Omit<z.infer<typeof mutationSchema>, "key">;
+
 export function applyCommand(
   current: Split,
   actor: string,
@@ -228,4 +237,36 @@ export function applyCommand(
     at: new Date().toISOString(),
   });
   return next;
+}
+
+export function settlements(split: Split) {
+  const remaining = balances(split);
+  const debtors = split.expense.participants
+    .filter((person) => remaining[person.email] > 0)
+    .map((person) => ({
+      email: person.email,
+      amount: remaining[person.email],
+    }));
+  const creditors = split.expense.participants
+    .filter((person) => remaining[person.email] < 0)
+    .map((person) => ({
+      email: person.email,
+      amount: -remaining[person.email],
+    }));
+  const transfers: { from: string; to: string; amount: number }[] = [];
+  let debtor = 0;
+  let creditor = 0;
+  while (debtor < debtors.length && creditor < creditors.length) {
+    const amount = Math.min(debtors[debtor].amount, creditors[creditor].amount);
+    transfers.push({
+      from: debtors[debtor].email,
+      to: creditors[creditor].email,
+      amount,
+    });
+    debtors[debtor].amount -= amount;
+    creditors[creditor].amount -= amount;
+    if (debtors[debtor].amount === 0) debtor += 1;
+    if (creditors[creditor].amount === 0) creditor += 1;
+  }
+  return transfers;
 }

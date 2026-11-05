@@ -53,12 +53,16 @@ export async function getSession(): Promise<PilotSession | null> {
     );
     if (!response.ok) {
       if (response.status === 400 || response.status === 401) {
-        clearSession();
-        return null;
+        if (readSession()?.refresh_token === current.refresh_token)
+          clearSession();
+        return readSession();
       }
       throw new Error("Unable to renew your session. Retry when connected.");
     }
     const data = await response.json();
+    const latest = readSession();
+    if (!latest || latest.refresh_token !== current.refresh_token)
+      return latest;
     return storeSession(data, current.email);
   };
   refreshing = (async () => {
@@ -84,7 +88,11 @@ export async function pilotRequest(path: string, init: RequestInit = {}) {
   });
   const data = await response.json();
   if (!response.ok) {
-    if (response.status === 401) clearSession();
+    if (
+      response.status === 401 &&
+      readSession()?.access_token === session.access_token
+    )
+      clearSession();
     throw new Error(data.error ?? "Unable to complete this action.");
   }
   return data;

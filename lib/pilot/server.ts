@@ -9,7 +9,8 @@ export class PilotError extends Error {
 }
 export function pilotConfig() {
   const url = process.env.SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const key =
+    process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!url || !key)
     throw new PilotError("Pilot storage is not configured.", 503);
   return { url, key };
@@ -21,7 +22,9 @@ export async function database(path: string, init?: RequestInit) {
     cache: "no-store",
     headers: {
       apikey: key,
-      Authorization: `Bearer ${key}`,
+      ...(key.startsWith("sb_secret_")
+        ? {}
+        : { Authorization: `Bearer ${key}` }),
       "Content-Type": "application/json",
       ...init?.headers,
     },

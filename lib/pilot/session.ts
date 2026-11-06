@@ -40,7 +40,9 @@ export async function getSession(): Promise<PilotSession | null> {
     const current = readSession();
     if (!current || current.expires_at > Date.now() / 1000 + 60) return current;
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    const key =
+      process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
     if (!url || !key)
       throw new Error("Email sign-in needs pilot configuration.");
     const response = await fetch(

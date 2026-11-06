@@ -54,7 +54,9 @@ export default function PilotPage() {
   const [selected, setSelected] = useState<string>();
   const [pending, setPending] = useState<{ body: string; key: string }>();
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const key =
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   async function load() {
     const sequence = ++loadSequence.current;
     const session = await getSession();

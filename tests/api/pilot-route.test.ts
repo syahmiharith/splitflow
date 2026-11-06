@@ -178,4 +178,18 @@ describe("pilot API access and recovery", () => {
         .status,
     ).toBe(403);
   });
+  it("uses current secret keys as API keys without treating them as JWTs", async () => {
+    vi.stubEnv("SUPABASE_SECRET_KEY", "sb_secret_local_test");
+    const fetch = vi
+      .fn()
+      .mockResolvedValueOnce(authenticated())
+      .mockResolvedValueOnce(response([]));
+    vi.stubGlobal("fetch", fetch);
+    expect((await GET(request("/api/pilot"))).status).toBe(200);
+    expect(fetch.mock.calls[1][1].headers.apikey).toBe("sb_secret_local_test");
+    expect(fetch.mock.calls[1][1].headers.Authorization).toBeUndefined();
+    expect(fetch.mock.calls[0][1].headers.Authorization).toBe(
+      "Bearer verified-session",
+    );
+  });
 });

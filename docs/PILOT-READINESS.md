@@ -2,7 +2,7 @@
 
 ## Current release status
 
-The local implementation supports manual dinner and outing workflows, expiring email-bound invitations, session renewal, optional AI drafts, revisions and repayment reporting. The dedicated hosted database and branch-scoped preview configuration are provisioned. Preview commit `be03b98` passed CodeQL and Vercel; the deployed health endpoint returns 200 and signed-out pilot reads return 401. Custom SMTP, email templates and a deployed independent-account test remain required before real invitations. No real-use or repeat-use outcome has been collected.
+The local implementation supports manual dinner and outing workflows, expiring email-bound invitations, session renewal, optional AI drafts, revisions and repayment reporting. The dedicated hosted database and branch-scoped preview configuration are provisioned. Preview commit `be03b98` passed CodeQL and Vercel; the deployed health endpoint returns 200 and signed-out pilot reads return 401. Custom SMTP is saved and enabled. Signup and returning-user templates send an OTP code; hosted codes retain the eight-digit default and expire after 600 seconds. The authentication site URL points to the pilot. Actual email delivery and a deployed independent-account test remain required before real invitations. No real-use or repeat-use outcome has been collected.
 
 ## Configuration
 
@@ -41,7 +41,7 @@ Two independent browser contexts at the baseline `/` both loaded the same seeded
 
 ## Remaining release gates
 
-- Finish custom SMTP and OTP email templates, then verify hosted sign-in and email delivery.
+- Verify hosted sign-in and actual email delivery through the configured custom SMTP and OTP templates.
 - Verify independent organizer and participant accounts, unrelated-account rejection, reload and renewal against hosted storage.
 - Exercise the equal dinner, excluded-item outing with two payers, and post-repayment revision end to end on the deployment, including concurrency and recovery.
 - Finish keyboard, screen-reader labeling and focus checks across authenticated actions and phone, tablet and desktop views.

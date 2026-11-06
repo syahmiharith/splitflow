@@ -2,7 +2,7 @@
 
 ## Current release status
 
-The local implementation supports manual dinner and outing workflows, expiring email-bound invitations, session renewal, optional AI drafts, revisions and repayment reporting. The dedicated hosted database and branch-scoped preview configuration are provisioned. Preview commit `be03b98` passed CodeQL and Vercel; the deployed health endpoint returns 200 and signed-out pilot reads return 401. Custom SMTP is saved and enabled. Signup and returning-user templates send an OTP code; hosted codes retain the eight-digit default and expire after 600 seconds. The authentication site URL points to the pilot. Actual email delivery and a deployed independent-account test remain required before real invitations. No real-use or repeat-use outcome has been collected.
+The local implementation supports manual dinner and outing workflows, expiring email-bound invitations, session renewal, optional AI drafts, revisions and repayment reporting. The dedicated hosted database and branch-scoped preview configuration are provisioned. Preview commit `be03b98` passed CodeQL and Vercel; the deployed health endpoint returns 200 and signed-out pilot reads return 401. Custom SMTP is saved and enabled. Signup and returning-user templates send an OTP code; hosted codes retain the eight-digit default and expire after 600 seconds. The authentication site URL points to the pilot. The operator received a code and signed in successfully after the approved Brevo outbound-IP authorization. The signed-in pilot remained authenticated after a browser reload and loaded its empty split list. A deployed independent-participant test remains required before real invitations. No real-use or repeat-use outcome has been collected.
 
 ## Configuration
 
@@ -41,7 +41,7 @@ Two independent browser contexts at the baseline `/` both loaded the same seeded
 
 ## Remaining release gates
 
-- Verify hosted sign-in and actual email delivery through the configured custom SMTP and OTP templates.
+- Hosted operator email-code sign-in and reload passed. Verify a second independent participant and invitation delivery before opening the pilot to groups.
 - Verify independent organizer and participant accounts, unrelated-account rejection, reload and renewal against hosted storage.
 - Exercise the equal dinner, excluded-item outing with two payers, and post-repayment revision end to end on the deployment, including concurrency and recovery.
 - Finish keyboard, screen-reader labeling and focus checks across authenticated actions and phone, tablet and desktop views.

@@ -2,7 +2,7 @@
 
 ## Current release status
 
-The local implementation supports manual dinner and outing workflows, expiring email-bound invitations, session renewal, optional AI drafts, revisions and repayment reporting. The dedicated hosted database and branch-scoped preview configuration are provisioned. Custom SMTP, email templates and a deployed independent-account test remain required before real invitations. No real-use or repeat-use outcome has been collected.
+The local implementation supports manual dinner and outing workflows, expiring email-bound invitations, session renewal, optional AI drafts, revisions and repayment reporting. The dedicated hosted database and branch-scoped preview configuration are provisioned. Preview commit `be03b98` passed CodeQL and Vercel; the deployed health endpoint returns 200 and signed-out pilot reads return 401. Custom SMTP, email templates and a deployed independent-account test remain required before real invitations. No real-use or repeat-use outcome has been collected.
 
 ## Configuration
 
@@ -28,7 +28,7 @@ Sessions persist locally and renew before expiry. Cross-tab refresh uses browser
 - Type checking, ESLint and production build passed.
 - The full unit/API suite passed with 223 tests, including operation replay after membership revocation. Coverage includes financial invariants, verified membership, invitation errors, AI failure, session renewal, interrupted-save recovery and read-only mode.
 - All three migrations replayed successfully on the isolated full Supabase stack. The local advisors reported no warnings. The initial two migrations also applied successfully to disposable Postgres 17 using synthetic auth roles. `tests/sql/pilot.sql` passed duplicate writes, stale revisions, rollback, wrong-account and expired invitations, repeated redemption and member/stranger row policies. This validates local Postgres behavior. All three migrations are also applied on the dedicated hosted project. Hosted independent-account journeys remain pending.
-- The final production-build browser run passed 71 checks with seven intentional skips, including eight new pilot checks across desktop and mobile. Those tests simulate the API boundary and verify manual publication/reload, wrong-account recovery, retained AI input and interrupted-save key reuse.
+- The final production-build browser run passed 71 checks with 19 intentional skips (including ten opt-in local integration checks, which passed separately), including eight new pilot checks across desktop and mobile. Those tests simulate the API boundary and verify manual publication/reload, wrong-account recovery, retained AI input and interrupted-save key reuse.
 - The previous manual review check also passed at widths 375, 768 and 1440 with no horizontal overflow. Keyboard focus is checked at review entry. Deployed three-fixture coverage and a full screen-reader audit remain pending.
 
 Ten additional unmocked local browser checks passed with both legacy keys and the current publishable/secret keys across desktop and mobile using the full Supabase Auth, captured email and REST stack. They covered email-code sign-in, bound invitations, unrelated-account denial, reload, actual refresh-token renewal, equal dinner, exclusions with two payers, repayment receipt and retained history through a revision, stale organizer drafts, renewed planned participation, private feedback and privacy-safe completion measurements. After a clean migration replay, the sign-in/publication/feedback/measurement journey passed again on both viewports. These are synthetic engineering tests, with real-user outcomes still unobserved.
@@ -41,7 +41,7 @@ Two independent browser contexts at the baseline `/` both loaded the same seeded
 
 ## Remaining release gates
 
-- Finish custom SMTP and OTP email templates, redeploy the updated key support, and verify the pilot deployment.
+- Finish custom SMTP and OTP email templates, then verify hosted sign-in and email delivery.
 - Verify independent organizer and participant accounts, unrelated-account rejection, reload and renewal against hosted storage.
 - Exercise the equal dinner, excluded-item outing with two payers, and post-repayment revision end to end on the deployment, including concurrency and recovery.
 - Finish keyboard, screen-reader labeling and focus checks across authenticated actions and phone, tablet and desktop views.

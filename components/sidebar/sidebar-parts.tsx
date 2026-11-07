@@ -45,7 +45,7 @@ export function WorkspaceNav({
   testId: TestId;
 }) {
   const navItems = [
-    { href: "/", label: "Home", testIdLabel: "home", icon: Home },
+    { href: "/demo", label: "Home", testIdLabel: "home", icon: Home },
     { href: groupBase, label: "Overview", testIdLabel: "overview", icon: Grid2X2 },
     { href: `${groupBase}/chat`, label: "Chat", testIdLabel: "chat", icon: MessageCircle },
     { href: `${groupBase}/proposals`, label: "Splits", testIdLabel: "proposals", icon: FileText },
@@ -58,8 +58,8 @@ export function WorkspaceNav({
       <div className="px-3 pb-1 text-xs font-semibold uppercase tracking-wide text-app-muted">Workspace</div>
       {navItems.map((item) => {
         const active =
-          item.href === "/"
-            ? pathname === "/"
+          item.href === "/demo"
+            ? pathname === "/demo"
             : item.href === groupBase
               ? pathname === item.href
               : pathname === item.href || pathname.startsWith(`${item.href}/`);

@@ -1,13 +1,13 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { StoreProvider } from "@/lib/store";
-import HomePage from "@/app/page";
-import GroupOverviewPage from "@/app/groups/[groupId]/page";
-import GroupChatPage from "@/app/groups/[groupId]/chat/page";
-import GroupProposalsPage from "@/app/groups/[groupId]/proposals/page";
-import GroupInboxPage from "@/app/groups/[groupId]/inbox/page";
-import GroupSettingsPage from "@/app/groups/[groupId]/settings/page";
-import AnalyticsPage from "@/app/analytics/page";
+import HomePage from "@/app/demo/page";
+import GroupOverviewPage from "@/app/demo/groups/[groupId]/page";
+import GroupChatPage from "@/app/demo/groups/[groupId]/chat/page";
+import GroupProposalsPage from "@/app/demo/groups/[groupId]/proposals/page";
+import GroupInboxPage from "@/app/demo/groups/[groupId]/inbox/page";
+import GroupSettingsPage from "@/app/demo/groups/[groupId]/settings/page";
+import AnalyticsPage from "@/app/demo/analytics/page";
 
 vi.mock("next/link", () => ({
   default: ({ href, children, ...props }: { href: string; children: React.ReactNode }) => (
@@ -19,7 +19,7 @@ vi.mock("next/link", () => ({
 
 vi.mock("next/navigation", () => ({
   useParams: () => ({ groupId: "han-river-bbq" }),
-  usePathname: () => "/groups/han-river-bbq/chat",
+  usePathname: () => "/demo/groups/han-river-bbq/chat",
   useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
   redirect: vi.fn()
 }));

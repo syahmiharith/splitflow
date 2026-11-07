@@ -6,9 +6,11 @@ function isMobile(page: Page) {
 }
 
 async function clearDemoStorage(page: Page) {
-  await page.goto("/");
+  await page.goto("/demo");
   await page.evaluate(() => window.localStorage.clear());
   await page.reload();
+  await expect(page.getByTestId("home-route")).toBeVisible();
+  await page.waitForFunction(() => Boolean(window.localStorage.getItem("splitflow.demoState.v4")));
 }
 
 async function openMobileSidebarWithEdgeSwipe(page: Page) {
@@ -68,7 +70,7 @@ async function resetDemoData(page: Page) {
 async function createGroup(page: Page, name: string, description = "") {
   const slug = name.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
   if (isMobile(page)) {
-    await page.goto("/groups");
+    await page.goto("/demo/groups");
     await page.getByTestId("groups-create-group").click();
   } else {
     await page.getByTestId("group-switcher").click();
@@ -78,7 +80,7 @@ async function createGroup(page: Page, name: string, description = "") {
   await page.getByTestId("create-group-name").fill(name);
   if (description) await page.getByTestId("create-group-description").fill(description);
   await page.getByTestId("create-group-submit").click();
-  await expect(page).toHaveURL(new RegExp(`/groups/${slug}/chat$`));
+  await expect(page).toHaveURL(new RegExp(`/demo/groups/${slug}/chat$`));
 }
 
 const canonicalBbqPrompt = `I'm organizing a Han River BBQ for 8 people and need agreement before I front ₩128,000.
@@ -265,7 +267,7 @@ test("home shows product story and global status cards", async ({ page }) => {
   await expect(page.getByTestId("global-next-action-card")).toContainText("Next best action");
   await expect(page.getByTestId("home-primary-cta")).toBeVisible();
 
-  await page.goto("/groups/han-river-bbq/chat");
+  await page.goto("/demo/groups/han-river-bbq/chat");
   await expect(page.getByTestId("chat-route")).toBeVisible();
   await expect(page.getByTestId("chat-centered-column")).toBeVisible();
   if (!isMobile(page)) {
@@ -280,7 +282,7 @@ test("home shows product story and global status cards", async ({ page }) => {
 test("home shows next best action for unresolved change request", async ({ page }) => {
   await clearDemoStorage(page);
   await seedSplitOperationsState(page);
-  await page.goto("/");
+  await page.goto("/demo");
 
   await expect(page.getByTestId("global-next-action-card")).toContainText("Daniel requested a change");
   await expect(page.getByTestId("global-next-action-card")).toContainText("Daniel requested a meat exclusion review");
@@ -294,7 +296,7 @@ test("home shows next best action for unresolved change request", async ({ page 
 test("home shows active workflows before recent activity", async ({ page }) => {
   await clearDemoStorage(page);
   await seedSplitOperationsState(page);
-  await page.goto("/");
+  await page.goto("/demo");
 
   await expect(page.getByTestId("active-workflows-section")).toBeVisible();
   await expect(page.getByTestId("active-workflow-daniel-change-split")).toContainText("Han River BBQ Crew");
@@ -322,7 +324,7 @@ test("home empty state works when a group has no splits", async ({ page }) => {
 test("home survives partial calculation and missing timeline state", async ({ page }) => {
   await clearDemoStorage(page);
   await seedPartialHomeState(page);
-  await page.goto("/");
+  await page.goto("/demo");
 
   await expect(page.getByTestId("home-route")).toBeVisible();
   await expect(page.getByTestId("global-status-cards")).toContainText("Still owed");
@@ -350,7 +352,7 @@ test("sidebar uses Splits and Your Share navigation labels", async ({ page }) =>
 
 test("profile sheet only mounts while open", async ({ page }) => {
   await clearDemoStorage(page);
-  await page.goto("/groups/han-river-bbq");
+  await page.goto("/demo/groups/han-river-bbq");
 
   await expect(page.getByTestId("profile-sheet-backdrop")).toHaveCount(0);
   await openProfileSwitcher(page);
@@ -368,7 +370,7 @@ test("profile sheet only mounts while open", async ({ page }) => {
 
 test("new chat lives in groups header instead of sidebar footer", async ({ page }) => {
   await clearDemoStorage(page);
-  await page.goto("/groups/han-river-bbq/chat");
+  await page.goto("/demo/groups/han-river-bbq/chat");
 
   if (isMobile(page)) {
     await page.getByTestId("mobile-sidebar-open").click();
@@ -385,7 +387,7 @@ test("mobile home keeps next best action above activity", async ({ page }) => {
   test.skip(!isMobile(page), "Mobile-only Home layout coverage");
   await clearDemoStorage(page);
   await seedSplitOperationsState(page);
-  await page.goto("/");
+  await page.goto("/demo");
 
   await expect(page.getByTestId("global-next-action-card")).toBeVisible();
   await expect(page.getByTestId("active-workflows-section")).toBeVisible();
@@ -435,7 +437,7 @@ test("mobile sidebar opens from hamburger and left-edge swipe", async ({ page })
   test.skip(!isMobile(page), "Mobile-only sidebar gesture coverage");
   await clearDemoStorage(page);
 
-  await page.goto("/groups/han-river-bbq/chat");
+  await page.goto("/demo/groups/han-river-bbq/chat");
   await expect(page.getByTestId("mobile-swipe-hint")).toHaveCount(0);
   await page.getByTestId("mobile-sidebar-open").click();
   await expect(page.getByTestId("mobile-sidebar-overlay")).toBeVisible();
@@ -448,7 +450,7 @@ test("mobile sidebar opens from hamburger and left-edge swipe", async ({ page })
 test("chat creates revised BBQ proposal artifact", async ({ page }) => {
   await clearDemoStorage(page);
 
-  await page.goto("/groups/han-river-bbq/chat");
+  await page.goto("/demo/groups/han-river-bbq/chat");
   const initialAssistantCount = await page.getByTestId("chat-assistant-message").count();
   await page.getByRole("textbox").fill(canonicalBbqPrompt);
   await page.keyboard.press("Enter");
@@ -485,7 +487,7 @@ test("chat creates revised BBQ proposal artifact", async ({ page }) => {
 
 test("chat keeps decision summary below the conversation", async ({ page }) => {
   await clearDemoStorage(page);
-  await page.goto("/groups/han-river-bbq/chat");
+  await page.goto("/demo/groups/han-river-bbq/chat");
 
   await expect(page.getByTestId("chat-messages")).toBeVisible();
   await expect(page.getByTestId("decision-summary-card")).toBeVisible();
@@ -496,7 +498,7 @@ test("chat keeps decision summary below the conversation", async ({ page }) => {
 
 test("chat composer is compact and textarea scrolls internally", async ({ page }) => {
   await clearDemoStorage(page);
-  await page.goto("/groups/han-river-bbq/chat");
+  await page.goto("/demo/groups/han-river-bbq/chat");
 
   const composer = page.getByTestId("chat-input-area");
   const input = page.getByTestId("chat-input");
@@ -548,7 +550,7 @@ test("mobile chat keeps composer and artifact panel usable", async ({ page }) =>
   test.skip(!isMobile(page), "Mobile-only chat layout coverage");
   await clearDemoStorage(page);
 
-  await page.goto("/groups/han-river-bbq/chat");
+  await page.goto("/demo/groups/han-river-bbq/chat");
   await expect(page.getByTestId("chat-centered-column")).toBeVisible();
   await expect(page.getByTestId("chat-input-area")).toBeVisible();
   await expect(page.getByTestId("decision-primary-cta")).toBeVisible();
@@ -561,7 +563,7 @@ test("mobile chat keeps composer and artifact panel usable", async ({ page }) =>
 test("proposal panel shows settlement readiness", async ({ page }) => {
   await clearDemoStorage(page);
 
-  await page.goto("/groups/han-river-bbq/proposals");
+  await page.goto("/demo/groups/han-river-bbq/proposals");
   await expect(page.getByTestId("workspace-detail-panel")).toHaveCount(0);
   await page.getByTestId("proposal-row-han-river-bbq-proposal").first().click();
   await expect(page.getByTestId("workspace-detail-panel")).toBeVisible();
@@ -582,7 +584,7 @@ test("proposal panel shows settlement readiness", async ({ page }) => {
 
 test("proposal panel scrolls independently and keeps footer actions visible", async ({ page }) => {
   await clearDemoStorage(page);
-  await page.goto("/groups/han-river-bbq/proposals");
+  await page.goto("/demo/groups/han-river-bbq/proposals");
 
   await page.getByTestId("proposal-row-han-river-bbq-proposal").first().click();
   const panel = page.getByTestId("workspace-detail-panel");
@@ -607,7 +609,7 @@ test("proposal panel scrolls independently and keeps footer actions visible", as
 test("workspace detail panel can be resized from the left edge", async ({ page }) => {
   test.skip(isMobile(page), "Desktop-only panel resize coverage");
   await clearDemoStorage(page);
-  await page.goto("/groups/han-river-bbq/proposals");
+  await page.goto("/demo/groups/han-river-bbq/proposals");
 
   await page.getByTestId("proposal-row-han-river-bbq-proposal").first().click();
   const panel = page.getByTestId("workspace-detail-panel");
@@ -632,7 +634,7 @@ test("workspace detail panel can be resized from the left edge", async ({ page }
 test("proposal history and send flow are still available", async ({ page }) => {
   await clearDemoStorage(page);
 
-  await page.goto("/groups/han-river-bbq/chat");
+  await page.goto("/demo/groups/han-river-bbq/chat");
   await page.getByTestId("artifact-preview-proposal_draft").first().click();
   await expect(page.getByTestId("proposal-history-tabs")).toBeVisible();
   await page.getByTestId("proposal-history-tabs").getByRole("button", { name: "Versions" }).click();
@@ -651,7 +653,7 @@ test("proposal history and send flow are still available", async ({ page }) => {
 test("sidebar profile switcher appears with group members", async ({ page }) => {
   await clearDemoStorage(page);
 
-  await page.goto("/groups/han-river-bbq");
+  await page.goto("/demo/groups/han-river-bbq");
   await expectSidebarProfile(page, "Syahmi");
   await openProfileSwitcher(page);
   await expect(page.getByTestId("profile-bottom-sheet").last()).toContainText("View as");
@@ -665,7 +667,7 @@ test("sidebar profile switcher appears with group members", async ({ page }) => 
 test("Your Share uses sidebar-selected participant profile", async ({ page }) => {
   await clearDemoStorage(page);
 
-  await page.goto("/groups/han-river-bbq/inbox");
+  await page.goto("/demo/groups/han-river-bbq/inbox");
   await expect(page.getByTestId("organizer-share-state")).toContainText("Preview a participant review");
   await expect(page.getByTestId("participant-view-selector")).toBeVisible();
   await selectProfile(page, "daniel");
@@ -687,7 +689,7 @@ test("Your Share uses sidebar-selected participant profile", async ({ page }) =>
 test("Your Share exposes an in-page participant selector", async ({ page }) => {
   await clearDemoStorage(page);
 
-  await page.goto("/groups/han-river-bbq/inbox");
+  await page.goto("/demo/groups/han-river-bbq/inbox");
   await expect(page.getByTestId("participant-view-selector")).toBeVisible();
   await page.getByTestId("participant-switch-daniel").click();
   await expect(page.getByTestId("participant-simulation-note")).toContainText("viewing as Daniel");
@@ -697,7 +699,7 @@ test("Your Share exposes an in-page participant selector", async ({ page }) => {
 test("selected profile persists across refresh", async ({ page }) => {
   await clearDemoStorage(page);
 
-  await page.goto("/groups/han-river-bbq/inbox");
+  await page.goto("/demo/groups/han-river-bbq/inbox");
   await selectProfile(page, "daniel");
   await page.reload();
   await expectSidebarProfile(page, "Daniel");
@@ -707,10 +709,10 @@ test("selected profile persists across refresh", async ({ page }) => {
 test("group switching falls back to a valid profile", async ({ page }) => {
   await clearDemoStorage(page);
 
-  await page.goto("/groups/han-river-bbq/inbox");
+  await page.goto("/demo/groups/han-river-bbq/inbox");
   await selectProfile(page, "daniel");
   await createGroup(page, "Temporary Share Group");
-  await page.goto("/groups/temporary-share-group/inbox");
+  await page.goto("/demo/groups/temporary-share-group/inbox");
   await expectSidebarProfile(page, "Syahmi");
   await expect(page.getByTestId("inbox-route")).toBeVisible();
   await expect(page.getByTestId("organizer-share-state")).toContainText("Preview a participant review");
@@ -719,7 +721,7 @@ test("group switching falls back to a valid profile", async ({ page }) => {
 test("participant review simulation supports Daniel change request", async ({ page }) => {
   await clearDemoStorage(page);
 
-  await page.goto("/groups/han-river-bbq/inbox");
+  await page.goto("/demo/groups/han-river-bbq/inbox");
   await selectProfile(page, "daniel");
   await expect(page.getByTestId("participant-inbox-card")).toContainText("Han River BBQ Proposal");
   await expect(page.getByTestId("participant-inbox-card")).toContainText("Your Share");
@@ -729,7 +731,7 @@ test("participant review simulation supports Daniel change request", async ({ pa
   await page.getByTestId("participant-request-changes").click();
   await expect(page.getByTestId("participant-reply-state")).toContainText("Change requested");
 
-  await page.goto("/groups/han-river-bbq/proposals");
+  await page.goto("/demo/groups/han-river-bbq/proposals");
   await page.getByTestId("proposal-row-han-river-bbq-proposal").first().click();
   await expect(page.getByTestId("workspace-detail-panel")).toContainText("Daniel");
   await expect(page.getByTestId("workspace-detail-panel")).toContainText(/Asked for a change|Asked for a Change|Change requests/);
@@ -739,7 +741,7 @@ test("participant review simulation supports Daniel change request", async ({ pa
 test("participant actions are trust-safe", async ({ page }) => {
   await clearDemoStorage(page);
 
-  await page.goto("/groups/han-river-bbq/inbox");
+  await page.goto("/demo/groups/han-river-bbq/inbox");
   await selectProfile(page, "daniel");
   await page.getByTestId("participant-accept").click();
   await expect(page.getByTestId("participant-reply-state")).toContainText("I'm In");
@@ -771,7 +773,7 @@ test("partial calculation state does not crash Your Share", async ({ page }) => 
     window.localStorage.setItem(key, JSON.stringify(state));
   });
 
-  await page.goto("/groups/han-river-bbq/inbox");
+  await page.goto("/demo/groups/han-river-bbq/inbox");
   await selectProfile(page, "daniel");
   await expect(page.getByTestId("participant-inbox-card")).toContainText("Daniel");
   await expect(page.getByTestId("participant-share-explanation")).toBeVisible();
@@ -797,7 +799,7 @@ test("Splits page survives partial calculation state", async ({ page }) => {
     window.localStorage.setItem(key, JSON.stringify(state));
   });
 
-  await page.goto("/groups/han-river-bbq/proposals");
+  await page.goto("/demo/groups/han-river-bbq/proposals");
   await expect(page.getByTestId("proposal-row-han-river-bbq-proposal").first()).toContainText("Han River BBQ Proposal");
   await page.getByTestId("proposal-row-han-river-bbq-proposal").first().click();
   await expect(page.getByTestId("panel-decision")).toContainText("Settlement readiness");
@@ -808,7 +810,7 @@ test("mobile sidebar footer can switch Your Share profile", async ({ page }) => 
   test.skip(!isMobile(page), "Mobile-only profile switcher coverage");
   await clearDemoStorage(page);
 
-  await page.goto("/groups/han-river-bbq/inbox");
+  await page.goto("/demo/groups/han-river-bbq/inbox");
   await page.getByTestId("mobile-sidebar-open").click();
   await expect(page.getByTestId("mobile-sidebar-overlay")).toBeVisible();
   await page.getByTestId("mobile-sidebar-overlay").getByTestId("sidebar-profile-button").click();
@@ -821,7 +823,7 @@ test("mobile sidebar footer can switch Your Share profile", async ({ page }) => 
 test("claimed payment confirmation updates readiness", async ({ page }) => {
   await clearDemoStorage(page);
 
-  await page.goto("/groups/han-river-bbq/proposals");
+  await page.goto("/demo/groups/han-river-bbq/proposals");
   await page.getByTestId("proposal-row-han-river-bbq-proposal").first().click();
   await expect(page.getByTestId("claimed-payment-ledger")).toContainText("Needs organizer confirmation");
   await page.getByTestId("panel-confirm-credit").click();
@@ -837,19 +839,19 @@ test("creating a group and resetting data returns to canonical BBQ workspace", a
     await expect(page.getByTestId("group-switcher")).toContainText("Temporary Review Group");
   }
 
-  await page.goto("/groups/temporary-review-group/chat");
+  await page.goto("/demo/groups/temporary-review-group/chat");
   await resetDemoData(page);
   if (!isMobile(page)) {
     await expect(page.getByTestId("group-switcher")).toContainText("Han River BBQ Crew");
   }
-  await page.goto("/groups");
+  await page.goto("/demo/groups");
   await expect(page.getByText("Temporary Review Group")).toHaveCount(0);
   await expect(page.getByTestId("groups-route").getByText("Han River BBQ Crew").first()).toBeVisible();
 });
 
 test("group overview leads with settlement readiness actions", async ({ page }) => {
   await clearDemoStorage(page);
-  await page.goto("/groups/han-river-bbq");
+  await page.goto("/demo/groups/han-river-bbq");
 
   await expect(page.getByTestId("action-queue")).toBeVisible();
   await expect(page.getByTestId("agreement-health")).toContainText("Draft");
@@ -860,7 +862,7 @@ test("group overview leads with settlement readiness actions", async ({ page }) 
 test("Splits page is an agreement operations surface", async ({ page }) => {
   await clearDemoStorage(page);
   await seedSplitOperationsState(page);
-  await page.goto("/groups/han-river-bbq/proposals");
+  await page.goto("/demo/groups/han-river-bbq/proposals");
 
   if (!isMobile(page)) {
     await expect(page.getByTestId("nav-proposals")).toContainText("Splits");
@@ -925,7 +927,7 @@ test("Splits page is an agreement operations surface", async ({ page }) => {
 test("opening a split detail does not move the sidebar footer", async ({ page }) => {
   test.skip(isMobile(page), "Desktop sidebar stability coverage");
   await clearDemoStorage(page);
-  await page.goto("/groups/han-river-bbq/proposals");
+  await page.goto("/demo/groups/han-river-bbq/proposals");
 
   const footer = page.getByTestId("sidebar-footer");
   await expect(footer).toBeVisible();
@@ -943,11 +945,10 @@ test("opening a split detail does not move the sidebar footer", async ({ page })
   expect(Math.abs(after.height - before.height)).toBeLessThan(1);
 });
 
-test("README documents the canonical demo", async () => {
+test("README documents the product and pilot readiness", async () => {
   const readme = await readFile("README.md", "utf8");
-  expect(readme).toContain("ShardLab Product Intern Challenge");
-  expect(readme).toContain("Product moment: `Han River BBQ Crew` needs agreement before Syahmi fronts ₩128,000.");
-  expect(readme).toContain("docs/shardlab-product-case-study.md");
-  expect(readme).toContain("Daniel does not eat beef");
-  expect(readme).toContain("claimed payment");
+  expect(readme).toContain("# SplitFlow");
+  expect(readme).toContain("docs/PILOT-READINESS.md");
+  expect(readme).toContain("SplitFlow opens at `/`");
+  expect(readme).toContain("docs/TECHNICAL.md");
 });

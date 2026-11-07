@@ -145,7 +145,7 @@ export function deriveGlobalNextAction(groups: SplitFlowGroup[]): GlobalNextActi
       title: "Create a group to start an agreement workflow.",
       description: "SplitFlow needs a recurring group context before it can draft, send, and track shared-cost agreements.",
       groupId: "",
-      href: "/groups",
+      href: "/demo/groups",
       ctaLabel: "Create group",
       reasonTags: ["No groups"]
     };
@@ -255,7 +255,7 @@ export function deriveGlobalNextAction(groups: SplitFlowGroup[]): GlobalNextActi
     title: "No urgent blockers.",
     description: "Waiting for confirmations or ready-to-settle workflows will appear here as splits move.",
     groupId: fallbackGroup.id,
-    href: `/groups/${fallbackGroup.id}`,
+    href: `/demo/groups/${fallbackGroup.id}`,
     ctaLabel: "Open active group",
     reasonTags: ["No blockers"]
   };
@@ -353,7 +353,7 @@ function participantName(proposal: Proposal, participantId: string): string {
 }
 
 function proposalHref(groupId: string, proposalId: string): string {
-  return `/groups/${groupId}/proposals/${proposalId}`;
+  return `/demo/groups/${groupId}/proposals/${proposalId}`;
 }
 
 function workflowReasonTags(workflow: ReturnType<typeof deriveSplitReadiness>): string[] {

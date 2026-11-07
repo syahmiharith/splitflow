@@ -87,7 +87,7 @@ export function ActionQueueList({ items, groupId }: { items: ActionQueueItem[]; 
           items.map((item) => (
             <Link
               key={item.id}
-              href={`/groups/${groupId}/proposals/${item.proposalId}`}
+              href={`/demo/groups/${groupId}/proposals/${item.proposalId}`}
               className="block rounded-md border border-app-border px-3 py-3 hover:border-blue-200 hover:bg-blue-50/50"
             >
               <div className="flex items-start justify-between gap-3">

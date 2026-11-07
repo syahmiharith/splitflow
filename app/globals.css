@@ -59,3 +59,30 @@ textarea:focus-visible {
 .scrollbar-thin {
   scrollbar-width: thin;
 }
+
+@layer components {
+  :where(.workspace-content) input:not([type="checkbox"]),
+  :where(.workspace-content) select,
+  :where(.workspace-content) textarea {
+    @apply min-h-11 rounded-lg border-app-border bg-white text-sm text-app-text;
+  }
+  :where(.workspace-content) label {
+    @apply text-sm font-medium;
+  }
+  :where(.workspace-content) button {
+    @apply min-h-11 rounded-lg border border-app-border bg-white px-4 py-2 text-sm font-semibold transition hover:bg-slate-50 disabled:cursor-wait disabled:opacity-60;
+  }
+  :where(.workspace-content) button.bg-blue-600 {
+    @apply border-transparent bg-app-blue text-white hover:bg-blue-700;
+  }
+  :where(.workspace-content) summary {
+    @apply cursor-pointer py-3 text-sm font-semibold text-app-blue;
+  }
+  :where(.workspace-content) [role="alert"] {
+    @apply text-sm text-app-red;
+  }
+}
+
+.conversation-workspace textarea#split-message { border: 0; }
+
+.conversation-workspace dialog form { border: 0; border-radius: 0; }

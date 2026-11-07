@@ -25,7 +25,7 @@ export function TopHeader({ layoutMode = "unknown", onMenuClick }: { layoutMode?
   const [starterPrompt, setStarterPrompt] = useState("");
   const isChatRoute = /\/groups\/[^/]+\/chat/.test(pathname);
   const copy = isChatRoute ? { title: activeChat.title, subtitle: activeGroup.name } : routeTitle(pathname);
-  const groupRoute = pathname.startsWith("/groups/");
+  const groupRoute = pathname.startsWith("/demo/groups/");
   const globalSummary = deriveGlobalAnalytics(state.groups);
 
   function onCreate(event: FormEvent<HTMLFormElement>) {
@@ -45,13 +45,13 @@ export function TopHeader({ layoutMode = "unknown", onMenuClick }: { layoutMode?
     setStarterPrompt("");
     setCreating(false);
     setOpen(false);
-    router.push(`/groups/${groupId}/chat`);
+    router.push(`/demo/groups/${groupId}/chat`);
   }
 
   function selectGroupFromSwitcher(groupId: string) {
     selectGroup(groupId);
     setOpen(false);
-    router.push(`/groups/${groupId}/chat`);
+    router.push(`/demo/groups/${groupId}/chat`);
   }
 
   return (

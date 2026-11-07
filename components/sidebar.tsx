@@ -17,7 +17,7 @@ export function Sidebar({ layoutMode = "unknown" }: { layoutMode?: DeviceLayoutM
   const canonicalTestIds = layoutMode === "desktop" || layoutMode === "unknown";
 
   return (
-    <aside className={`${visibilityClass} h-dvh w-[280px] shrink-0 flex-col border-r border-app-border bg-white`} data-testid="sidebar">
+    <aside className={`${visibilityClass} h-full w-[280px] shrink-0 flex-col border-r border-app-border bg-white`} data-testid="sidebar">
       <SidebarContent canonicalTestIds={canonicalTestIds} />
     </aside>
   );
@@ -53,7 +53,7 @@ function SidebarContent({
   const [profileSheetOpen, setProfileSheetOpen] = useState(false);
   const [expandedGroupIds, setExpandedGroupIds] = useState<Set<string>>(() => new Set([activeGroup.id]));
   const dragStartY = useRef<number | null>(null);
-  const groupBase = `/groups/${activeGroup.id}`;
+  const groupBase = `/demo/groups/${activeGroup.id}`;
   const handleNavigate = onNavigate ? () => window.setTimeout(onNavigate, 0) : undefined;
   const currentParticipant = selectedProfile ?? activeGroup.members.find((participant) => participant.id === "you") ?? activeGroup.members[0];
   const organizerId = activeGroup.proposals[0]?.organizerId ?? "you";
@@ -72,13 +72,13 @@ function SidebarContent({
   function openGroupChat(groupId: string, chatId: string) {
     selectGroup(groupId);
     selectChat(chatId, groupId);
-    router.push(`/groups/${groupId}/chat`);
+    router.push(`/demo/groups/${groupId}/chat`);
     handleNavigate?.();
   }
 
   function addChat(groupId: string) {
     createChat(groupId);
-    router.push(`/groups/${groupId}/chat`);
+    router.push(`/demo/groups/${groupId}/chat`);
     handleNavigate?.();
   }
 

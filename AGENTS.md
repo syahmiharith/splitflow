@@ -1,3 +1,7 @@
+# Approved pilot direction
+
+The main signed-in dinner and outing workspace at / uses Supabase email-code authentication and Postgres. The main experience is conversation-first: a quiet conversation list, one thread/composer and one current split preview. Manual entry remains available without AI. Review, invitations, participant decisions, corrections, confirmed repayments and history use explicit controls and appear when needed. Deterministic money logic remains mandatory. Avoid agent-role displays, artificial waiting, duplicate artifact summaries, mandatory groups and a dashboard before the conversation. The optional seeded experience lives under /demo and is entered through Try demo; older prototype instructions below apply only there. /pilot is a compatibility redirect, never a second app. No payment processing. Keep demo records isolated from real accounts.
+
 # SplitFlow Agent Instructions
 
 ## Product Direction
@@ -88,9 +92,9 @@ Do not add:
 * shadcn/ui
 * another UI framework
 * real payment processing
-* real authentication
+* external billing beyond the approved pilot
 * real push notifications
-* production database
+* unrelated production services
 * external billing provider
 * unnecessary backend services
 
@@ -437,8 +441,8 @@ For this version:
 * mock data is acceptable
 * local deterministic state is acceptable
 * server actions/API routes are acceptable if already used
-* no production database
-* no real auth
+* Supabase Postgres for the signed-in pilot
+* Supabase email-code authentication for the signed-in pilot
 * no real payment settlement
 * no real push notifications
 

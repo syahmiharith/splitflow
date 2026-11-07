@@ -1,94 +1,13 @@
 "use client";
-
-import { useEffect, useRef, useState, type ReactNode } from "react";
-import { BottomNav } from "@/components/bottom-nav";
-import { MobileSidebarOverlay, Sidebar } from "@/components/sidebar";
-import { TopHeader } from "@/components/top-header";
-import { useDeviceProfile } from "@/lib/use-device-profile";
-
+import { usePathname } from "next/navigation";
+import dynamic from "next/dynamic";
+import type { ReactNode } from "react";
+const DemoShell = dynamic(() => import("@/components/demo-shell"));
 export function AppShell({ children }: { children: ReactNode }) {
-  const device = useDeviceProfile();
-  const compactLayout = device.layoutMode !== "desktop";
-  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
-  const swipeStart = useRef<{ x: number; y: number } | null>(null);
-
-  useEffect(() => {
-    if (!compactLayout) {
-      setMobileSidebarOpen(false);
-    }
-  }, [compactLayout]);
-
-  useEffect(() => {
-    if (!compactLayout || mobileSidebarOpen) return;
-
-    function onTouchStart(event: TouchEvent) {
-      const touch = event.touches[0];
-      if (!touch || touch.clientX > 24) return;
-      swipeStart.current = { x: touch.clientX, y: touch.clientY };
-    }
-
-    function onTouchEnd(event: TouchEvent) {
-      const start = swipeStart.current;
-      const touch = event.changedTouches[0];
-      swipeStart.current = null;
-      if (!start || !touch) return;
-
-      const deltaX = touch.clientX - start.x;
-      const deltaY = Math.abs(touch.clientY - start.y);
-      if (deltaX >= 72 && deltaY <= 48) {
-        setMobileSidebarOpen(true);
-      }
-    }
-
-    window.addEventListener("touchstart", onTouchStart, { passive: true });
-    window.addEventListener("touchend", onTouchEnd, { passive: true });
-    return () => {
-      window.removeEventListener("touchstart", onTouchStart);
-      window.removeEventListener("touchend", onTouchEnd);
-    };
-  }, [compactLayout, mobileSidebarOpen]);
-
-  useEffect(() => {
-    if (!mobileSidebarOpen) return;
-
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-
-    function onKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") {
-        setMobileSidebarOpen(false);
-      }
-    }
-
-    window.addEventListener("keydown", onKeyDown);
-    return () => {
-      document.body.style.overflow = previousOverflow;
-      window.removeEventListener("keydown", onKeyDown);
-    };
-  }, [mobileSidebarOpen]);
-
-  return (
-    <div
-      className="flex h-dvh flex-col overflow-hidden bg-page text-app-text"
-      data-device-layout={device.layoutMode}
-      data-pointer={device.isTouchLike ? "coarse" : "fine"}
-    >
-      <div className="flex min-h-0 flex-1">
-        <Sidebar layoutMode={device.layoutMode} />
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-          <TopHeader layoutMode={device.layoutMode} onMenuClick={() => setMobileSidebarOpen(true)} />
-          <main
-            className="min-h-0 flex-1 overflow-hidden"
-            data-testid="app-main"
-          >
-            <div className="h-full min-h-0 overflow-y-auto" data-testid="app-route-scroll">
-              {children}
-            </div>
-          </main>
-        </div>
-      </div>
-      <BottomNav />
-      <MobileSidebarOverlay open={compactLayout && mobileSidebarOpen} onClose={() => setMobileSidebarOpen(false)} />
-    </div>
+  const pathname = usePathname();
+  return pathname === "/demo" || pathname.startsWith("/demo/") ? (
+    <DemoShell>{children}</DemoShell>
+  ) : (
+    children
   );
 }

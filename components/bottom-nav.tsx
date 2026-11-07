@@ -16,22 +16,22 @@ const items = [
 export function BottomNav() {
   const pathname = usePathname();
   const { activeGroup } = useSplitFlow();
-  const groupBase = `/groups/${activeGroup.id}`;
+  const groupBase = `/demo/groups/${activeGroup.id}`;
 
   function hrefFor(key: (typeof items)[number]["key"]) {
     if (key === "chat") return `${groupBase}/chat`;
     if (key === "proposals") return `${groupBase}/proposals`;
-    if (key === "groups") return "/groups";
-    if (key === "analytics") return "/analytics";
-    return "/";
+    if (key === "groups") return "/demo/groups";
+    if (key === "analytics") return "/demo/analytics";
+    return "/demo";
   }
 
   function isActive(key: (typeof items)[number]["key"], href: string) {
-    if (key === "dashboard") return pathname === "/" || pathname === "/dashboard";
-    if (key === "groups") return pathname === "/groups";
-    if (key === "analytics") return pathname === "/analytics";
-    if (key === "chat") return pathname === href || pathname === "/chat";
-    if (key === "proposals") return pathname === href || pathname.startsWith(`${href}/`) || pathname === "/proposals";
+    if (key === "dashboard") return pathname === "/demo" || pathname === "/demo/dashboard";
+    if (key === "groups") return pathname === "/demo/groups";
+    if (key === "analytics") return pathname === "/demo/analytics";
+    if (key === "chat") return pathname === href || pathname === "/demo/chat";
+    if (key === "proposals") return pathname === href || pathname.startsWith(`${href}/`) || pathname === "/demo/proposals";
     return false;
   }
 

@@ -19,7 +19,7 @@ export function HeaderActions({
   return (
     <>
       <Link
-        href={`/groups/${activeGroupId}/inbox`}
+        href={`/demo/groups/${activeGroupId}/inbox`}
         className="relative grid h-11 w-11 place-items-center rounded-xl border border-app-border bg-white text-app-text hover:bg-slate-50"
         aria-label="Your Share"
       >

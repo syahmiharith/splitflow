@@ -122,7 +122,7 @@ export function WorkspaceDetailPanel({
 
   return (
     <aside
-      className="fixed right-0 top-0 z-40 flex h-dvh min-h-0 max-w-[100vw] translate-x-0 flex-col border-l border-app-border bg-white shadow-[0_18px_45px_rgba(24,33,47,0.18)] transition-transform duration-200 ease-out"
+      className="fixed right-0 top-0 z-40 flex h-[calc(100dvh-40px)] min-h-0 max-w-[100vw] translate-x-0 flex-col border-l border-app-border bg-white shadow-[0_18px_45px_rgba(24,33,47,0.18)] transition-transform duration-200 ease-out"
       data-testid="workspace-detail-panel"
       aria-label="Workspace detail panel"
       style={{ width: `min(100vw, ${panelWidth}px)` }}
@@ -203,7 +203,7 @@ export function WorkspaceDetailPanel({
             onRejectChange={() => rejectRequestedChange(proposal.id)}
             onMarkSettled={() => markSettled(proposal.id)}
             onViewShare={() => {
-              window.location.href = `/groups/${activeGroup.id}/inbox`;
+              window.location.href = `/demo/groups/${activeGroup.id}/inbox`;
             }}
             onCopyReminder={() => {
               void navigator.clipboard?.writeText(`Please review ${proposal.title} in SplitFlow so we can settle safely.`);

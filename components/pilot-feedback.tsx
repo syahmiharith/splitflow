@@ -45,7 +45,7 @@ export function PilotFeedback({ splitId }: { splitId?: string }) {
           }}
         >
           <p>
-            This report is visible to the pilot operator and your account.
+            Only you and the person maintaining SplitFlow can see this report.
             Include the steps needed to reproduce the problem.
           </p>
           <label className="block">

@@ -1,6 +1,6 @@
 # Approved pilot direction
 
-The signed-in dinner and outing pilot at /pilot uses Supabase email-code authentication and Postgres. Manual creation is primary. Deterministic money logic remains mandatory. Older prototype instructions below apply to the labeled demo only. No payment processing. Keep demo records isolated from real accounts.
+The main signed-in dinner and outing workspace at / uses Supabase email-code authentication and Postgres. Manual creation is primary. Deterministic money logic remains mandatory. The existing sidebar, header, card design and mobile navigation belong to the main experience. The optional seeded experience lives under /demo and is entered through Try demo; older prototype instructions below apply only there. /pilot is a compatibility redirect, never a second app. No payment processing. Keep demo records isolated from real accounts.
 
 # SplitFlow Agent Instructions
 

@@ -116,7 +116,7 @@ export function ExpenseForm({
 
   return (
     <form
-      className="space-y-4 rounded border p-4"
+      className="space-y-5 rounded-lg border border-app-border bg-white p-5 md:p-6"
       onSubmit={(e) => {
         e.preventDefault();
         if (review && submission.current)
@@ -129,7 +129,7 @@ export function ExpenseForm({
           ? "Review before publishing"
           : original
             ? "Edit expense"
-            : "New split"}
+            : "Expense details"}
       </h2>
       <p role="alert">{error}</p>
       {!original && !review && (

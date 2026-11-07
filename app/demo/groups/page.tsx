@@ -40,7 +40,7 @@ export default function GroupsPage() {
     setCurrency("KRW");
     setStarterPrompt("");
     setCreating(false);
-    router.push(`/groups/${groupId}/chat`);
+    router.push(`/demo/groups/${groupId}/chat`);
   }
 
   return (
@@ -95,7 +95,7 @@ export default function GroupsPage() {
                     <div className="mt-5 flex items-center justify-between gap-3">
                       <AvatarStack names={group.members.map((member) => member.name)} />
                       <Link
-                        href={`/groups/${group.id}`}
+                        href={`/demo/groups/${group.id}`}
                         className="inline-flex min-h-11 shrink-0 items-center gap-2 rounded-lg border border-app-border px-4 text-sm font-semibold text-app-blue hover:bg-slate-50"
                       >
                         Open group
@@ -158,7 +158,7 @@ export default function GroupsPage() {
                   </Table.Cell>
                   <Table.Cell align="right" nowrap>
                     <Link
-                      href={`/groups/${group.id}`}
+                      href={`/demo/groups/${group.id}`}
                       className="inline-flex min-h-9 items-center justify-center rounded-md border border-app-border px-3 text-sm font-semibold text-app-blue hover:bg-slate-50"
                     >
                       Continue

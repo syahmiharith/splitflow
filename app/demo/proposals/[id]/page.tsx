@@ -11,7 +11,7 @@ export default function ProposalDetailShortcutPage() {
 
   useEffect(() => {
     const group = state.groups.find((item) => item.proposals.some((proposal) => proposal.id === params.id)) ?? activeGroup;
-    router.replace(`/groups/${group.id}/proposals/${params.id}`);
+    router.replace(`/demo/groups/${group.id}/proposals/${params.id}`);
   }, [activeGroup, params.id, router, state.groups]);
 
   return (

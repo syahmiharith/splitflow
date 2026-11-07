@@ -15,7 +15,7 @@ if (
   throw new Error("Live local tests require the isolated Supabase config.");
 const mail = "http://127.0.0.1:55424";
 const run = () => `${Date.now()}-${Math.floor(Math.random() * 10000)}`;
-async function signIn(page: Page, email: string, path = "/pilot") {
+async function signIn(page: Page, email: string, path = "/") {
   await page.goto(path);
   await page.getByLabel("Email", { exact: true }).fill(email);
   const existing = await (
@@ -55,7 +55,7 @@ async function newDinner(
   title: string,
   total = 60000,
 ) {
-  await page.getByRole("button", { name: "New split", exact: true }).click();
+  await page.getByRole("link", { name: "New split", exact: true }).first().click();
   await page.getByLabel("Title", { exact: true }).fill(title);
   for (let index = 1; index < emails.length; index++) {
     if (index > 1)
@@ -249,7 +249,7 @@ test("real outing with exclusions and two payers reconciles after reload", async
     page.getByText("Your share ₩30,001", { exact: true }),
   ).toBeVisible();
   await expect(
-    page.getByText("Guest 2 · Share ₩0", { exact: false }),
+    page.getByRole("region", { name: "Participants and shares" }).getByRole("listitem").filter({ hasText: "Guest 2" }).getByText("₩0", { exact: true }),
   ).toBeVisible();
 });
 
@@ -297,10 +297,7 @@ test("real reported repayment, receipt and revision retain history and expose ov
   await page.getByLabel("Amount (KRW)", { exact: true }).fill("30000");
   await page.getByLabel("Paid or committed (KRW)").nth(0).fill("30000");
   await page.getByLabel("Reason for change").fill("Corrected receipt total");
-  await page.getByRole("button", { name: "Review split", exact: true }).click();
-  await page
-    .getByRole("button", { name: "Publish split", exact: true })
-    .click();
+  await publish(page);
   await participant.page.reload();
   await expect(
     participant.page.getByText("Still owed to you ₩15,000", { exact: true }),
@@ -327,6 +324,7 @@ test("background refresh cannot advance the revision of an open organizer draft"
   await page.getByLabel("Reason for change").fill("Older session edit");
   const other = await guest(browser, page);
   await signIn(other.page, emails[0]);
+  await other.page.getByRole("link", { name: /Concurrent dinner/ }).click();
   await other.page
     .getByRole("button", { name: "Revise expense", exact: true })
     .click();

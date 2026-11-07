@@ -37,8 +37,11 @@ test("manual dinner review, publish and reload with a simulated storage boundary
     };
     return route.fulfill({ json: saved });
   });
-  await page.goto("/pilot");
-  await page.getByRole("button", { name: "New split", exact: true }).click();
+  await page.goto("/");
+  await page
+    .getByRole("link", { name: "New split", exact: true })
+    .first()
+    .click();
   await page.getByLabel("Title", { exact: true }).fill("Dinner for three");
   await page.getByLabel("Name", { exact: true }).nth(1).fill("B");
   await page.getByLabel("Email", { exact: true }).nth(1).fill("b@example.com");
@@ -54,6 +57,9 @@ test("manual dinner review, publish and reload with a simulated storage boundary
   await expect(
     page.getByText("Your share ₩20,000", { exact: true }),
   ).toBeVisible();
+  await expect
+    .poll(() => page.getByRole("main").evaluate((element) => element.scrollTop))
+    .toBe(0);
   await page.reload();
   await expect(
     page.getByText("Your share ₩20,000", { exact: true }),
@@ -96,8 +102,11 @@ test("failed optional drafting retains the description", async ({ page }) => {
       },
     }),
   );
-  await page.goto("/pilot");
-  await page.getByRole("button", { name: "New split", exact: true }).click();
+  await page.goto("/");
+  await page
+    .getByRole("link", { name: "New split", exact: true })
+    .first()
+    .click();
   await page.getByText("Describe expenses", { exact: true }).click();
   await page
     .getByLabel("Expense description")
@@ -138,8 +147,11 @@ test("reload retries an interrupted save with the original operation key", async
     }
     return route.fulfill({ json: saved });
   });
-  await page.goto("/pilot");
-  await page.getByRole("button", { name: "New split", exact: true }).click();
+  await page.goto("/");
+  await page
+    .getByRole("link", { name: "New split", exact: true })
+    .first()
+    .click();
   await page.getByLabel("Title", { exact: true }).fill("Interrupted dinner");
   await page.getByLabel("Name", { exact: true }).nth(1).fill("B");
   await page.getByLabel("Email", { exact: true }).nth(1).fill("b@example.com");
@@ -161,4 +173,76 @@ test("reload retries an interrupted save with the original operation key", async
   ).toHaveCount(0);
   expect(keys).toHaveLength(2);
   expect(keys[0]).toBe(keys[1]);
+});
+
+test("the main entry never shows seeded records and demo is explicitly optional", async ({
+  page,
+}) => {
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  await page.goto("/");
+  await expect(
+    page.getByRole("heading", { name: "Sign in with email" }),
+  ).toBeVisible();
+  await expect(page.getByText("Han River BBQ", { exact: true })).toHaveCount(0);
+  await expect(page.getByTestId("sidebar-profile-button")).toHaveCount(0);
+  await page.getByRole("link", { name: "Try demo", exact: true }).click();
+  await expect(page).toHaveURL(/\/demo$/);
+  await expect(
+    page.getByText("Demo · Sample data and simulated profiles"),
+  ).toBeVisible();
+  await expect(page.getByTestId("home-route")).toBeVisible();
+  await page.getByRole("link", { name: "Exit demo" }).click();
+  await expect(page).toHaveURL(/:\d+\/$/);
+  await expect(
+    page.getByRole("heading", { name: "Sign in with email" }),
+  ).toBeVisible();
+  expect(errors).toEqual([]);
+});
+
+test("demo entry and exit preserve the signed-in account without reading demo data into Home", async ({
+  page,
+}) => {
+  await session(page);
+  let splitReads = 0;
+  await page.route("**/api/pilot", (route) => {
+    splitReads++;
+    return route.fulfill({ json: [] });
+  });
+  await page.goto("/");
+  await expect(
+    page.getByRole("heading", { name: "Your first split starts here" }),
+  ).toBeVisible();
+  await page.getByRole("link", { name: "Try demo", exact: true }).click();
+  await expect(page.getByTestId("home-route")).toBeVisible();
+  const readsBeforeDemoNavigation = splitReads;
+  await page.getByTestId("home-primary-cta").click();
+  await expect(page).toHaveURL(/\/demo\/groups\//);
+  expect(splitReads).toBe(readsBeforeDemoNavigation);
+  await page.getByRole("link", { name: "Exit demo" }).click();
+  await expect(
+    page.getByRole("heading", { name: "Your first split starts here" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Sign in with email" }),
+  ).toHaveCount(0);
+  await expect(page.getByTestId("sidebar-profile-button")).toHaveCount(0);
+});
+
+test("old pilot links preserve the split destination in the main workspace", async ({
+  page,
+}) => {
+  await session(page);
+  await page.route("**/api/pilot", (route) => route.fulfill({ json: [] }));
+  await page.goto("/pilot?split=missing-synthetic-id");
+  await expect(page).toHaveURL(/\/\?split=missing-synthetic-id$/);
+  await expect(
+    page.getByRole("heading", { name: "Split details", exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("heading", {
+      name: "This split is unavailable for your email.",
+    }),
+  ).toBeVisible();
+  await expect(page.getByText("Dinner splits", { exact: true })).toHaveCount(0);
 });

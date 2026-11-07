@@ -72,15 +72,15 @@ export default function GroupOverviewPage() {
         <h2 className="text-xl font-bold">{activeGroup.name}</h2>
         <p className="mt-2 text-sm text-app-muted">{activeGroup.description}</p>
         <div className="mt-4 flex flex-wrap gap-2">
-          <Link href={`/groups/${activeGroup.id}/chat`} className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-app-blue px-3 text-sm font-semibold text-white">
+          <Link href={`/demo/groups/${activeGroup.id}/chat`} className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-app-blue px-3 text-sm font-semibold text-white">
             <MessageCircle className="h-4 w-4" aria-hidden="true" />
             Open chat artifact
           </Link>
-          <Link href={`/groups/${activeGroup.id}/proposals`} className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-app-border px-3 text-sm font-semibold text-app-text">
+          <Link href={`/demo/groups/${activeGroup.id}/proposals`} className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-app-border px-3 text-sm font-semibold text-app-text">
             <FileText className="h-4 w-4" aria-hidden="true" />
             Review BBQ proposal
           </Link>
-          <Link href={`/groups/${activeGroup.id}/inbox`} className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-app-border px-3 text-sm font-semibold text-app-text">
+          <Link href={`/demo/groups/${activeGroup.id}/inbox`} className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-app-border px-3 text-sm font-semibold text-app-text">
             <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
             Resolve participant changes
           </Link>

@@ -1,24 +1,7 @@
+import { splitState } from "./next-action";
 import { balances, type Split } from "./model";
-export function splitStage(
-  split: Split,
-  email: string,
-): "needs_action" | "waiting" | "settled" {
-  if (split.repayments.some((p) => p.to === email && p.status === "reported"))
-    return "needs_action";
-  if (
-    split.organizer === email &&
-    Object.values(split.responses).some(
-      (r) => r.status === "correction" || r.status === "declined",
-    )
-  )
-    return "needs_action";
-  if (split.expense.mode === "planned")
-    return !split.responses[email] ? "needs_action" : "waiting";
-  if ((balances(split)[email] ?? 0) > 0) return "needs_action";
-  return Object.values(balances(split)).every((n) => n === 0) &&
-    !split.repayments.some((p) => p.status !== "confirmed")
-    ? "settled"
-    : "waiting";
+export function splitStage(split: Split, email: string) {
+  return splitState(split, email).stage;
 }
 export function recoverySummary(splits: Split[], email: string) {
   return splits

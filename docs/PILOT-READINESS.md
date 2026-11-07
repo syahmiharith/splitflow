@@ -59,7 +59,7 @@ Two independent browser contexts at the baseline `/` both loaded the same seeded
 - Finish keyboard, screen-reader labeling and focus checks across authenticated actions and phone, tablet and desktop views.
 - Configure external monitoring and uptime checks, rehearse a backup restore, and test rollback. The health endpoint, read-only switch and runbook are implemented, while the deployed rehearsal remains pending.
 - Use the implemented private feedback and privacy-safe creation measurements during observed pilot sessions. Collect assistance and group return-use evidence privately.
-- Reusable groups remain optional future work in the signed-in pilot. Existing groups belong to the isolated demo.
+- Optional private groups now persist in the signed-in composer, with create/edit/reuse and recovery checks. Shared group workspaces remain deferred. OpenAI key setup is on hold at the user's request; manual entry remains available.
 - Recruit five organizers, record counts and assistance, observe relevant repeat outings, and carry two real problems through release and user retest.
 
 ## Decision gates
@@ -71,3 +71,5 @@ Ready to invite groups requires deployed technical and recovery checks to pass. 
 The signed-in workflow is the default `/` entry in the app's sidebar, header, card and mobile navigation design. Home summarizes actual obligations and links to split summaries; New split, editable review, selected split details, invitations, responses and repayments stay in that workspace. The separate Dinner splits surface is retired. `/pilot` is a client compatibility redirect that preserves split queries and invitation fragments. The current session storage key and financial APIs remain unchanged.
 
 The optional seeded experience is namespaced under `/demo`, loads its store only on demo routes, and displays a persistent sample-data label with Exit demo. All demo navigation remains namespaced. Its exit action remains reachable when the detail panel is open. Browser checks verify entering and exiting demo preserves the signed-in account without introducing sample records into Home. Root entry, split details and creation were inspected at 375, 768 and 1440 pixels; no horizontal overflow or page errors were observed, and keyboard review focuses the review heading.
+
+Latest conversation and private-group validation is recorded in [CONVERSATION-VERIFICATION.md](CONVERSATION-VERIFICATION.md). Earlier counts above describe the original pilot baseline.

@@ -33,6 +33,18 @@ Hosted security advisors report no new conversation-table findings. Prior servic
 
 The hosted preview has no OpenAI key configured. Secure connector provisioning did not complete authentication and created no key. Live provider output, provider availability/billing and hosted conversation success require a configured server-side key and a subsequent deployed check. The UI and persistence checks above do not establish these outcomes.
 
-Real reusable-group management remains in the demo; the main app currently reuses people from saved splits. Demo execution traces/artifact tabs have not been promoted into main navigation. This change does not claim complete demo feature parity.
+Private reusable groups are now available from the main composer (see the follow-up below). Shared group workspaces and demo execution traces/artifact tabs have not been promoted into main navigation. This change does not claim complete demo feature parity.
 
 Hosted independent-participant recovery, monitoring, backup/restore and rollback rehearsal, and the five-organizer/repeat-use study remain separate pilot release gates. Internal synthetic tests are excluded from adoption counts.
+
+## Reusable groups follow-up — 2026-11-08
+
+OpenAI credential setup is on hold at the user's request. No key was created or configured; manual creation, saved drafts and groups remain usable independently of AI.
+
+Groups opens a focused dialog from the composer. An organizer can save people from the current split, create or edit a private group, then reuse it in a new manual expense. Selecting a group supplies people only: it neither publishes obligations nor grants split membership. Saving and reopening a group-based draft restores its entered title and amounts. The sidebar stays focused on conversations and splits.
+
+The verified session supplies the owner. Migration `20261107201135_reusable_groups.sql` adds owner-scoped group documents and idempotent operations; RLS is enabled, browser grants are revoked, and the service-only RPC enforces owner and expected revision under locks. It is applied to the dedicated hosted project. A lost response retries the original operation key; a stale edit requires an explicit review against the latest saved group while retaining the entered changes.
+
+Split discovery and detail now derive next-action text and stage from one selector. Reported transfers wait for receipt confirmation, personal correction requests wait for organizer review, disputed transfers remain visible, and fully accepted plans have an Agreed filter instead of appearing settled.
+
+Fresh validation: type checking and lint pass; 244 unit/API tests pass. The production build and ordinary browser suite pass 85 checks, with 23 conditional skips (14 local Supabase journeys run separately, 2 optional provider checks and 7 viewport-specific checks). All 14 unmocked local Supabase journeys pass on desktop and phone, including independent owner sessions, unrelated-account group denial, group-based draft save/reopen and publication. Rollback-only group SQL verifies owner isolation, denied browser access, duplicate replay and stale saves. Group dialogs were inspected at widths 320, 375, 768 and 1440 with no horizontal overflow or page errors; editor focus and Escape return to the trigger pass. These are synthetic engineering checks, not adoption evidence.

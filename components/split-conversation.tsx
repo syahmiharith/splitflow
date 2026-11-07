@@ -1,5 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
+import { GroupChooser } from "./group-chooser";
+import { expenseFromGroup, type SavedGroup } from "@/lib/pilot/groups";
 import { ConversationPreview } from "./conversation-preview";
 import { ArrowUp, PenLine, X } from "lucide-react";
 import { ExpenseForm } from "./pilot-expense-form";
@@ -27,6 +29,7 @@ export function SplitConversation({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [reuse, setReuse] = useState("");
+  const [groupPreset, setGroupPreset] = useState<SavedGroup>();
   const [manual, setManual] = useState(false);
   const [review, setReview] = useState(false);
   const [pending, setPending] = useState<{ body: string; key: string }>();
@@ -36,20 +39,22 @@ export function SplitConversation({
   const dialog = useRef<HTMLDialogElement>(null);
   const draft = split?.expense ?? conversation?.draft;
   const reused = previousSplits.find((s) => s.id === reuse)?.expense;
-  const manualInitial = reused
-    ? {
-        title: "",
-        mode: "paid" as const,
-        participants: reused.participants.map((p) => ({ ...p, paid: 0 })),
-        items: [
-          {
-            name: "Dinner",
-            amount: 0,
-            included: reused.participants.map((p) => p.email),
-          },
-        ],
-      }
-    : (draft ?? undefined);
+  const manualInitial = groupPreset
+    ? expenseFromGroup(groupPreset)
+    : reused
+      ? {
+          title: "",
+          mode: "paid" as const,
+          participants: reused.participants.map((p) => ({ ...p, paid: 0 })),
+          items: [
+            {
+              name: "Dinner",
+              amount: 0,
+              included: reused.participants.map((p) => p.email),
+            },
+          ],
+        }
+      : (draft ?? undefined);
   const storageKey = `splitflow-conversation-pending:${email}:${id}`;
   useEffect(() => {
     try {
@@ -102,6 +107,8 @@ export function SplitConversation({
       localStorage.removeItem(storageKey);
       setManual(false);
       setReview(false);
+      setGroupPreset(undefined);
+      setReuse("");
     } catch (e) {
       setError(
         e instanceof Error ? e.message : "Unable to save. Retry your message.",
@@ -124,6 +131,8 @@ export function SplitConversation({
       await onPublish(expense);
       setManual(false);
       setReview(false);
+      setGroupPreset(undefined);
+      setReuse("");
     } catch (e) {
       setError(
         e instanceof Error
@@ -297,21 +306,38 @@ export function SplitConversation({
             }}
           />
           <div className="mt-2 flex items-center justify-between gap-3">
-            <button
-              type="button"
-              disabled={busy || Boolean(pending)}
-              onClick={() => {
-                if (split) location.href = `/?split=${split.id}`;
-                else {
+            <div className="flex flex-wrap items-center gap-1">
+              <button
+                type="button"
+                disabled={busy || Boolean(pending)}
+                onClick={() => {
+                  if (split) location.href = `/?split=${split.id}`;
+                  else {
+                    reviewRevision.current = conversation?.revision ?? 0;
+                    setManual(true);
+                  }
+                }}
+                className="inline-flex min-h-11 items-center gap-2 rounded-lg border-transparent px-2 text-sm font-normal text-app-muted hover:bg-slate-50"
+              >
+                <PenLine className="h-4 w-4" aria-hidden="true" />
+                Enter manually
+              </button>
+              <GroupChooser
+                email={email}
+                seed={draft?.participants.map(({ name, email }) => ({
+                  name,
+                  email,
+                }))}
+                canUse={!draft}
+                disabled={busy || Boolean(pending)}
+                onUse={(group) => {
+                  setGroupPreset(group);
+                  setReuse("");
                   reviewRevision.current = conversation?.revision ?? 0;
                   setManual(true);
-                }
-              }}
-              className="inline-flex min-h-11 items-center gap-2 rounded-lg border-transparent px-2 text-sm font-normal text-app-muted hover:bg-slate-50"
-            >
-              <PenLine className="h-4 w-4" aria-hidden="true" />
-              Enter manually
-            </button>
+                }}
+              />
+            </div>
             <button
               type="submit"
               aria-label="Send message"
@@ -364,7 +390,10 @@ export function SplitConversation({
             Reuse people from a previous split
             <select
               value={reuse}
-              onChange={(event) => setReuse(event.target.value)}
+              onChange={(event) => {
+                setGroupPreset(undefined);
+                setReuse(event.target.value);
+              }}
               className="mt-2 block w-full rounded-lg border border-app-border p-3"
             >
               <option value="">Choose people (optional)</option>
@@ -378,7 +407,7 @@ export function SplitConversation({
         )}
         {(manual || review) && (
           <ExpenseForm
-            key={`${id}-${manual}-${review}-${reuse}`}
+            key={`${id}-${manual}-${review}-${reuse}-${groupPreset?.id ?? ""}`}
             email={email}
             initial={review ? (draft ?? undefined) : manualInitial}
             startInReview={review && Boolean(draft)}

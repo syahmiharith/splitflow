@@ -135,3 +135,102 @@ test("private draft and published conversation recover in independent signed-in 
   await owner.close();
   await unrelated.close();
 });
+
+test("saved groups persist privately and prefill an explicitly reviewed split without AI", async ({
+  page,
+  browser,
+}) => {
+  const run = `${Date.now()}-${test.info().project.name}`;
+  const email = `groups-${run}@example.test`;
+  await signIn(page, email);
+  await page.getByRole("button", { name: "Groups", exact: true }).click();
+  const groups = page.getByRole("dialog", {
+    name: "Saved groups",
+    exact: true,
+  });
+  await groups.getByRole("button", { name: "New group", exact: true }).click();
+  await groups.getByLabel("Group name", { exact: true }).fill("Dinner friends");
+  await groups.getByLabel("Group person 2 name", { exact: true }).fill("Minji");
+  await groups
+    .getByLabel("Group person 2 email", { exact: true })
+    .fill(`minji-${run}@example.test`);
+  await groups.getByRole("button", { name: "Add person", exact: true }).click();
+  await groups.getByLabel("Group person 3 name", { exact: true }).fill("Alex");
+  await groups
+    .getByLabel("Group person 3 email", { exact: true })
+    .fill(`alex-${run}@example.test`);
+  await groups.getByRole("button", { name: "Save group", exact: true }).click();
+  await expect(groups.getByText("Group saved.", { exact: true })).toBeVisible();
+  await page
+    .getByRole("button", { name: "Close saved groups", exact: true })
+    .click();
+  await page.reload();
+  await page.getByRole("button", { name: "Groups", exact: true }).click();
+  await expect(groups).toContainText("Dinner friends");
+  await expect(groups).toContainText("3 people");
+  await groups.getByRole("button", { name: "Use group", exact: true }).click();
+  const manual = page.getByRole("dialog", {
+    name: "Enter expense",
+    exact: true,
+  });
+  await expect(manual).toBeVisible();
+  await expect(manual.getByLabel("Name", { exact: true }).nth(1)).toHaveValue(
+    "Minji",
+  );
+  await manual.getByLabel("Title", { exact: true }).fill("Group dinner");
+  await manual.getByLabel("Total (KRW)", { exact: true }).fill("60001");
+  await manual
+    .getByRole("button", { name: "Review split", exact: true })
+    .click();
+  await expect(manual.getByLabel("Reviewed shares")).toContainText("₩20,001");
+  await manual.getByRole("button", { name: "Save draft", exact: true }).click();
+  await expect(manual).not.toBeVisible();
+  await page
+    .getByRole("button", { name: "Enter manually", exact: true })
+    .click();
+  await expect(manual.getByLabel("Title", { exact: true })).toHaveValue(
+    "Group dinner",
+  );
+  await expect(manual.getByLabel("Total (KRW)", { exact: true })).toHaveValue(
+    "60001",
+  );
+  await manual
+    .getByRole("button", { name: "Review split", exact: true })
+    .click();
+  await manual
+    .getByRole("button", { name: "Publish split", exact: true })
+    .click();
+  await expect(
+    page.getByRole("region", { name: "Current split preview" }),
+  ).toContainText("Published split");
+  const session = await page.evaluate(() =>
+    localStorage.getItem("splitflow-pilot-session"),
+  );
+  const owner = await browser.newContext({
+    viewport: page.viewportSize() ?? undefined,
+  });
+  const second = await owner.newPage();
+  await second.addInitScript(
+    (value) => localStorage.setItem("splitflow-pilot-session", value!),
+    session,
+  );
+  await second.goto("/");
+  await second.getByRole("button", { name: "Groups", exact: true }).click();
+  await expect(
+    second.getByRole("dialog", { name: "Saved groups" }),
+  ).toContainText("Dinner friends");
+  const unrelated = await browser.newContext({
+    viewport: page.viewportSize() ?? undefined,
+  });
+  const stranger = await unrelated.newPage();
+  await signIn(stranger, `other-group-${run}@example.test`);
+  await stranger.getByRole("button", { name: "Groups", exact: true }).click();
+  await expect(
+    stranger.getByRole("dialog", { name: "Saved groups" }),
+  ).toContainText("No saved groups yet");
+  await expect(
+    stranger.getByRole("dialog", { name: "Saved groups" }),
+  ).not.toContainText("Dinner friends");
+  await owner.close();
+  await unrelated.close();
+});

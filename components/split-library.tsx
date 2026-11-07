@@ -10,6 +10,7 @@ const filters = [
   { id: "all", name: "All" },
   { id: "needs_action", name: "Needs action" },
   { id: "waiting", name: "Waiting" },
+  { id: "ready", name: "Agreed" },
   { id: "settled", name: "Settled" },
 ] as const;
 export function SplitLibrary({

@@ -1,3 +1,4 @@
+import { nextAction } from "@/lib/pilot/next-action";
 import { describe, expect, it } from "vitest";
 import { recoverySummary, splitStage } from "@/lib/pilot/workspace-summary";
 import type { Split } from "@/lib/pilot/model";
@@ -78,5 +79,78 @@ describe("shared workspace state", () => {
     };
     expect(recoverySummary([current], "a@example.com").owe).toBe(5000);
     expect(splitStage(current, "a@example.com")).toBe("needs_action");
+  });
+});
+
+describe("matching action messages and filters", () => {
+  it("waits for correction review instead of asking the requester to repay", () => {
+    const current: Split = {
+      ...split,
+      responses: {
+        "b@example.com": {
+          revision: 1,
+          status: "correction",
+          reason: "I did not join",
+        },
+      },
+    };
+    expect(splitStage(current, "b@example.com")).toBe("waiting");
+    expect(nextAction(current, "b@example.com")).toContain(
+      "review your correction",
+    );
+    expect(splitStage(current, "a@example.com")).toBe("needs_action");
+    expect(nextAction(current, "a@example.com")).toBe(
+      "Review requested corrections",
+    );
+  });
+  it("does not tell a sender to report the same transfer again while it awaits confirmation", () => {
+    const current: Split = {
+      ...split,
+      repayments: [
+        {
+          id: "p",
+          from: "b@example.com",
+          to: "a@example.com",
+          amount: 20000,
+          status: "reported",
+        },
+      ],
+    };
+    expect(splitStage(current, "b@example.com")).toBe("waiting");
+    expect(nextAction(current, "b@example.com")).toContain(
+      "recipient to confirm",
+    );
+    expect(splitStage(current, "a@example.com")).toBe("needs_action");
+  });
+  it("keeps a disputed transfer actionable and preserves obligations", () => {
+    const current: Split = {
+      ...split,
+      repayments: [
+        {
+          id: "p",
+          from: "b@example.com",
+          to: "a@example.com",
+          amount: 20000,
+          status: "disputed",
+        },
+      ],
+    };
+    expect(splitStage(current, "b@example.com")).toBe("needs_action");
+    expect(nextAction(current, "b@example.com")).toContain("disputed transfer");
+    expect(recoverySummary([current], "b@example.com").owe).toBe(20000);
+  });
+  it("distinguishes an agreed planned expense from an unpaid expense", () => {
+    const current: Split = {
+      ...split,
+      expense: { ...split.expense, mode: "planned" },
+      responses: Object.fromEntries(
+        split.expense.participants.map((p) => [
+          p.email,
+          { revision: 1, status: "accepted" as const, reason: "" },
+        ]),
+      ),
+    };
+    expect(splitStage(current, "a@example.com")).toBe("ready");
+    expect(nextAction(current, "a@example.com")).toBe("Participation agreed");
   });
 });

@@ -9,36 +9,62 @@ import {
 export function ExpenseForm({
   email,
   original,
+  initial,
+  startInReview = false,
+  onSaveDraft,
   busy,
   onSave,
   onDrafted,
 }: {
   email: string;
   original?: Expense;
+  initial?: Expense;
+  startInReview?: boolean;
+  onSaveDraft?: (expense: Expense) => Promise<void>;
   busy: boolean;
   onDrafted?: () => void;
   onSave: (expense: Expense, reason: string) => Promise<void>;
 }) {
   const [draft, setDraft] = useState<Expense>(
-    original ?? {
-      title: "",
-      mode: "paid",
-      participants: [
-        { name: "You", email, paid: 0 },
-        { name: "", email: "", paid: 0 },
-      ],
-      items: [{ name: "Dinner", amount: 0, included: [] }],
-    },
+    original ??
+      initial ?? {
+        title: "",
+        mode: "paid",
+        participants: [
+          { name: "You", email, paid: 0 },
+          { name: "", email: "", paid: 0 },
+        ],
+        items: [{ name: "Dinner", amount: 0, included: [] }],
+      },
   );
   const heading = useRef<HTMLHeadingElement>(null);
-  const [payer, setPayer] = useState(0);
+  const [payer, setPayer] = useState(
+    Math.max(
+      0,
+      (initial ?? original)?.participants.findIndex((p) => p.paid > 0) ?? 0,
+    ),
+  );
   const [description, setDescription] = useState("");
   const [drafting, setDrafting] = useState(false);
-  const [review, setReview] = useState(false);
+  const [review, setReview] = useState(startInReview);
   const [error, setError] = useState("");
   const [reason, setReason] = useState("");
-  const [advanced, setAdvanced] = useState(Boolean(original));
-  const submission = useRef<Expense | undefined>(undefined);
+  const [advanced, setAdvanced] = useState(
+    Boolean(
+      original ||
+        (initial &&
+          (initial.items.length > 1 ||
+            initial.items.some(
+              (item) =>
+                item.custom ||
+                item.included.length !== initial.participants.length,
+            ) ||
+            initial.participants.filter((p) => p.paid > 0).length > 1)),
+    ),
+  );
+  const submission = useRef<Expense | undefined>(
+    startInReview ? initial : undefined,
+  );
   useEffect(() => {
     heading.current?.focus();
   }, [review]);
@@ -73,6 +99,7 @@ export function ExpenseForm({
       setDraft(normalized);
       setReview(true);
       setError("");
+      return normalized;
     } catch (e) {
       setError(e instanceof Error ? e.message : "Check your expense.");
     }
@@ -114,6 +141,117 @@ export function ExpenseForm({
     });
   }
 
+  if (review && submission.current) {
+    const expense = submission.current;
+    const calculation = calculateExpense(expense);
+    return (
+      <form
+        className="space-y-5 rounded-lg border border-app-border bg-white p-5 md:p-6"
+        onSubmit={(event) => {
+          event.preventDefault();
+          void onSave(expense, reason);
+        }}
+      >
+        <h2 ref={heading} tabIndex={-1} className="text-lg font-semibold focus:outline-none">
+          Review before publishing
+        </h2>
+        <div>
+          <h3 className="text-base font-semibold">{expense.title}</h3>
+          <p className="mt-1 text-sm text-app-muted">
+            {expense.mode === "paid" ? "Already paid" : "Planned expense"} ·{" "}
+            {expense.participants.length} people
+          </p>
+          <p className="mt-3 text-2xl font-semibold tabular-nums">
+            ₩{calculation.total.toLocaleString()}
+          </p>
+        </div>
+        <ul className="divide-y divide-app-border" aria-label="Reviewed shares">
+          {expense.participants.map((person) => (
+            <li
+              key={person.email}
+              className="flex justify-between gap-4 py-3 text-sm"
+            >
+              <span className="min-w-0 break-words">
+                {person.name}
+                <span className="mt-1 block text-app-muted">
+                  Paid ₩{person.paid.toLocaleString()}
+                </span>
+              </span>
+              <span className="shrink-0 text-right font-semibold tabular-nums">
+                {original
+                  ? `₩${calculateExpense(original).shares[person.email]?.toLocaleString() ?? "0"} → `
+                  : ""}
+                ₩{calculation.shares[person.email].toLocaleString()}
+              </span>
+            </li>
+          ))}
+        </ul>
+        <details>
+          <summary className="min-h-11 cursor-pointer text-sm font-medium">
+            Items and allocation rules
+          </summary>
+          <ul className="space-y-3 text-sm">
+            {expense.items.map((item, index) => (
+              <li key={index}>
+                {item.name} · ₩{item.amount.toLocaleString()}
+                <p className="text-app-muted">
+                  {item.custom ? "Custom shares" : "Equal shares"} ·{" "}
+                  {item.included
+                    .map(
+                      (email) =>
+                        expense.participants.find((p) => p.email === email)
+                          ?.name,
+                    )
+                    .join(", ")}
+                </p>
+              </li>
+            ))}
+          </ul>
+        </details>
+        {original && (
+          <label className="block text-sm">
+            Reason for change
+            <input
+              required
+              value={reason}
+              onChange={(event) => setReason(event.target.value)}
+              className="mt-2 block w-full rounded border p-3"
+            />
+          </label>
+        )}
+        <div className="flex flex-wrap gap-3">
+          <button
+            disabled={busy}
+            className="rounded-lg bg-app-blue hover:bg-blue-700 border-transparent px-4 py-3 text-sm font-semibold text-white"
+          >
+            Publish split
+          </button>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => setReview(false)}
+            className="rounded-lg border border-app-border px-4 py-3 text-sm"
+          >
+            Edit review
+          </button>
+          {onSaveDraft && (
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => void onSaveDraft(expense)}
+              className="px-3 py-3 text-sm"
+            >
+              Save draft
+            </button>
+          )}
+        </div>
+        <p className="text-xs text-app-muted">
+          Publishing records the reviewed shares. Payments happen outside
+          SplitFlow.
+        </p>
+      </form>
+    );
+  }
   return (
     <form
       className="space-y-5 rounded-lg border border-app-border bg-white p-5 md:p-6"
@@ -124,7 +262,7 @@ export function ExpenseForm({
         else prepare();
       }}
     >
-      <h2 ref={heading} tabIndex={-1} className="text-lg font-semibold">
+      <h2 ref={heading} tabIndex={-1} className="text-lg font-semibold focus:outline-none">
         {review
           ? "Review before publishing"
           : original

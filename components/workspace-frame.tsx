@@ -2,18 +2,24 @@
 import Link from "next/link";
 import {
   FileText,
-  Home,
   LogOut,
+  MessageSquare,
   Plus,
   Waypoints,
   ArrowUpRight,
+  Menu,
+  X,
 } from "lucide-react";
-import { useEffect, useRef, type ReactNode } from "react";
-
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import type { Conversation } from "@/lib/pilot/conversation";
 const navigation = [
-  { href: "/", label: "Home", key: "home", icon: Home },
-  { href: "/?view=splits", label: "Splits", key: "splits", icon: FileText },
-  { href: "/?view=new", label: "New split", key: "new", icon: Plus },
+  { href: "/", label: "New conversation", key: "home", icon: MessageSquare },
+  {
+    href: "/?view=splits",
+    label: "Your splits",
+    key: "splits",
+    icon: FileText,
+  },
 ];
 export function WorkspaceFrame({
   children,
@@ -22,6 +28,9 @@ export function WorkspaceFrame({
   email,
   onSignOut,
   viewKey,
+  conversations = [],
+  currentConversation,
+  conversationMode = false,
 }: {
   children: ReactNode;
   active: string;
@@ -29,14 +38,103 @@ export function WorkspaceFrame({
   email?: string;
   onSignOut: () => void;
   viewKey: string;
+  conversations?: Conversation[];
+  currentConversation?: string;
+  conversationMode?: boolean;
 }) {
   const content = useRef<HTMLElement>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menu = useRef<HTMLDialogElement>(null);
   useEffect(() => {
     content.current?.scrollTo({ top: 0 });
+    setMenuOpen(false);
   }, [viewKey]);
+  useEffect(() => {
+    if (menuOpen) menu.current?.showModal();
+    else menu.current?.close();
+  }, [menuOpen]);
+  function sidebar() {
+    return (
+      <>
+        <Link
+          href="/"
+          aria-label="SplitFlow home"
+          className="flex min-h-20 items-center gap-2 px-5 text-xl font-semibold tracking-tight"
+        >
+          <Waypoints className="h-6 w-6 text-app-blue" aria-hidden="true" />
+          SplitFlow
+        </Link>
+        <nav aria-label="Main navigation" className="space-y-1 px-3">
+          {navigation.map(({ icon: Icon, ...item }) => (
+            <Link
+              key={item.key}
+              href={item.href}
+              aria-current={
+                active === item.key && !currentConversation ? "page" : undefined
+              }
+              className={`flex min-h-11 items-center gap-3 rounded-lg px-3 text-sm ${active === item.key && !currentConversation ? "bg-slate-200/60 font-medium" : "hover:bg-slate-200/40"}`}
+            >
+              <Icon className="h-4 w-4 text-app-muted" aria-hidden="true" />
+              {item.label}
+            </Link>
+          ))}
+        </nav>
+        <div className="min-h-0 flex-1 overflow-y-auto px-3 pt-7">
+          <p className="px-3 pb-2 text-xs text-app-muted">Conversations</p>
+          {conversations.length ? (
+            <nav aria-label="Saved conversations">
+              {conversations.map((chat) => (
+                <Link
+                  key={chat.id}
+                  href={`/?conversation=${chat.id}`}
+                  aria-current={
+                    currentConversation === chat.id ? "page" : undefined
+                  }
+                  className={`mb-1 block truncate rounded-lg px-3 py-3 text-sm ${currentConversation === chat.id ? "bg-slate-200/60" : "hover:bg-slate-200/40"}`}
+                >
+                  {chat.title}
+                </Link>
+              ))}
+            </nav>
+          ) : (
+            <p className="px-3 text-xs leading-5 text-app-muted">
+              Your saved conversations will appear here.
+            </p>
+          )}
+        </div>
+        <div className="space-y-3 p-5">
+          <Link
+            href="/demo"
+            className="flex min-h-11 items-center gap-2 text-sm text-app-muted"
+          >
+            Try demo
+            <ArrowUpRight className="h-4 w-4" aria-hidden="true" />
+          </Link>
+          {email ? (
+            <div>
+              <p className="truncate text-xs text-app-muted" title={email}>
+                {email}
+              </p>
+              <button
+                onClick={onSignOut}
+                className="mt-2 inline-flex min-h-11 items-center gap-2 text-sm"
+              >
+                <LogOut className="h-4 w-4" aria-hidden="true" />
+                Sign out
+              </button>
+            </div>
+          ) : (
+            <p className="text-xs text-app-muted">
+              Sign in to save your conversations.
+            </p>
+          )}
+        </div>
+      </>
+    );
+  }
   return (
     <div
-      className="flex h-dvh flex-col overflow-hidden bg-page text-app-text"
+      className="flex h-dvh overflow-hidden bg-white text-app-text"
       data-testid="signed-workspace"
     >
       <a
@@ -45,155 +143,90 @@ export function WorkspaceFrame({
       >
         Skip to content
       </a>
-      <div className="flex min-h-0 flex-1">
-        <aside
-          className="hidden w-[280px] shrink-0 flex-col border-r border-app-border bg-white lg:flex"
-          aria-label="Workspace sidebar"
-        >
-          <Link
-            href="/"
-            className="flex h-[92px] shrink-0 items-center gap-3 border-b border-app-border px-6"
-            aria-label="SplitFlow home"
-          >
-            <span className="grid h-11 w-11 place-items-center rounded-lg border border-blue-100 bg-blue-50 text-app-blue">
-              <Waypoints className="h-7 w-7" aria-hidden="true" />
-            </span>
-            <span>
-              <span className="block text-2xl font-bold tracking-tight">
-                SplitFlow
-              </span>
-              <span className="block text-xs text-app-muted">
-                Shared expenses, made clear
-              </span>
-            </span>
-          </Link>
-          <nav aria-label="Main navigation" className="flex-1 px-3 py-5">
-            <p className="px-5 pb-3 text-xs font-semibold uppercase tracking-wide text-app-muted">
-              Workspace
-            </p>
-            {navigation.map(({ icon: Icon, ...item }) => (
-              <Link
-                key={item.key}
-                href={item.href}
-                aria-current={active === item.key ? "page" : undefined}
-                className={`relative mb-1 flex min-h-12 items-center gap-3 rounded-lg px-5 text-sm font-semibold ${active === item.key ? "bg-blue-50 text-app-blue" : "hover:bg-slate-50"}`}
-              >
-                {active === item.key && (
-                  <span className="absolute left-0 h-8 w-1 rounded-r bg-app-blue" />
-                )}
-                <Icon className="h-5 w-5" aria-hidden="true" />
-                {item.label}
-              </Link>
-            ))}
-          </nav>
-          <div className="space-y-4 border-t border-app-border p-5">
-            <Link
-              href="/demo"
-              className="flex min-h-11 items-center justify-between rounded-lg border border-app-border px-3 text-sm font-semibold text-app-muted hover:bg-slate-50"
+      <aside
+        className="hidden w-60 shrink-0 flex-col bg-slate-50 lg:flex"
+        aria-label="Workspace sidebar"
+      >
+        {sidebar()}
+      </aside>
+      <div className="flex min-w-0 flex-1 flex-col">
+        <header className="flex h-16 shrink-0 items-center justify-between gap-3 px-4 md:px-6">
+          <div className="flex min-w-0 items-center gap-3">
+            <button
+              aria-label="Open navigation"
+              onClick={() => setMenuOpen(true)}
+              className="grid h-11 w-11 shrink-0 place-items-center rounded-lg lg:hidden"
             >
-              Try demo
-              <ArrowUpRight className="h-4 w-4" aria-hidden="true" />
-            </Link>
-            {email ? (
-              <div className="space-y-2">
-                <p className="text-xs font-semibold text-app-muted">
-                  Signed in
-                </p>
-                <p className="break-all text-sm">{email}</p>
-                <button
-                  onClick={onSignOut}
-                  className="flex min-h-11 items-center gap-2 text-sm text-app-muted"
-                >
-                  <LogOut className="h-4 w-4" aria-hidden="true" />
-                  Sign out
-                </button>
-              </div>
-            ) : (
-              <p className="text-xs leading-5 text-app-muted">
-                Sign in to create a split or review an invitation.
-              </p>
-            )}
+              <Menu className="h-5 w-5" />
+            </button>
+            <h1 className="truncate text-base font-medium">{title}</h1>
           </div>
-        </aside>
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-          <header className="flex min-h-[76px] shrink-0 items-center justify-between gap-3 border-b border-app-border bg-white px-4 py-4 md:px-6 lg:px-8">
-            <div className="min-w-0">
+          <div className="flex items-center gap-3">
+            {email && (
               <Link
-                href="/"
-                className="mb-1 flex items-center gap-2 text-sm font-bold text-app-blue lg:hidden"
+                href="/?view=new"
+                className="inline-flex min-h-11 items-center gap-2 rounded-lg px-3 text-sm text-app-muted hover:bg-slate-50"
               >
-                <Waypoints className="h-5 w-5" aria-hidden="true" />
-                SplitFlow
+                <Plus className="h-4 w-4" aria-hidden="true" />
+                <span className="hidden sm:inline">New split</span>
+                <span className="sr-only sm:hidden">New split</span>
               </Link>
-              <h1 className="text-xl font-bold tracking-tight md:text-2xl">
-                {title}
-              </h1>
-              <p className="mt-1 hidden text-sm text-app-muted sm:block">
-                Clear shares. Simple repayments.
-              </p>
-            </div>
-            <div className="flex shrink-0 items-center gap-3">
+            )}
+            {email && (
+              <button
+                onClick={onSignOut}
+                aria-label="Sign out"
+                className="grid h-11 w-11 place-items-center lg:hidden"
+              >
+                <LogOut className="h-4 w-4" />
+              </button>
+            )}
+            {!email && (
               <Link
                 href="/demo"
-                className="rounded-lg px-2 py-3 text-sm font-semibold text-app-muted lg:hidden"
+                className="min-h-11 py-3 text-sm text-app-muted lg:hidden"
               >
                 Try demo
               </Link>
-              {email ? (
-                <>
-                  <button
-                    onClick={onSignOut}
-                    aria-label="Sign out"
-                    className="grid h-11 w-11 place-items-center rounded-lg border border-app-border text-app-muted lg:hidden"
-                  >
-                    <LogOut className="h-4 w-4" aria-hidden="true" />
-                  </button>
-                  {active !== "new" && (
-                    <Link
-                      href="/?view=new"
-                      className="hidden min-h-11 items-center gap-2 rounded-lg bg-app-blue px-4 text-sm font-semibold text-white hover:bg-blue-700 sm:inline-flex"
-                    >
-                      <Plus className="h-4 w-4" aria-hidden="true" />
-                      New split
-                    </Link>
-                  )}
-                </>
-              ) : (
-                <span className="hidden rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-app-muted sm:block">
-                  Your workspace
-                </span>
-              )}
-            </div>
-          </header>
-          <main
-            ref={content}
-            id="workspace-content"
-            tabIndex={-1}
-            className="min-h-0 flex-1 overflow-y-auto focus:outline-none"
-            data-testid="app-route-scroll"
+            )}
+          </div>
+        </header>
+        <main
+          ref={content}
+          id="workspace-content"
+          tabIndex={-1}
+          className="min-h-0 flex-1 overflow-y-auto focus:outline-none"
+          data-testid="app-route-scroll"
+        >
+          <div
+            className={
+              conversationMode
+                ? "h-full"
+                : "mx-auto w-full max-w-5xl px-4 py-5 md:p-6"
+            }
           >
-            <div className="mx-auto w-full max-w-6xl px-4 py-5 md:p-6 lg:p-8">
-              {children}
-            </div>
-          </main>
-        </div>
+            {children}
+          </div>
+        </main>
       </div>
-      <nav
-        aria-label="Primary navigation"
-        className="grid shrink-0 grid-cols-3 border-t border-app-border bg-white pb-[env(safe-area-inset-bottom)] lg:hidden"
+      <dialog
+        aria-label="Navigation"
+        ref={menu}
+        onCancel={() => setMenuOpen(false)}
+        onClose={() => setMenuOpen(false)}
+        className="m-0 h-dvh max-h-none w-72 max-w-[90vw] bg-slate-50 p-0 text-app-text backdrop:bg-black/30"
       >
-        {navigation.map(({ icon: Icon, ...item }) => (
-          <Link
-            key={item.key}
-            href={item.href}
-            aria-current={active === item.key ? "page" : undefined}
-            className={`flex min-h-[68px] flex-col items-center justify-center gap-1 text-xs font-semibold ${active === item.key ? "text-app-blue" : "text-app-muted"}`}
+        <div className="flex h-full flex-col">
+          <button
+            aria-label="Close navigation"
+            onClick={() => setMenuOpen(false)}
+            className="absolute right-3 top-4 grid h-11 w-11 place-items-center rounded-lg"
           >
-            <Icon className="h-5 w-5" aria-hidden="true" />
-            {item.label}
-          </Link>
-        ))}
-      </nav>
+            <X className="h-5 w-5" />
+          </button>
+          {sidebar()}
+        </div>
+      </dialog>
     </div>
   );
 }

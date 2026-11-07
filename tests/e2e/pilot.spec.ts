@@ -1,6 +1,9 @@
 import { expect, test, type Page } from "@playwright/test";
 import { calculateExpense, type Split } from "../../lib/pilot/model";
 async function session(page: Page) {
+  await page.route("**/api/pilot/conversations", (route) =>
+    route.fulfill({ json: [] }),
+  );
   await page.route("**/api/pilot/measurements", (route) =>
     route.fulfill({ json: { saved: true } }),
   );
@@ -186,6 +189,12 @@ test("the main entry never shows seeded records and demo is explicitly optional"
   ).toBeVisible();
   await expect(page.getByText("Han River BBQ", { exact: true })).toHaveCount(0);
   await expect(page.getByTestId("sidebar-profile-button")).toHaveCount(0);
+  if (
+    !(await page
+      .getByRole("link", { name: "Try demo", exact: true })
+      .isVisible())
+  )
+    await page.getByRole("button", { name: "Open navigation" }).click();
   await page.getByRole("link", { name: "Try demo", exact: true }).click();
   await expect(page).toHaveURL(/\/demo$/);
   await expect(
@@ -211,8 +220,14 @@ test("demo entry and exit preserve the signed-in account without reading demo da
   });
   await page.goto("/");
   await expect(
-    page.getByRole("heading", { name: "Your first split starts here" }),
+    page.getByRole("heading", { name: "What are we splitting?" }),
   ).toBeVisible();
+  if (
+    !(await page
+      .getByRole("link", { name: "Try demo", exact: true })
+      .isVisible())
+  )
+    await page.getByRole("button", { name: "Open navigation" }).click();
   await page.getByRole("link", { name: "Try demo", exact: true }).click();
   await expect(page.getByTestId("home-route")).toBeVisible();
   const readsBeforeDemoNavigation = splitReads;
@@ -221,7 +236,7 @@ test("demo entry and exit preserve the signed-in account without reading demo da
   expect(splitReads).toBe(readsBeforeDemoNavigation);
   await page.getByRole("link", { name: "Exit demo" }).click();
   await expect(
-    page.getByRole("heading", { name: "Your first split starts here" }),
+    page.getByRole("heading", { name: "What are we splitting?" }),
   ).toBeVisible();
   await expect(
     page.getByRole("heading", { name: "Sign in with email" }),

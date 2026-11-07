@@ -2,13 +2,11 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import {
-  ArrowRight,
-  CheckCircle2,
-  FileText,
-  Plus,
-  WalletCards,
-} from "lucide-react";
+import { CheckCircle2, FileText, WalletCards, Plus } from "lucide-react";
+import { SplitHistory } from "@/components/split-history";
+import { SplitLibrary } from "@/components/split-library";
+import { SplitConversation } from "@/components/split-conversation";
+import type { Conversation } from "@/lib/pilot/conversation";
 import { WorkspaceFrame } from "@/components/workspace-frame";
 import {
   balances,
@@ -45,6 +43,11 @@ export default function SplitWorkspace() {
   const selected = search.get("split") ?? undefined;
   const view = search.get("view") ?? "home";
   const creating = view === "new" && !selected;
+  const conversationId = search.get("conversation") ?? undefined;
+  const [newConversationId, setNewConversationId] = useState("");
+  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [conversationError, setConversationError] = useState("");
+  const chatting = !selected && !creating && view !== "splits";
   const loadSequence = useRef(0);
   const loadedIdentity = useRef<string | undefined>(undefined);
   const [loading, setLoading] = useState(true);
@@ -79,11 +82,13 @@ export default function SplitWorkspace() {
       setPending(undefined);
       setViewedRevisions({});
       setToken("");
+      setConversations([]);
       setSplits([]);
       setLoading(false);
       return;
     }
     if (loadedIdentity.current !== session.email) {
+      setConversations([]);
       setSplits([]);
       setEditing(undefined);
       setViewedRevisions({});
@@ -100,6 +105,33 @@ export default function SplitWorkspace() {
     )
       return;
     setSplits(rows);
+    try {
+      const chats = await pilotRequest("/api/pilot/conversations");
+      const requested = new URLSearchParams(window.location.search).get(
+        "conversation",
+      );
+      if (
+        requested &&
+        !chats.some((chat: Conversation) => chat.id === requested)
+      )
+        chats.push(
+          ...(await pilotRequest(
+            `/api/pilot/conversations?id=${encodeURIComponent(requested)}`,
+          )),
+        );
+      if (
+        sequence === loadSequence.current &&
+        loadedIdentity.current === session.email
+      ) {
+        setConversations(chats);
+        setConversationError("");
+      }
+    } catch {
+      if (sequence === loadSequence.current)
+        setConversationError(
+          "Couldn’t load conversations. Refresh to retry. Your splits are still available.",
+        );
+    }
     setViewedRevisions((previous) =>
       Object.fromEntries(
         rows.map((split: Split) => [
@@ -141,7 +173,16 @@ export default function SplitWorkspace() {
   useEffect(() => {
     if (!creating) setDraftId("");
   }, [creating]);
+  useEffect(() => {
+    if (!conversationId && email) {
+      const storageKey = `splitflow-new-conversation:${email}`;
+      const id = sessionStorage.getItem(storageKey) ?? crypto.randomUUID();
+      sessionStorage.setItem(storageKey, id);
+      setNewConversationId(id);
+    }
+  }, [conversationId, email]);
   function signOut() {
+    setConversations([]);
     loadedIdentity.current = undefined;
     loadSequence.current += 1;
     clearSession();
@@ -192,7 +233,7 @@ export default function SplitWorkspace() {
       setMessage("Enter the code from your email.");
     }
   }
-  async function save(body: PilotMutation) {
+  async function save(body: PilotMutation, inConversation = false) {
     const serialized = JSON.stringify(body);
     const operation =
       pending?.body === serialized
@@ -221,7 +262,9 @@ export default function SplitWorkspace() {
     }));
     setEditing(undefined);
     await load();
-    router.push(`/?split=${data.id}`);
+    router.push(
+      inConversation ? `/?conversation=${data.id}` : `/?split=${data.id}`,
+    );
     setMessage("Saved.");
   }
   async function redeemInvitation() {
@@ -244,17 +287,6 @@ export default function SplitWorkspace() {
     // Redeem only after authentication changes, preserving the link through sign-in.
   }, [Boolean(token)]);
   const visible = selected ? splits.filter((s) => s.id === selected) : [];
-  const totals = splits.reduce(
-    (sum, split) => {
-      const balance = balances(split)[email] ?? 0;
-      if (split.expense.mode === "paid") {
-        sum.owe += Math.max(0, balance);
-        sum.owed += Math.max(0, -balance);
-      }
-      return sum;
-    },
-    { owe: 0, owed: 0 },
-  );
   const active = creating
     ? "new"
     : selected || view === "splits"
@@ -270,13 +302,22 @@ export default function SplitWorkspace() {
             ? "Split details"
             : view === "splits"
               ? "Your splits"
-              : "Home"
+              : "SplitFlow"
       }
+      conversations={conversations}
+      currentConversation={conversationId}
+      conversationMode={Boolean(token) && chatting}
       email={token ? email : undefined}
       onSignOut={signOut}
       viewKey={search.toString()}
     >
-      <div className="workspace-content space-y-5">
+      <div
+        className={
+          chatting && token
+            ? "workspace-content flex min-h-full flex-col"
+            : "workspace-content space-y-5"
+        }
+      >
         {(busy || loading || message) && (
           <p
             role="status"
@@ -368,114 +409,77 @@ export default function SplitWorkspace() {
                 ← All splits
               </Link>
             )}
-            {!selected && !creating && !loading && (
+            {chatting && !loading && (
               <>
-                {view !== "splits" && (
-                  <>
-                    <div>
-                      <p className="text-xs font-semibold uppercase tracking-wide text-app-blue">
-                        Your workspace
-                      </p>
-                      <h2 className="mt-2 text-2xl font-bold tracking-tight">
-                        Keep every share clear.
-                      </h2>
-                      <p className="mt-2 text-sm text-app-muted">
-                        What you owe, what is owed to you, and what needs a
-                        response.
-                      </p>
-                    </div>
-                    <div className="grid gap-3 sm:grid-cols-3">
-                      {[
-                        {
-                          label: "You owe",
-                          value: money(totals.owe),
-                          icon: WalletCards,
-                        },
-                        {
-                          label: "Owed to you",
-                          value: money(totals.owed),
-                          icon: CheckCircle2,
-                        },
-                        {
-                          label: "Shared splits",
-                          value: String(splits.length),
-                          icon: FileText,
-                        },
-                      ].map(({ label, value, icon: Icon }) => (
-                        <div
-                          key={label}
-                          className="rounded-lg border border-app-border bg-white p-4"
-                        >
-                          <span className="mb-4 grid h-9 w-9 place-items-center rounded-lg bg-blue-50 text-app-blue">
-                            <Icon className="h-4 w-4" aria-hidden="true" />
-                          </span>
-                          <p className="text-xs font-semibold text-app-muted">
-                            {label}
-                          </p>
-                          <p className="mt-1 text-2xl font-bold">{value}</p>
-                        </div>
-                      ))}
-                    </div>
-                  </>
-                )}
-                {splits.length > 0 && (
-                  <section
-                    aria-label="Your shared splits"
-                    className="space-y-3"
+                {conversationError && (
+                  <p
+                    role="alert"
+                    className="mx-auto max-w-3xl px-4 pt-4 text-sm text-red-700"
                   >
-                    <div className="flex items-center justify-between">
-                      <h2 className="text-lg font-bold">
-                        {view === "splits" ? "All splits" : "Recent splits"}
-                      </h2>
-                      {view !== "splits" && (
-                        <Link
-                          href="/?view=splits"
-                          className="text-sm font-semibold text-app-blue"
-                        >
-                          View all
-                        </Link>
+                    {conversationError}
+                  </p>
+                )}
+                {conversationId &&
+                !conversations.some((c) => c.id === conversationId) &&
+                !conversationError ? (
+                  <p className="p-6" role="status">
+                    This conversation is unavailable for your account.{" "}
+                    <Link href="/" className="underline">
+                      Start a new conversation
+                    </Link>
+                  </p>
+                ) : (
+                  (conversationId || newConversationId) && (
+                    <SplitConversation
+                      key={`${email}:${conversationId ?? newConversationId}`}
+                      email={email}
+                      id={conversationId ?? newConversationId}
+                      previousSplits={splits}
+                      conversation={conversations.find(
+                        (c) => c.id === conversationId,
                       )}
-                    </div>
-                    <div className="grid gap-3 xl:grid-cols-2">
-                      {splits.map((split) => (
-                        <Link
-                          key={split.id}
-                          href={`/?split=${split.id}`}
-                          className="rounded-lg border border-app-border bg-white p-5 transition hover:border-blue-200 hover:bg-blue-50/30"
-                        >
-                          <div className="flex items-start justify-between gap-3">
-                            <div className="min-w-0">
-                              <span className="rounded-md bg-slate-100 px-2 py-1 text-xs font-semibold text-app-muted">
-                                {split.expense.mode === "paid"
-                                  ? "Already paid"
-                                  : "Planned expense"}
-                              </span>
-                              <h3 className="mt-3 break-words text-base font-bold">
-                                {split.expense.title}
-                              </h3>
-                            </div>
-                            <ArrowRight
-                              className="h-4 w-4 shrink-0 text-app-muted"
-                              aria-hidden="true"
-                            />
-                          </div>
-                          <p className="mt-3 text-sm text-app-muted">
-                            {nextAction(split, email)}
-                          </p>
-                          <div className="mt-4 flex items-center justify-between border-t border-app-border pt-3 text-sm">
-                            <span className="text-app-muted">Your share</span>
-                            <span className="font-bold">
-                              {money(
-                                calculateExpense(split.expense).shares[email],
-                              )}
-                            </span>
-                          </div>
-                        </Link>
-                      ))}
-                    </div>
-                  </section>
+                      split={splits.find(
+                        (split) => split.id === conversationId,
+                      )}
+                      onSaved={(chat) => {
+                        sessionStorage.removeItem(
+                          `splitflow-new-conversation:${email}`,
+                        );
+                        setConversations((previous) => [
+                          chat,
+                          ...previous.filter((c) => c.id !== chat.id),
+                        ]);
+                        router.replace(`/?conversation=${chat.id}`);
+                      }}
+                      onPublish={async (expense) => {
+                        const id = conversationId ?? newConversationId;
+                        if (!conversations.some((c) => c.id === id)) {
+                          const chat = await pilotRequest(
+                            "/api/pilot/conversations",
+                            {
+                              method: "POST",
+                              body: JSON.stringify({
+                                id,
+                                key: crypto.randomUUID(),
+                                expected: 0,
+                                draft: expense,
+                              }),
+                            },
+                          );
+                          setConversations((previous) => [
+                            chat,
+                            ...previous.filter((c) => c.id !== chat.id),
+                          ]);
+                        }
+                        await save({ id, expected: 0, expense }, true);
+                      }}
+                    />
+                  )
                 )}
               </>
+            )}
+            {!selected && !creating && !chatting && !loading && (
+              <SplitLibrary splits={splits} email={email} />
             )}
             {pending && (
               <div className="rounded border p-3">
@@ -507,6 +511,7 @@ export default function SplitWorkspace() {
             )}
             {!loading &&
               !creating &&
+              !chatting &&
               visible.length === 0 &&
               (selected ? (
                 <div className="rounded-lg border border-app-border bg-white p-6">
@@ -611,6 +616,11 @@ export default function SplitWorkspace() {
                                 ? "Awaiting response"
                                 : "No correction requested")}
                           </p>
+                          {split.responses[p.email]?.reason && (
+                            <p className="mt-2 text-sm">
+                              {split.responses[p.email].reason}
+                            </p>
+                          )}
                         </li>
                       ))}
                     </ul>
@@ -859,6 +869,30 @@ export default function SplitWorkspace() {
                         ))}
                     </div>
                   ))}
+                  <SplitHistory id={split.id} revision={split.revision} />
+                  <details>
+                    <summary className="min-h-11 cursor-pointer text-sm font-semibold">
+                      Activity and history
+                    </summary>
+                    <ol className="mt-3 space-y-3 text-sm">
+                      {split.audit
+                        .slice()
+                        .reverse()
+                        .map((event, index) => (
+                          <li key={index}>
+                            <span className="font-medium">
+                              {split.expense.participants.find(
+                                (p) => p.email === event.actor,
+                              )?.name ?? "Participant"}
+                            </span>{" "}
+                            · {event.action}
+                            <time className="mt-1 block text-xs text-app-muted">
+                              {new Date(event.at).toLocaleString()}
+                            </time>
+                          </li>
+                        ))}
+                    </ol>
+                  </details>
                   {email === split.organizer && (
                     <button
                       onClick={() =>
@@ -915,7 +949,7 @@ export default function SplitWorkspace() {
             })}
           </>
         )}
-        {token && (
+        {token && !chatting && (
           <PilotFeedback
             splitId={
               selected && splits.some((split) => split.id === selected)

@@ -1,6 +1,6 @@
 # SplitFlow
 
-SplitFlow opens at `/` with email-code sign-in, Home, Splits and New split in one workspace. Manual dinner and outing entry, invitations, revisions and repayments use Supabase. The optional **Try demo** entry opens seeded records at `/demo`; demo profiles never substitute for signed-in accounts. Existing `/pilot` invitations redirect into the main workspace. See [setup and readiness](docs/PILOT-READINESS.md) for verified checks and remaining real-group release gates.
+SplitFlow opens at `/` with email-code sign-in and a saved conversation workspace. Describe a dinner or outing, clarify missing facts, review one current split preview, and explicitly publish. Manual entry, item rules, participant decisions, corrections, repayments and history remain accessible when needed. Conversations, drafts and financial records use Supabase; OpenAI drafting needs a server-side API key. The optional **Try demo** entry opens seeded records at `/demo`; demo profiles never substitute for signed-in accounts. Existing `/pilot` invitations redirect into the main workspace. See [setup and readiness](docs/PILOT-READINESS.md) for verified checks and remaining real-group release gates.
 
 ### AI-Powered Copilot for Group Payments
 

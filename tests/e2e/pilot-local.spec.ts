@@ -324,6 +324,7 @@ test("background refresh cannot advance the revision of an open organizer draft"
   await page.getByLabel("Reason for change").fill("Older session edit");
   const other = await guest(browser, page);
   await signIn(other.page, emails[0]);
+  await other.page.goto("/?view=splits");
   await other.page.getByRole("link", { name: /Concurrent dinner/ }).click();
   await other.page
     .getByRole("button", { name: "Revise expense", exact: true })

@@ -1,3 +1,15 @@
+# Conversation-first workspace update — 2026-11-07
+
+The main `/` entry now provides account-private saved conversations, a single current split preview, optional manual entry and compact review before explicit publication. The same financial operations continue to handle invitations, responses, corrections and confirmed repayments. Your splits supplies action/waiting/settled filters and a payment overview; details expose correction reasons, activity and revision history. Manual entry can reuse people from a previous split. `/demo` retains the broader synthetic group and prototype capabilities; reusable real group management is not yet implemented.
+
+Migration `20261107061118_conversation_workspace.sql` adds server-only conversation storage with owner checks, optimistic revisions and idempotent operation replay. It was applied to the isolated local database and the dedicated hosted SplitFlow project. It does not alter existing financial records. Drafts and messages contain private expense context and must not be included in analytics or public screenshots.
+
+Hosted AI is not configured yet: preview metadata lists Supabase settings but no `OPENAI_API_KEY`. Connector provisioning stalled during authentication; no key was created. Configure a dedicated server-only key in SplitFlow's preview environment before claiming hosted conversational drafting works. Without it, messages are saved with a clear explanation and manual entry remains available. The ordinary tests use controlled provider responses; live provider success is a separate outstanding check.
+
+Current evidence and final release checks are recorded in `docs/CONVERSATION-VERIFICATION.md`. The previous release notes below are historical and do not establish verification of this change.
+
+---
+
 # Dinner and outing pilot
 
 ## Current release status

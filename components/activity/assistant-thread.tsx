@@ -29,7 +29,7 @@ export function AssistantThread({
       className="sf-assistant-thread"
     >
       <p className="sf-assistant-private">
-        Private · Only you can see this assistant conversation
+        Private conversation
       </p>
       {thread?.messages.map((m) => (
         <div
@@ -49,7 +49,7 @@ export function AssistantThread({
           aria-label="Review proposed changes"
           className="sf-assistant-review"
         >
-          <h2>Review changes</h2>
+          <h2>{thread.pending.previews.length === 1 ? `Review ${thread.pending.previews[0].title}` : `Review ${thread.pending.previews.length} changes`}</h2>
           {thread.pending.previews.map((p, i) => (
             <div key={i}>
               <h3>{p.title}</h3>
@@ -73,8 +73,7 @@ export function AssistantThread({
             </button>
           </div>
           <p className="text-xs text-app-muted">
-            Or reply “confirm”, or describe what to change. Nothing is saved to
-            shared records yet.
+            Reply “confirm” to save, or describe a change.
           </p>
         </section>
       )}

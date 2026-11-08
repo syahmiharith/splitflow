@@ -331,3 +331,47 @@ summary::-webkit-details-marker { display:none; }
 summary:not(.sf-icon-button)::after { content:""; display:inline-block; width:7px; height:7px; margin-left:10px; border-right:1.5px solid currentColor; border-bottom:1.5px solid currentColor; transform:rotate(45deg); vertical-align:3px; opacity:.6; }
 details[open] > summary:not(.sf-icon-button)::after { transform:rotate(225deg); vertical-align:0; }
 @media(forced-colors:active) { input[type="checkbox"],input[type="radio"] { appearance:auto; } }
+
+/* Finish pass: consistent hierarchy and contrast across inline actions and ledgers. */
+.sf-workspace { --sf-muted:#626262; --sf-accent:#147963; --sf-radius:12px; font-variant-numeric:tabular-nums; }
+.sf-nav-label { color:#686868; padding-top:22px; }
+.sf-profile-caption,.sf-profile-copy small { color:#626262; }
+.sf-home h1,.sf-activity-summary h1,.sf-ledger-heading h1,.sf-assistant-review h2,.sf-inline-panel h1 { text-wrap:balance; overflow-wrap:anywhere; }
+.sf-thread { line-height:1.5; }
+.sf-thread > * + * { margin-top:12px; }
+.sf-response { padding:8px 0 16px; }
+.sf-response h2 { font-size:18px; line-height:25px; letter-spacing:-.2px; }
+.sf-recurring-summary { border-bottom:1px solid var(--sf-line); margin-bottom:8px; }
+.sf-share-lead { display:flex; flex-direction:column; gap:3px; margin-top:12px; }
+.sf-share-lead > span { font-size:12px; color:var(--sf-muted); }
+.sf-share-lead strong { font-size:28px; font-weight:600; line-height:36px; letter-spacing:-.5px; }
+.sf-share-lead small { font-size:13px; font-weight:400; color:var(--sf-muted); letter-spacing:0; }
+.sf-schedule-meta { margin-top:6px; font-size:12px; line-height:20px; color:var(--sf-muted); }
+.sf-schedule-help { margin-bottom:8px; font-size:13px; color:var(--sf-muted); }
+.sf-recurring-summary > details { margin-top:8px; }
+.sf-recurring-summary > details > summary { font-size:13px; padding:8px 0; min-height:40px; }
+.sf-recurring-summary > p[role="status"] { font-size:13px; margin-top:8px; }
+.sf-secondary-action,.sf-tertiary-action { display:inline-flex; align-items:center; justify-content:center; min-height:44px; padding:8px 12px; border-radius:8px; font-size:13px; }
+.sf-secondary-action { margin-top:8px; background:var(--sf-sidebar); border:1px solid var(--sf-line); }
+.sf-tertiary-action { color:var(--sf-muted); margin-left:4px; }
+.sf-secondary-action:hover,.sf-tertiary-action:hover { background:var(--sf-hover); color:var(--sf-ink); }
+.sf-assistant-review { padding:16px; border-radius:var(--sf-radius); background:#fafafa; }
+.sf-assistant-review h2 { line-height:22px; }
+.sf-assistant-review h3 { font-size:13px; margin-top:12px; }
+.sf-assistant-review ul { padding-bottom:12px; }
+.sf-assistant-review .sf-assistant-confirm { border:1px solid var(--sf-ink); border-radius:8px; font-weight:500; }
+.sf-assistant-review button:not(.sf-assistant-confirm) { padding:8px 12px; color:var(--sf-muted); border-radius:8px; }
+.sf-assistant-review button:not(.sf-assistant-confirm):hover { background:var(--sf-hover); color:var(--sf-ink); }
+.sf-assistant-private { font-size:11px; color:var(--sf-muted); margin-bottom:12px; }
+.sf-expense-row > div:first-child { align-items:flex-start; }
+.sf-expense-row h3 { overflow-wrap:anywhere; text-wrap:pretty; }
+.sf-ledger-tabs button[aria-current] { border-color:var(--sf-accent); }
+.sf-action-feedback { display:flex; align-items:center; gap:8px; font-size:13px; color:var(--sf-accent); animation:sf-feedback-in .16s ease-out; }
+.sf-action-feedback::before { content:"✓"; font-weight:600; }
+button { transition:background-color .12s ease,color .12s ease; }
+button:disabled { cursor:wait; }
+@keyframes sf-feedback-in { from { opacity:0; transform:translateY(3px); } to { opacity:1; transform:translateY(0); } }
+@media(max-width:600px) { .sf-share-lead strong { font-size:25px; line-height:32px; }.sf-schedule-meta { max-width:32ch; }.sf-response { padding-bottom:12px; } }
+@media(prefers-reduced-motion:reduce) { button { transition:none; }.sf-action-feedback { animation:none; } }
+/* Icon-bearing disclosures already communicate their affordance. */
+summary:has(svg)::after { display:none !important; }

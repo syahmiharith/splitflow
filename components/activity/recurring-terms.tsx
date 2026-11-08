@@ -29,28 +29,21 @@ export function RecurringTerms({
   );
   return (
     <section
-      className="sf-response"
+      className="sf-response sf-recurring-summary"
       aria-label="Recurring terms"
     >
       <h2 className="font-semibold">{schedule.expense.title} · monthly</h2>
-      <p className="mt-2">
-        {money(calculated.total)} monthly from {schedule.start}. Due day{" "}
-        {schedule.dueDay}.
-      </p>
       {included && (
-        <p className="mt-3 font-semibold">
-          Your recurring share: {money(calculated.shares[email])}
-        </p>
+        <p className="sf-share-lead"><span>Your recurring share</span><strong>{money(calculated.shares[email])}<small> / month</small></strong></p>
       )}
-      <p className="mt-2 text-app-muted">
-        {schedule.variable
-          ? "Variable bill: enter the actual amount each period."
-          : "Fixed costs publish automatically after every affected member accepts. Expected payments remain planned until actual costs are recorded."}
-      </p>
+      <p className="sf-schedule-meta">{money(calculated.total)} total · From {schedule.start} · Due day {schedule.dueDay}</p>
       <details open={!accepted} className="mt-3">
         <summary className="min-h-11 cursor-pointer py-3">
           People, expected payers and allocation
         </summary>
+        <p className="sf-schedule-help">
+          {schedule.variable ? "Enter the actual amount each period." : "Costs publish after everyone accepts. Record actual payments when paid."}
+        </p>
         {schedule.expense.participants.map((p) => (
           <p key={p.email} className="border-t py-2">
             {p.name}: share {money(calculated.shares[p.email])}
@@ -122,7 +115,7 @@ export function RecurringTerms({
           type="button"
           disabled={busy}
           onClick={onEdit}
-          className="min-h-11 px-3 underline"
+          className="sf-secondary-action"
         >
           Edit recurring terms
         </button>
@@ -149,7 +142,7 @@ export function RecurringTerms({
               paused: !schedule.paused,
             }).catch(() => {})
           }
-          className="ml-3 min-h-11 underline"
+          className="sf-tertiary-action"
         >
           {schedule.paused ? "Resume schedule" : "Pause schedule"}
         </button>

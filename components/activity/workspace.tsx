@@ -892,7 +892,7 @@ export default function ActivityWorkspace() {
               placeholder={
                 composerMode === "group" && activity
                   ? "Message the people in this activity…"
-                  : "Ask SplitFlow to split, change or settle a cost…"
+                  : "Ask SplitFlow…"
               }
               className="sf-composer-input"
             />
@@ -911,13 +911,7 @@ export default function ActivityWorkspace() {
             </button>
           </div>
         </form>
-        <p className={`sf-composer-note ${activity ? "" : "sr-only"}`}>
-          {activity
-            ? composerMode === "group"
-              ? "Visible to the people in this activity. No assistant actions."
-              : "Private assistant · Shared changes need your confirmation."
-            : "Describe what you want to do. Manual entry is optional."}
-        </p>
+        {composerMode === "group" && <p className="sf-composer-note">Visible to everyone in this activity</p>}
       </div>
     );
   }

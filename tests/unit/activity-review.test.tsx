@@ -97,7 +97,8 @@ it("shows each recurring share and payer and requires review of changed terms", 
       onCommand={command}
     />,
   );
-  expect(screen.getByText("Your recurring share: ₩50")).toBeVisible();
+  expect(screen.getByText("Your recurring share")).toBeVisible();
+  expect(screen.getByText("₩50")).toBeVisible();
   expect(screen.getByText("A: share ₩50 · expects to pay ₩100")).toBeVisible();
   rerender(
     <RecurringTerms

@@ -31,7 +31,7 @@ export function ActivityShare({ activity }: { activity: Activity }) {
       >
         Copy invitation link
       </button>
-      {message && <p role="status">{message}</p>}
+      {message && <p role="status" className={message === "Link copied." ? "sf-action-feedback" : "text-app-muted"}>{message}</p>}
       <details>
         <summary className="min-h-11 cursor-pointer py-3">
           Who can open this? · {activity.people.length} people

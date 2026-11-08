@@ -1,5 +1,7 @@
 # Conversation workflow refinement
 
+Historical first pass: the user correctly identified that it retained form-led surfaces. The current structural implementation and reference mapping are in [CHATGPT-CONVERSATION.md](CHATGPT-CONVERSATION.md).
+
 Scope: shared-group chooser, new-activity setup and recurring terms in the existing conversation workspace. Financial calculations, permissions, operation retries and database schema are unchanged. OpenAI remains on hold.
 
 ## References inspected

@@ -24,6 +24,10 @@ it("keeps invited group members unavailable until they join", () => {
       onSave={vi.fn()}
     />,
   );
+  fireEvent.change(screen.getByLabelText("Activity name"), {
+    target: { value: "Household" },
+  });
+  fireEvent.click(screen.getByRole("button", { name: "Continue to people" }));
   expect(screen.getByRole("checkbox", { name: /Minji/ })).toBeDisabled();
   expect(screen.getByRole("checkbox", { name: /Minji/ })).not.toBeChecked();
   expect(screen.getByText(/Invitation pending/)).toBeVisible();
@@ -65,9 +69,8 @@ it("reuses an existing cost for recurring review without recording a payment", (
       onSave={save}
     />,
   );
-  expect(screen.getByLabelText("Total (KRW)", { exact: true })).toHaveValue(
-    100000,
-  );
+  expect(screen.getByRole("radio", { name: /Monthly rent/ })).toBeChecked();
+  fireEvent.click(screen.getByRole("button", { name: "Continue to timing" }));
   fireEvent.click(
     screen.getByRole("button", { name: "Review recurring terms" }),
   );

@@ -40,3 +40,52 @@ export function ActivityDialog({
     </dialog>
   );
 }
+
+export function ActivityPanel({
+  title,
+  onClose,
+  children,
+}: {
+  title: string;
+  onClose: () => void;
+  children: ReactNode;
+}) {
+  const heading = useRef<HTMLHeadingElement>(null);
+  useLayoutEffect(() => {
+    const previous = document.activeElement as HTMLElement;
+    heading.current?.focus();
+    heading.current?.scrollIntoView({ block: "start" });
+    return () => previous?.focus();
+  }, []);
+  return (
+    <section
+      aria-label={title}
+      onKeyDown={(e) => {
+        if (e.key === "Escape") {
+          e.stopPropagation();
+          onClose();
+        }
+      }}
+      className="max-w-full border-t border-slate-200 pb-8 pt-6"
+    >
+      <header className="mb-5 flex items-center justify-between gap-3">
+        <h1
+          ref={heading}
+          tabIndex={-1}
+          className="text-xl font-semibold tracking-tight outline-none"
+        >
+          {title}
+        </h1>
+        <button
+          type="button"
+          aria-label={`Close ${title}`}
+          onClick={onClose}
+          className="min-h-11 rounded-lg px-3 text-sm hover:bg-slate-100"
+        >
+          Close
+        </button>
+      </header>
+      {children}
+    </section>
+  );
+}

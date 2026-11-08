@@ -56,7 +56,7 @@ export function NewActivityForm({
   }, [step]);
   return (
     <form
-      className="space-y-4 text-sm"
+      className="sf-flow space-y-4 text-sm"
       onSubmit={(event) => {
         event.preventDefault();
         if (step === 0) {
@@ -105,7 +105,7 @@ export function NewActivityForm({
             <legend className="mb-2 text-sm font-medium">
               What are you doing?
             </legend>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="sf-choice-list">
               {[
                 { value: "quick", label: "Split a cost" },
                 { value: "planned", label: "Plan together" },
@@ -113,7 +113,7 @@ export function NewActivityForm({
               ].map((option) => (
                 <label
                   key={option.value}
-                  className={`flex min-h-16 cursor-pointer items-center gap-2 rounded-lg border p-3 text-sm ${kind === option.value ? "border-slate-900 bg-slate-50" : "border-app-border"}`}
+                  className={`sf-choice ${kind === option.value ? "sf-choice-selected" : ""}`}
                 >
                   <input
                     type="radio"
@@ -221,7 +221,10 @@ export function NewActivityForm({
             ) : (
               <>
                 {people.map((p, i) => (
-                  <div key={i} className="grid grid-cols-2 gap-2 border-b pb-3">
+                  <div
+                    key={i}
+                    className="grid gap-3 border-b pb-3 sm:grid-cols-2"
+                  >
                     <label>
                       Name
                       <input
@@ -406,7 +409,7 @@ export function ScheduleForm({
   }
   const total = expense ? calculateExpense(expense) : undefined;
   return (
-    <div className="space-y-5 text-sm">
+    <div className="sf-flow space-y-5 text-sm">
       <ol
         aria-label="Recurring setup progress"
         className="flex items-center gap-3 text-xs text-app-muted"
@@ -424,7 +427,7 @@ export function ScheduleForm({
       <h2
         ref={heading}
         tabIndex={-1}
-        className="text-2xl font-semibold tracking-tight outline-none"
+        className="text-xl font-semibold tracking-tight outline-none"
       >
         {advanced
           ? "Adjust this cost"
@@ -475,7 +478,7 @@ export function ScheduleForm({
             }}
           >
             {options.length > 0 && (
-              <fieldset className="divide-y rounded-xl border border-app-border">
+              <fieldset className="sf-choice-list divide-y">
                 <legend className="sr-only">Choose a cost</legend>
                 {options.map((option) => (
                   <label
@@ -492,10 +495,14 @@ export function ScheduleForm({
                       }}
                     />
                     <span className="min-w-0 flex-1">
-                      <span className="block font-medium">{option.label}</span>
+                      <span className="block font-medium">
+                        {option.expense.title}
+                      </span>
                       <span className="text-xs text-app-muted">
-                        {option.expense.participants.length} people · existing
-                        split rules
+                        {option.id === "schedule"
+                          ? "Current recurring cost · "
+                          : ""}
+                        {option.expense.participants.length} people
                       </span>
                     </span>
                     <span className="shrink-0 tabular-nums">
@@ -562,6 +569,7 @@ export function ScheduleForm({
                 </p>
               </div>
             ) : (
+              source === "custom" &&
               expense && (
                 <div className="flex items-center justify-between gap-3 py-2">
                   <span>
@@ -608,7 +616,7 @@ export function ScheduleForm({
             <span>Repeats</span>
             <strong>Monthly</strong>
           </div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid gap-4 sm:grid-cols-2">
             <label>
               First period starts
               <input
@@ -632,7 +640,7 @@ export function ScheduleForm({
               />
             </label>
           </div>
-          <fieldset className="divide-y rounded-xl border border-app-border">
+          <fieldset className="sf-choice-list divide-y">
             <legend className="mb-2 font-medium">How is the amount set?</legend>
             <label className="flex cursor-pointer items-start gap-3 p-4">
               <input

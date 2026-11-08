@@ -1,7 +1,12 @@
 import { test, expect, type Page } from "@playwright/test";
 async function openActivity(page: Page, name: string) {
-  if ((page.viewportSize()?.width ?? 1440) < 1024) await page.getByRole("button", { name: "Open navigation" }).click();
-  await page.getByRole("button", { name, exact: true }).filter({ visible: true }).first().click();
+  if ((page.viewportSize()?.width ?? 1440) < 1024)
+    await page.getByRole("button", { name: "Open navigation" }).click();
+  await page
+    .getByRole("button", { name, exact: true })
+    .filter({ visible: true })
+    .first()
+    .click();
 }
 async function composerAction(page: Page, name: string) {
   await page.getByLabel("More activity actions").click();
@@ -441,4 +446,44 @@ test("shared group creation hands off to an inline invitation panel", async ({
   await expect(groups.getByLabel("Group invitation link")).toBeVisible();
   await expect(page.getByRole("dialog")).toHaveCount(0);
   await expect(page.getByLabel("Message your activity")).toBeVisible();
+});
+
+test("group management stays disclosed and preserves the conversation", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await openActivity(page, "Weekend together");
+  await page.getByRole("button", { name: "Groups", exact: true }).click();
+  const panel = page.getByRole("region", { name: "Shared groups" });
+  if (!(await panel.getByRole("tab", { name: "People & invitations" }).isVisible())) {
+    await panel.getByRole("button", { name: /^Friends & housemates/ }).click();
+  }
+  await panel.getByRole("tab", { name: "People & invitations" }).click();
+  await expect(
+    panel.getByLabel("Group name", { exact: true }),
+  ).not.toBeVisible();
+  await expect(
+    panel.getByLabel("Invite email", { exact: true }),
+  ).not.toBeVisible();
+  await panel.getByText("Rename group", { exact: true }).click();
+  await panel.getByLabel("Group name", { exact: true }).fill("Household costs");
+  await panel.getByRole("button", { name: "Save name", exact: true }).click();
+  await expect(
+    panel.getByRole("heading", { name: "Household costs" }),
+  ).toBeVisible();
+  await panel.getByText("Invite another person", { exact: true }).click();
+  await panel.getByLabel("Invite name").fill("Taylor");
+  await panel.getByLabel("Invite email").fill("taylor@example.test");
+  await panel
+    .getByRole("button", { name: "Invite or renew invitation" })
+    .click();
+  await expect(
+    panel.getByText("Taylor · Invited", { exact: true }),
+  ).toBeVisible();
+  await expect(page.getByLabel("Message your activity")).toBeVisible();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await page.reload();
+  await expect(
+    page.getByRole("heading", { name: "Weekend together", exact: true }),
+  ).toBeVisible();
 });

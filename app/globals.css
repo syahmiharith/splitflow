@@ -165,3 +165,20 @@ textarea:focus-visible {
 .sf-nav-drawer > div { padding: 8px; height: calc(100% - 56px); }
 .sf-nav-drawer > div > div { min-height: 100%; }
 .sf-workspace .sf-inline-panel button.bg-slate-900, .sf-workspace .sf-response button.bg-slate-900 { background: var(--sf-ink); border-radius: 22px; }
+
+/* Inline workflows use the same neutral controls as the conversation shell. */
+.sf-flow { max-width: 640px; }
+.sf-flow-label { color: var(--sf-muted); font-size: 13px; font-weight: 400; }
+.sf-primary { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 10px 20px; border-radius: 24px; color: white; background: var(--sf-ink); font-size: 14px; }
+.sf-primary:disabled { opacity: .45; }
+.sf-choice-list { border: 1px solid var(--sf-line); border-radius: 16px; overflow: hidden; }
+.sf-choice { display: flex; align-items: center; gap: 12px; padding: 16px; min-height: 56px; cursor: pointer; }
+.sf-choice + .sf-choice { border-top: 1px solid var(--sf-line); }
+.sf-choice-selected { background: var(--sf-sidebar); }
+.sf-flow input[type="radio"], .sf-flow input[type="checkbox"] { accent-color: var(--sf-ink); }
+.sf-flow input:not([type="radio"]):not([type="checkbox"]), .sf-flow select { border-color: var(--sf-line); border-radius: 12px; }
+.sf-disclosure { margin-top: 20px; border-top: 1px solid var(--sf-line); padding-top: 4px; }
+.sf-disclosure > summary { padding: 12px 0; min-height: 44px; cursor: pointer; font-size: 14px; }
+.sf-group-activity { display: flex; width: 100%; min-height: 56px; align-items: center; justify-content: space-between; gap: 16px; border-bottom: 1px solid var(--sf-line); padding: 12px 0; text-align: left; font-size: 14px; }
+@media(max-width: 639px) { .sf-group-activity { align-items: flex-start; flex-direction: column; gap: 4px; } }
+.sf-inline-panel > header .sf-flow-label { font-size: 13px; line-height: 20px; }

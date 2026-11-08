@@ -32,7 +32,7 @@ export function GroupEditor({
   const [error, setError] = useState("");
   return (
     <form
-      className="space-y-5 p-5"
+      className={shared ? "sf-flow space-y-5" : "space-y-5 p-5"}
       onSubmit={(event) => {
         event.preventDefault();
         if (shared && step === 0) {
@@ -79,7 +79,11 @@ export function GroupEditor({
           {people.map((person, index) => (
             <div
               key={index}
-              className="grid gap-3 rounded-lg bg-slate-50 p-3 sm:grid-cols-[1fr_1.4fr_auto]"
+              className={
+                shared
+                  ? "grid gap-3 border-b pb-4 sm:grid-cols-[1fr_1.4fr_auto]"
+                  : "grid gap-3 rounded-lg bg-slate-50 p-3 sm:grid-cols-[1fr_1.4fr_auto]"
+              }
             >
               <label className="text-sm">
                 Name
@@ -148,7 +152,11 @@ export function GroupEditor({
       <div className="flex flex-wrap gap-3">
         <button
           disabled={busy}
-          className="min-h-11 rounded-lg border-transparent bg-app-blue px-4 text-sm font-semibold text-white hover:bg-blue-700"
+          className={
+            shared
+              ? "sf-primary"
+              : "min-h-11 rounded-lg border-transparent bg-app-blue px-4 text-sm font-semibold text-white hover:bg-blue-700"
+          }
         >
           {busy
             ? "Saving group…"

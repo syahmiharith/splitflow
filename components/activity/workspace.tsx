@@ -1,7 +1,19 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { Plus, Menu, Users, ArrowUp, ChevronDown, PanelLeft, SquarePen, Search, Receipt, MoreHorizontal, Share2 } from "lucide-react";
+import {
+  Plus,
+  Menu,
+  Users,
+  ArrowUp,
+  ChevronDown,
+  PanelLeft,
+  SquarePen,
+  Search,
+  Receipt,
+  MoreHorizontal,
+  Share2,
+} from "lucide-react";
 import { clearSession, getSession } from "@/lib/pilot/session";
 import {
   loadWorkspace,
@@ -255,9 +267,7 @@ export default function ActivityWorkspace() {
             ))}
           </>
         )}
-        <p className="sf-nav-label">
-          Recent conversations
-        </p>
+        <p className="sf-nav-label">Recent conversations</p>
         {activities
           .filter((a) => !a.archivedBy.includes(email))
           .slice()
@@ -272,26 +282,69 @@ export default function ActivityWorkspace() {
             </button>
           ))}
         <div className="sf-account">
-          <span className="sf-avatar" aria-hidden="true">{(guest ? samplePeople.find(p => p.email === email)?.name : email)?.slice(0, 1).toUpperCase()}</span>
+          <span className="sf-avatar" aria-hidden="true">
+            {(guest ? samplePeople.find((p) => p.email === email)?.name : email)
+              ?.slice(0, 1)
+              .toUpperCase()}
+          </span>
           <div className="min-w-0 flex-1">
-            {guest ? <label className="block">
-              <span className="sr-only">Sample person</span>
-              <select value={email} onChange={e => setEmail(e.target.value)} className="sf-account-select">
-                {samplePeople.map(p => <option key={p.email} value={p.email}>{p.name}</option>)}
-              </select>
-            </label> : <p className="truncate text-sm">{email}</p>}
-            <p className="text-xs text-app-muted">{guest ? "Guest sample workspace" : "Personal account"}</p>
+            {guest ? (
+              <label className="block">
+                <span className="sr-only">Sample person</span>
+                <select
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="sf-account-select"
+                >
+                  {samplePeople.map((p) => (
+                    <option key={p.email} value={p.email}>
+                      {p.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : (
+              <p className="truncate text-sm">{email}</p>
+            )}
+            <p className="text-xs text-app-muted">
+              {guest ? "Guest sample workspace" : "Personal account"}
+            </p>
           </div>
           <details className="relative">
-            <summary aria-label="Account options" className="sf-icon-button"><MoreHorizontal size={18}/></summary>
+            <summary aria-label="Account options" className="sf-icon-button">
+              <MoreHorizontal size={18} />
+            </summary>
             <div className="sf-popup absolute bottom-full right-0 mb-2 w-52">
-              {guest ? <>
-                <button onClick={() => setModal("signin")}>Sign in for real activities</button>
-                <button onClick={() => { resetSample(); select(""); void refresh(); }}>Reset sample records</button>
-              </> : <>
-                <a href="/?legacy=1">Previous saved records</a>
-                <button onClick={() => { clearSession(); setGuest(true); setEmail(samplePeople[0].email); select(""); }}>Sign out</button>
-              </>}
+              {guest ? (
+                <>
+                  <button onClick={() => setModal("signin")}>
+                    Sign in for real activities
+                  </button>
+                  <button
+                    onClick={() => {
+                      resetSample();
+                      select("");
+                      void refresh();
+                    }}
+                  >
+                    Reset sample records
+                  </button>
+                </>
+              ) : (
+                <>
+                  <a href="/?legacy=1">Previous saved records</a>
+                  <button
+                    onClick={() => {
+                      clearSession();
+                      setGuest(true);
+                      setEmail(samplePeople[0].email);
+                      select("");
+                    }}
+                  >
+                    Sign out
+                  </button>
+                </>
+              )}
             </div>
           </details>
         </div>
@@ -492,47 +545,75 @@ export default function ActivityWorkspace() {
                 <Plus size={19} />
               </summary>
               <div className="sf-popup absolute bottom-full left-0 z-20 mb-2 w-64 max-w-full">
-                {activity && <button type="button" disabled={busy || Boolean(pending)} onClick={() => openExpense()}><Receipt size={17}/>Add cost</button>}
-                {!activity && (["quick", "planned", "recurring"] as const).map(kind => <button key={kind} type="button" onClick={() => { setModal("new"); sessionStorage.setItem("splitflow-new-kind", kind); }}>{kind === "quick" ? "Split a cost" : kind === "planned" ? "Plan an activity" : "Set up recurring costs"}</button>)}
-            {Boolean(activity?.templates?.length) && (
-              <select
-                aria-label="Reuse expense rules"
-                value=""
-                onChange={(e) => {
-                  const template = activity!.templates![Number(e.target.value)];
-                  setEditing(undefined);
-                  setPreset({
-                    ...structuredClone(template),
-                    title: template.title,
-                    participants: template.participants.map((p) => ({
-                      ...p,
-                      paid: 0,
-                    })),
-                    items: template.items.map((i) => ({
-                      ...i,
-                      amount: 0,
-                      custom: i.custom
-                        ? Object.fromEntries(
-                            Object.keys(i.custom).map((email) => [email, 0]),
-                          )
-                        : undefined,
-                    })),
-                  });
-                  setModal("expense");
-                }}
-                className="min-h-11 max-w-full rounded-lg bg-slate-50 px-2 text-sm"
-              >
-                <option value="" disabled>
-                  Reuse expense rules
-                </option>
-                {activity!.templates!.map((t, i) => (
-                  <option key={i} value={i}>
-                    {t.title}
-                  </option>
-                ))}
-              </select>
-            )}
-
+                {activity && (
+                  <button
+                    type="button"
+                    disabled={busy || Boolean(pending)}
+                    onClick={() => openExpense()}
+                  >
+                    <Receipt size={17} />
+                    Add cost
+                  </button>
+                )}
+                {!activity &&
+                  (["quick", "planned", "recurring"] as const).map((kind) => (
+                    <button
+                      key={kind}
+                      type="button"
+                      onClick={() => {
+                        setModal("new");
+                        sessionStorage.setItem("splitflow-new-kind", kind);
+                      }}
+                    >
+                      {kind === "quick"
+                        ? "Split a cost"
+                        : kind === "planned"
+                          ? "Plan an activity"
+                          : "Set up recurring costs"}
+                    </button>
+                  ))}
+                {Boolean(activity?.templates?.length) && (
+                  <select
+                    aria-label="Reuse expense rules"
+                    value=""
+                    onChange={(e) => {
+                      const template =
+                        activity!.templates![Number(e.target.value)];
+                      setEditing(undefined);
+                      setPreset({
+                        ...structuredClone(template),
+                        title: template.title,
+                        participants: template.participants.map((p) => ({
+                          ...p,
+                          paid: 0,
+                        })),
+                        items: template.items.map((i) => ({
+                          ...i,
+                          amount: 0,
+                          custom: i.custom
+                            ? Object.fromEntries(
+                                Object.keys(i.custom).map((email) => [
+                                  email,
+                                  0,
+                                ]),
+                              )
+                            : undefined,
+                        })),
+                      });
+                      setModal("expense");
+                    }}
+                    className="min-h-11 max-w-full rounded-lg bg-slate-50 px-2 text-sm"
+                  >
+                    <option value="" disabled>
+                      Reuse expense rules
+                    </option>
+                    {activity!.templates!.map((t, i) => (
+                      <option key={i} value={i}>
+                        {t.title}
+                      </option>
+                    ))}
+                  </select>
+                )}
                 <button
                   type="button"
                   onClick={() => setModal(activity ? "share" : "groups")}
@@ -583,11 +664,7 @@ export default function ActivityWorkspace() {
               value={text}
               onChange={(e) => setText(e.target.value)}
               rows={1}
-              placeholder={
-                activity
-                  ? "Message activity…"
-                  : "Describe a cost…"
-              }
+              placeholder={activity ? "Message activity…" : "Describe a cost…"}
               className="sf-composer-input"
             />
             <button
@@ -598,7 +675,6 @@ export default function ActivityWorkspace() {
               <ArrowUp size={18} />
             </button>
           </div>
-
         </form>
         <p className={`sf-composer-note ${activity ? "" : "sr-only"}`}>
           {activity
@@ -615,16 +691,31 @@ export default function ActivityWorkspace() {
       </p>
     );
   return (
-    <div className="sf-workspace flex h-dvh bg-white text-app-text" onKeyDown={e => {
-      if (e.key === "Escape") {
-        const details = (e.target as HTMLElement).closest("details[open]");
-        if (details) { details.removeAttribute("open"); (details.querySelector("summary") as HTMLElement)?.focus(); e.stopPropagation(); }
-      }
-    }}>
+    <div
+      className="sf-workspace flex h-dvh bg-white text-app-text"
+      onKeyDown={(e) => {
+        if (e.key === "Escape") {
+          const details = (e.target as HTMLElement).closest("details[open]");
+          if (details) {
+            details.removeAttribute("open");
+            (details.querySelector("summary") as HTMLElement)?.focus();
+            e.stopPropagation();
+          }
+        }
+      }}
+    >
       <aside className={`sf-sidebar ${sidebarOpen ? "lg:flex" : ""}`}>
         <div className="sf-sidebar-top">
-          <a href="/" aria-label="SplitFlow home" className="sf-icon-button"><Receipt size={23}/></a>
-          <button aria-label="Collapse sidebar" onClick={() => setSidebarOpen(false)} className="sf-icon-button"><PanelLeft size={19}/></button>
+          <a href="/" aria-label="SplitFlow home" className="sf-icon-button">
+            <Receipt size={23} />
+          </a>
+          <button
+            aria-label="Collapse sidebar"
+            onClick={() => setSidebarOpen(false)}
+            className="sf-icon-button"
+          >
+            <PanelLeft size={19} />
+          </button>
         </div>
         {nav()}
       </aside>
@@ -632,18 +723,26 @@ export default function ActivityWorkspace() {
         <header className="sf-header">
           <button
             aria-label="Open navigation"
-            onClick={() => { if (window.innerWidth >= 1024) setSidebarOpen(true); else setMenu(true); }}
+            onClick={() => {
+              if (window.innerWidth >= 1024) setSidebarOpen(true);
+              else setMenu(true);
+            }}
             className={`sf-icon-button ${sidebarOpen ? "lg:hidden" : ""}`}
           >
             <Menu size={20} />
           </button>
-          <button className="sf-brand" onClick={() => { setList(false); setModal("groups"); }} aria-label="Workspace groups">SplitFlow <ChevronDown size={16}/></button>
-          <div className="flex-1"/>
-          {guest && (
-            <span className="sf-sample-badge">
-              Sample
-            </span>
-          )}
+          <button
+            className="sf-brand"
+            onClick={() => {
+              setList(false);
+              setModal("groups");
+            }}
+            aria-label="Workspace groups"
+          >
+            SplitFlow <ChevronDown size={16} />
+          </button>
+          <div className="flex-1" />
+          {guest && <span className="sf-sample-badge">Sample</span>}
           <button
             onClick={() => {
               setList(false);
@@ -653,48 +752,69 @@ export default function ActivityWorkspace() {
             className="sf-icon-button"
           >
             <Users size={16} />
-
           </button>
-          {activity && <button className="sf-header-share" aria-label="Share activity" onClick={() => setModal("share")}><Share2 size={17}/><span className="hidden sm:inline">Share</span></button>}
-          {activity && <details className="relative" onClick={e => { if ((e.target as HTMLElement).closest("button")) e.currentTarget.removeAttribute("open"); }}>
-            <summary aria-label="Conversation options" className="sf-icon-button"><MoreHorizontal size={20}/></summary>
-            <div className="sf-popup absolute right-0 top-full w-48">                    <button
-                      type="button"
-                      disabled={busy}
-                      onClick={() => {
-                        setRepeatSource(activity);
-                        setModal("new");
-                      }}
-                      className="min-h-11 text-xs underline"
-                    >
-                      Repeat activity
-                    </button>
-                    <button
-                      disabled={busy}
-                      onClick={() =>
-                        void command({
-                          type: "archive",
-                          archived: !activity.archivedBy.includes(email),
-                        }).catch(() => {})
-                      }
-                      className="min-h-11 text-xs underline"
-                    >
-                      {activity.archivedBy.includes(email)
-                        ? "Restore"
-                        : "Archive"}
-                    </button></div>
-          </details>}
-          {guest && (
+          {activity && (
             <button
-              onClick={() => setModal("signin")}
-              className="sf-signin"
+              className="sf-header-share"
+              aria-label="Share activity"
+              onClick={() => setModal("share")}
             >
+              <Share2 size={17} />
+              <span className="hidden sm:inline">Share</span>
+            </button>
+          )}
+          {activity && (
+            <details
+              className="relative"
+              onClick={(e) => {
+                if ((e.target as HTMLElement).closest("button"))
+                  e.currentTarget.removeAttribute("open");
+              }}
+            >
+              <summary
+                aria-label="Conversation options"
+                className="sf-icon-button"
+              >
+                <MoreHorizontal size={20} />
+              </summary>
+              <div className="sf-popup absolute right-0 top-full w-48">
+                {" "}
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => {
+                    setRepeatSource(activity);
+                    setModal("new");
+                  }}
+                  className="min-h-11 text-xs underline"
+                >
+                  Repeat activity
+                </button>
+                <button
+                  disabled={busy}
+                  onClick={() =>
+                    void command({
+                      type: "archive",
+                      archived: !activity.archivedBy.includes(email),
+                    }).catch(() => {})
+                  }
+                  className="min-h-11 text-xs underline"
+                >
+                  {activity.archivedBy.includes(email) ? "Restore" : "Archive"}
+                </button>
+              </div>
+            </details>
+          )}
+          {guest && (
+            <button onClick={() => setModal("signin")} className="sf-signin">
               Sign in
             </button>
           )}
         </header>
         <main className="sf-main min-h-0 flex-1 overflow-y-auto">
-          <div className={`sf-thread ${!activity && !inlineFlow && !list ? "sf-thread-home" : ""}`}>
+          <div
+            className={`sf-thread ${!activity && !inlineFlow && !list ? "sf-thread-home" : ""}`}
+          >
             {error && (
               <p
                 role="alert"
@@ -812,7 +932,6 @@ export default function ActivityWorkspace() {
                           : ""}
                       </p>
                     </div>
-
                   </div>
                   <details className="mt-2 text-sm">
                     <summary className="min-h-11 cursor-pointer py-3">
@@ -974,7 +1093,13 @@ export default function ActivityWorkspace() {
                                 : "sf-message-other"
                             }
                           >
-                            <p className={entry.message.actor === email ? "sr-only" : "mb-2 text-xs text-app-muted"}>
+                            <p
+                              className={
+                                entry.message.actor === email
+                                  ? "sr-only"
+                                  : "mb-2 text-xs text-app-muted"
+                              }
+                            >
                               {activity.people.find(
                                 (p) => p.email === entry.message.actor,
                               )?.name ?? entry.message.actor}
@@ -1054,9 +1179,15 @@ function GroupsPanel({
   const [focused, setFocused] = useState(initialGroupId ?? "");
   const [view, setView] = useState<"activities" | "people">("activities");
   const [creating, setCreating] = useState(false),
-    [error, setError] = useState("");
+    [error, setError] = useState(""),
+    [notice, setNotice] = useState("");
   return (
-    <div className="space-y-4">
+    <div className="sf-flow space-y-4">
+      {notice && (
+        <p role="status" className="text-sm">
+          {notice}
+        </p>
+      )}
       {error && (
         <p role="alert" className="text-sm text-red-700">
           {error}
@@ -1159,7 +1290,7 @@ function GroupsPanel({
                         <button
                           key={a.id}
                           onClick={() => onOpenActivity(a.id)}
-                          className="flex min-h-11 w-full items-center justify-between gap-3 border-b py-2 text-left text-sm"
+                          className="sf-group-activity"
                         >
                           <span className="min-w-0 break-words">{a.title}</span>
                           <span className="shrink-0 text-xs text-app-muted">
@@ -1196,31 +1327,7 @@ function GroupsPanel({
               ))}
             {view === "people" && (
               <div className="text-sm">
-                {g.people.map((p) => (
-                  <div
-                    key={p.email}
-                    className="flex flex-wrap items-center justify-between gap-2 py-1"
-                  >
-                    <span>
-                      {p.name} ·{" "}
-                      {g.joined.includes(p.email) ? "Joined" : "Invited"}
-                    </span>
-                    {g.owner === email && p.email !== email && (
-                      <button
-                        disabled={busy}
-                        onClick={() =>
-                          void onCommand(g, {
-                            type: "remove",
-                            email: p.email,
-                          }).catch((e) => setError(e.message))
-                        }
-                        className="min-h-11 underline"
-                      >
-                        Remove from group
-                      </button>
-                    )}
-                  </div>
-                ))}
+                {" "}
                 <label className="mt-4 block text-xs text-app-muted">
                   Group invitation link
                   <input
@@ -1235,42 +1342,84 @@ function GroupsPanel({
                     void navigator.clipboard
                       .writeText(`${location.origin}/?group=${g.id}`)
                       .then(() =>
-                        setError(
+                        setNotice(
                           "Group link copied. Only invited accounts can join.",
                         ),
                       )
                       .catch(() => setError("Unable to copy group link."))
                   }
-                  className="min-h-11 underline"
+                  className="sf-primary my-3"
                 >
                   Copy group invitation
                 </button>
-                {g.owner === email ? (
-                  <form
-                    className="mt-3"
-                    onSubmit={(e) => {
-                      e.preventDefault();
-                      const name = String(
-                        new FormData(e.currentTarget).get("name"),
-                      );
-                      void onCommand(g, { type: "rename", name }).catch((e) =>
-                        setError(e.message),
-                      );
-                    }}
+                <p className="mb-4 text-xs text-app-muted">
+                  Only invited accounts can join. Forwarding the link does not
+                  add members.
+                </p>
+                {g.people.map((p) => (
+                  <div
+                    key={p.email}
+                    className="flex flex-wrap items-center justify-between gap-2 py-1"
                   >
-                    <label>
-                      Group name
-                      <input
-                        name="name"
-                        defaultValue={g.name}
-                        required
-                        className={inputClass}
-                      />
-                    </label>
-                    <button disabled={busy} className="min-h-11 underline">
-                      Save name
-                    </button>
-                  </form>
+                    <span>
+                      {p.name} ·{" "}
+                      {g.joined.includes(p.email) ? "Joined" : "Invited"}
+                    </span>
+                    {g.owner === email && p.email !== email && (
+                      <details className="relative">
+                        <summary
+                          aria-label={`Options for ${p.name}`}
+                          className="sf-icon-button"
+                        >
+                          <MoreHorizontal size={18} />
+                        </summary>
+                        <div className="sf-popup absolute right-0 top-full w-48">
+                          <button
+                            disabled={busy}
+                            onClick={() =>
+                              void onCommand(g, {
+                                type: "remove",
+                                email: p.email,
+                              }).catch((e) => setError(e.message))
+                            }
+                            className="min-h-11 underline"
+                          >
+                            Remove from group
+                          </button>
+                        </div>
+                      </details>
+                    )}
+                  </div>
+                ))}
+                {g.owner === email ? (
+                  <details className="sf-disclosure">
+                    <summary>Rename group</summary>
+                    <form
+                      className="mt-3"
+                      onSubmit={(e) => {
+                        e.preventDefault();
+                        const name = String(
+                          new FormData(e.currentTarget).get("name"),
+                        );
+                        void onCommand(g, { type: "rename", name }).catch((e) =>
+                          setError(e.message),
+                        );
+                      }}
+                    >
+                      <label>
+                        Group name
+                        <input
+                          name="name"
+                          defaultValue={g.name}
+                          required
+                          className={inputClass}
+                        />
+                      </label>
+                      <button disabled={busy} className="min-h-11 underline">
+                        Save name
+                      </button>
+                    </form>
+                  </details>
                 ) : (
                   <button
                     disabled={busy}
@@ -1285,46 +1434,49 @@ function GroupsPanel({
                   </button>
                 )}
                 {g.owner === email && (
-                  <form
-                    className="mt-3 space-y-2"
-                    onSubmit={(e) => {
-                      e.preventDefault();
-                      const data = new FormData(e.currentTarget);
-                      void onCommand(g, {
-                        type: "invite",
-                        people: [
-                          g.people.find((p) => p.email === g.owner),
-                          {
-                            name: String(data.get("name")),
-                            email: String(data.get("email"))
-                              .trim()
-                              .toLowerCase(),
-                          },
-                        ],
-                      }).catch((e) => setError(e.message));
-                    }}
-                  >
-                    <label className="block">
-                      Invite name
-                      <input name="name" required className={inputClass} />
-                    </label>
-                    <label className="block">
-                      Invite email
-                      <input
-                        name="email"
-                        type="email"
-                        required
-                        className={inputClass}
-                      />
-                    </label>
-                    <button disabled={busy} className="min-h-11 underline">
-                      Invite or renew invitation
-                    </button>
-                    <p className="text-xs text-app-muted">
-                      Invitations expire after seven days. Removing someone
-                      preserves their existing activity records.
-                    </p>
-                  </form>
+                  <details className="sf-disclosure">
+                    <summary>Invite another person</summary>
+                    <form
+                      className="mt-3 space-y-2"
+                      onSubmit={(e) => {
+                        e.preventDefault();
+                        const data = new FormData(e.currentTarget);
+                        void onCommand(g, {
+                          type: "invite",
+                          people: [
+                            g.people.find((p) => p.email === g.owner),
+                            {
+                              name: String(data.get("name")),
+                              email: String(data.get("email"))
+                                .trim()
+                                .toLowerCase(),
+                            },
+                          ],
+                        }).catch((e) => setError(e.message));
+                      }}
+                    >
+                      <label className="block">
+                        Invite name
+                        <input name="name" required className={inputClass} />
+                      </label>
+                      <label className="block">
+                        Invite email
+                        <input
+                          name="email"
+                          type="email"
+                          required
+                          className={inputClass}
+                        />
+                      </label>
+                      <button disabled={busy} className="min-h-11 underline">
+                        Invite or renew invitation
+                      </button>
+                      <p className="text-xs text-app-muted">
+                        Invitations expire after seven days. Removing someone
+                        preserves their existing activity records.
+                      </p>
+                    </form>
+                  </details>
                 )}
               </div>
             )}

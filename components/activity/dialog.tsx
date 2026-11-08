@@ -23,7 +23,11 @@ export function ActivityDialog({
       ref={ref}
       onCancel={onClose}
       aria-label={title}
-      className={title === "Navigation" ? "sf-nav-drawer" : "m-auto max-h-[90dvh] w-[calc(100%-24px)] max-w-2xl overflow-y-auto rounded-xl p-0 backdrop:bg-black/30"}
+      className={
+        title === "Navigation"
+          ? "sf-nav-drawer"
+          : "m-auto max-h-[90dvh] w-[calc(100%-24px)] max-w-2xl overflow-y-auto rounded-xl p-0 backdrop:bg-black/30"
+      }
     >
       <header className="sticky top-0 z-10 flex items-center justify-between border-b bg-white px-5 py-3">
         <h2 className="font-semibold">{title}</h2>
@@ -55,7 +59,11 @@ export function ActivityPanel({
     const previous = document.activeElement as HTMLElement;
     heading.current?.focus();
     const main = heading.current?.closest("main");
-    if (main && heading.current) main.scrollTop += heading.current.getBoundingClientRect().top - main.getBoundingClientRect().top - 24;
+    if (main && heading.current)
+      main.scrollTop +=
+        heading.current.getBoundingClientRect().top -
+        main.getBoundingClientRect().top -
+        24;
     return () => previous?.focus();
   }, []);
   return (
@@ -73,7 +81,11 @@ export function ActivityPanel({
         <h1
           ref={heading}
           tabIndex={-1}
-          className="text-xl font-semibold tracking-tight outline-none"
+          className={
+            title === "Recurring schedule" || title === "New activity"
+              ? "sf-flow-label outline-none"
+              : "text-xl font-semibold tracking-tight outline-none"
+          }
         >
           {title}
         </h1>

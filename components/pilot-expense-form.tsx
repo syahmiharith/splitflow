@@ -18,8 +18,14 @@ export function ExpenseForm({
   draftStorageKey,
   onDraftChange,
   allowAIDraft = true,
+  reviewLabel = "Review split",
+  publishLabel = "Publish split",
+  reviewHeading = "Review before publishing",
 }: {
   email: string;
+  reviewLabel?: string;
+  publishLabel?: string;
+  reviewHeading?: string;
   allowAIDraft?: boolean;
   draftStorageKey?: string;
   onDraftChange?: (expense: Expense) => void;
@@ -187,7 +193,7 @@ export function ExpenseForm({
           tabIndex={-1}
           className="text-lg font-semibold focus:outline-none"
         >
-          Review before publishing
+          {reviewHeading}
         </h2>
         <div>
           <h3 className="text-base font-semibold">{expense.title}</h3>
@@ -271,7 +277,7 @@ export function ExpenseForm({
             disabled={busy}
             className="rounded-lg bg-app-blue hover:bg-blue-700 border-transparent px-4 py-3 text-sm font-semibold text-white"
           >
-            Publish split
+            {publishLabel}
           </button>
           <button
             type="button"
@@ -733,7 +739,7 @@ export function ExpenseForm({
         disabled={busy || drafting}
         className="rounded bg-blue-600 p-3 text-white"
       >
-        {review ? "Publish split" : "Review split"}
+        {review ? publishLabel : reviewLabel}
       </button>
     </form>
   );

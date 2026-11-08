@@ -8,11 +8,15 @@ export function RecurringTerms({
   email,
   busy,
   onCommand,
+  onEdit,
+  onRecordActual,
 }: {
   activity: Activity;
   email: string;
   busy: boolean;
   onCommand: (value: unknown) => Promise<unknown>;
+  onEdit?: () => void;
+  onRecordActual?: () => void;
 }) {
   const schedule = activity.schedule!;
   const [reviewed, setReviewed] = useState(schedule.version);
@@ -20,14 +24,15 @@ export function RecurringTerms({
     accepted = schedule.accepted.includes(email),
     included = schedule.expense.participants.some((p) => p.email === email),
     stale = reviewed !== schedule.version;
+  const waiting = schedule.expense.participants.filter(
+    (p) => !schedule.accepted.includes(p.email),
+  );
   return (
     <section
       className="rounded-xl border p-4 text-sm"
       aria-label="Recurring terms"
     >
-      <h2 className="font-semibold">
-        Recurring costs · terms v{schedule.version}
-      </h2>
+      <h2 className="font-semibold">{schedule.expense.title} · monthly</h2>
       <p className="mt-2">
         {money(calculated.total)} monthly from {schedule.start}. Due day{" "}
         {schedule.dueDay}.
@@ -73,9 +78,18 @@ export function RecurringTerms({
           </div>
         ))}
       </details>
-      <p className="mt-2">
+      <p className="mt-2 font-medium" role="status">
+        {schedule.paused
+          ? "Schedule paused"
+          : waiting.length
+            ? `Waiting for ${waiting.map((p) => p.name).join(", ")}`
+            : schedule.variable
+              ? "Ready for actual costs"
+              : "Monthly schedule active"}
+      </p>
+      <p className="mt-1 text-xs text-app-muted">
         {schedule.accepted.length}/{schedule.expense.participants.length}{" "}
-        accepted · {schedule.paused ? "Paused" : "Active once accepted"}
+        accepted · Terms v{schedule.version}
       </p>
       {stale && (
         <div role="status" className="mt-3 rounded-lg bg-amber-50 p-3">
@@ -103,6 +117,29 @@ export function RecurringTerms({
           Accept recurring terms
         </button>
       )}
+      {onEdit && (
+        <button
+          type="button"
+          disabled={busy}
+          onClick={onEdit}
+          className="min-h-11 px-3 underline"
+        >
+          Edit recurring terms
+        </button>
+      )}
+      {schedule.variable &&
+        !schedule.paused &&
+        !waiting.length &&
+        onRecordActual && (
+          <button
+            type="button"
+            disabled={busy}
+            onClick={onRecordActual}
+            className="min-h-11 rounded-lg bg-slate-900 px-3 text-white"
+          >
+            Record this period’s cost
+          </button>
+        )}
       {activity.owner === email && (
         <button
           disabled={busy}

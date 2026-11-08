@@ -64,9 +64,9 @@ test("quick activity publishes an expense and keeps it in the conversation", asy
   await page.getByRole("button", { name: "Split a cost", exact: true }).click();
   const create = page.getByRole("dialog", { name: "New activity" });
   await create.getByLabel("Activity name").fill("Court booking");
-  await create
-    .getByLabel("People — name, email (one per line)")
-    .fill("Alex, alex@example.test\nMinji, minji@example.test");
+  await create.getByLabel("Activity person 1 name").fill("Alex");
+  await create.getByLabel("Activity person 2 name").fill("Minji");
+  await create.getByLabel("Activity person 2 email").fill("minji@example.test");
   await create.getByRole("button", { name: "Start activity" }).click();
   await page.getByRole("button", { name: "Add cost", exact: true }).click();
   const review = page.getByRole("dialog", { name: "Review expense" });
@@ -97,22 +97,22 @@ test("recurring terms require acceptance before a period appears", async ({
     .click();
   const create = page.getByRole("dialog", { name: "New activity" });
   await create.getByLabel("Activity name").fill("Shared rent");
-  await create
-    .getByLabel("People — name, email (one per line)")
-    .fill("Alex, alex@example.test\nMinji, minji@example.test");
+  await create.getByLabel("Activity person 1 name").fill("Alex");
+  await create.getByLabel("Activity person 2 name").fill("Minji");
+  await create.getByLabel("Activity person 2 email").fill("minji@example.test");
   await create.getByRole("button", { name: "Start activity" }).click();
   await page.getByRole("button", { name: "Schedule", exact: true }).click();
   const schedule = page.getByRole("dialog", { name: "Recurring schedule" });
   await schedule.getByLabel("Total (KRW)", { exact: true }).fill("900000");
   await schedule
-    .getByRole("button", { name: "Review split", exact: true })
+    .getByRole("button", { name: "Review recurring terms", exact: true })
     .click();
   await schedule
-    .getByRole("button", { name: "Publish split", exact: true })
+    .getByRole("button", { name: "Share recurring terms", exact: true })
     .click();
   await expect(schedule).not.toBeVisible();
   await expect(
-    page.getByText("1/2 accepted · Active once accepted", { exact: true }),
+    page.getByText("Waiting for Minji", { exact: true }),
   ).toBeVisible();
   await expect(
     page.getByLabel("Activity expenses").locator("article"),
@@ -265,4 +265,80 @@ test("an interrupted activity submission replays its original key after reload",
   await expect(
     page.getByText("Remember the shared tickets", { exact: true }),
   ).toHaveCount(1);
+});
+
+test("group picker opens a conversation and starts an activity with selected members", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "Groups", exact: true }).click();
+  let groups = page.getByRole("dialog", { name: "Shared groups" });
+  await groups.getByRole("button", { name: /Weekend together/ }).click();
+  await expect(
+    page.getByRole("heading", { name: "Dinner", exact: true }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Groups", exact: true }).click();
+  groups = page.getByRole("dialog", { name: "Shared groups" });
+  await groups
+    .getByRole("button", { name: "Start activity in Friends & housemates" })
+    .click();
+  const create = page.getByRole("dialog", { name: "New activity" });
+  await create.getByLabel("Activity name").fill("Household supplies");
+  await create.getByRole("checkbox", { name: /Sam/ }).uncheck();
+  await create
+    .getByRole("button", { name: "Start activity", exact: true })
+    .click();
+  await expect(
+    page.getByRole("heading", { name: "Household supplies", exact: true }),
+  ).toBeVisible();
+  await expect(page.getByLabel("Activity summary")).toContainText("2 people");
+  await page
+    .getByRole("button", { name: "Add first cost", exact: true })
+    .click();
+  await expect(
+    page
+      .getByRole("dialog", { name: "Review expense" })
+      .getByLabel("Total (KRW)", { exact: true }),
+  ).toBeVisible();
+});
+
+test("recurring edit keeps terms in context and shows who still needs to accept", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await page
+    .getByRole("button", { name: "Household rent", exact: true })
+    .filter({ visible: true })
+    .first()
+    .click();
+  const terms = page.getByRole("region", { name: "Recurring terms" });
+  await expect(
+    terms.getByText("Waiting for Minji", { exact: true }),
+  ).toBeVisible();
+  await terms.getByRole("button", { name: "Edit recurring terms" }).click();
+  const dialog = page.getByRole("dialog", { name: "Recurring schedule" });
+  await expect(dialog.getByLabel("Total (KRW)", { exact: true })).toHaveValue(
+    "900000",
+  );
+  await dialog.getByLabel("Due day of month (1–28)").fill("15");
+  await dialog
+    .getByRole("button", { name: "Review recurring terms", exact: true })
+    .click();
+  await expect(
+    dialog.getByRole("heading", { name: "Review monthly terms" }),
+  ).toBeVisible();
+  await dialog
+    .getByRole("button", { name: "Share recurring terms", exact: true })
+    .click();
+  await expect(dialog).not.toBeVisible();
+  await expect(terms).toContainText("Due day 15");
+  await expect(terms).toContainText("Terms v2");
+  await terms.getByRole("button", { name: "Pause schedule" }).click();
+  await expect(
+    terms.getByText("Schedule paused", { exact: true }),
+  ).toBeVisible();
+  await page.reload();
+  await expect(
+    page.getByRole("region", { name: "Recurring terms" }),
+  ).toContainText("Schedule paused");
 });

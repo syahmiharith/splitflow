@@ -13,7 +13,7 @@ import {
 } from "@/lib/activity/client";
 import type { Activity, SharedGroup, Person } from "@/lib/activity/model";
 import { balances, type Expense, type Split } from "@/lib/pilot/model";
-import { ExpenseForm } from "@/components/pilot-expense-form";
+import { NewActivityForm, ScheduleForm } from "./activity-setup";
 import { GroupEditor } from "@/components/group-editor";
 import { ActivityDialog } from "./dialog";
 import { ActivitySignIn } from "./sign-in";
@@ -583,6 +583,36 @@ export default function ActivityWorkspace() {
                     </p>
                   </details>
                 </section>
+                {!activity.expenses.length &&
+                  !activity.schedule &&
+                  (activity.kind !== "recurring" ||
+                    activity.owner === email) && (
+                    <section aria-label="Next step" className="py-4 text-sm">
+                      <h2 className="font-medium">
+                        {activity.kind === "recurring"
+                          ? "Set the recurring terms"
+                          : "Add the first cost"}
+                      </h2>
+                      <p className="mt-2 text-app-muted">
+                        {activity.kind === "recurring"
+                          ? "Choose the amount and monthly dates. Each person reviews their share before it starts."
+                          : "Your people are ready. Enter the amount, review the shares, then publish here."}
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          activity.kind === "recurring"
+                            ? setModal("schedule")
+                            : openExpense()
+                        }
+                        className="mt-3 min-h-11 rounded-lg bg-slate-900 px-4 text-white"
+                      >
+                        {activity.kind === "recurring"
+                          ? "Set up schedule"
+                          : "Add first cost"}
+                      </button>
+                    </section>
+                  )}
                 {activity.schedule && (
                   <RecurringTerms
                     key={activity.id}
@@ -590,6 +620,23 @@ export default function ActivityWorkspace() {
                     email={email}
                     busy={busy || Boolean(pending)}
                     onCommand={command}
+                    onEdit={
+                      activity.owner === email
+                        ? () => setModal("schedule")
+                        : undefined
+                    }
+                    onRecordActual={
+                      activity.owner === email
+                        ? () => {
+                            setEditing(undefined);
+                            setPreset({
+                              ...structuredClone(activity.schedule!.expense),
+                              mode: "paid",
+                            });
+                            setModal("expense");
+                          }
+                        : undefined
+                    }
                   />
                 )}
                 <div className="space-y-4" aria-label="Activity expenses">
@@ -734,16 +781,18 @@ export default function ActivityWorkspace() {
                 >
                   People & share
                 </button>
-                {activity.kind === "recurring" && activity.owner === email && (
-                  <button
-                    type="button"
-                    disabled={busy}
-                    onClick={() => setModal("schedule")}
-                    className="min-h-11 px-3 text-sm"
-                  >
-                    Schedule
-                  </button>
-                )}
+                {activity.kind === "recurring" &&
+                  activity.owner === email &&
+                  !activity.schedule && (
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() => setModal("schedule")}
+                      className="min-h-11 px-3 text-sm"
+                    >
+                      Schedule
+                    </button>
+                  )}
                 {activity.expenses.length > 0 && (
                   <button
                     type="button"
@@ -803,6 +852,7 @@ export default function ActivityWorkspace() {
           {modal === "new" && (
             <NewActivityForm
               email={email}
+              groups={groups}
               group={
                 repeatSource
                   ? groups.find((g) => g.id === repeatSource.groupId)
@@ -829,6 +879,16 @@ export default function ActivityWorkspace() {
               activities={activities}
               email={email}
               busy={busy}
+              onOpenActivity={(id) => {
+                select(id);
+                setModal(null);
+              }}
+              onStart={(id) => {
+                setGroup(id);
+                setRepeatSource(undefined);
+                sessionStorage.setItem("splitflow-new-kind", "quick");
+                setModal("new");
+              }}
               onSelect={(id) => {
                 setGroup(id);
                 setList(true);
@@ -944,116 +1004,14 @@ export default function ActivityWorkspace() {
     </div>
   );
 }
-function NewActivityForm({
-  email,
-  group,
-  seed,
-  busy,
-  onSave,
-}: {
-  email: string;
-  group?: SharedGroup;
-  seed?: Activity;
-  busy: boolean;
-  onSave: (value: unknown) => Promise<void>;
-}) {
-  const [kind, setKind] = useState(
-      seed?.kind ?? sessionStorage.getItem("splitflow-new-kind") ?? "quick",
-    ),
-    [error, setError] = useState("");
-  return (
-    <form
-      className="space-y-4 text-sm"
-      onSubmit={(e) => {
-        e.preventDefault();
-        const data = new FormData(e.currentTarget);
-        try {
-          const people = String(data.get("people"))
-            .split("\n")
-            .filter(Boolean)
-            .map((line) => {
-              const [name, mail] = line.split(",");
-              return {
-                name: name.trim(),
-                email: (mail ?? "").trim().toLowerCase(),
-              };
-            });
-          void onSave({
-            title: data.get("title"),
-            kind,
-            people,
-            ...(group ? { groupId: group.id } : {}),
-            ...(seed ? { templates: seed.expenses.map((s) => s.expense) } : {}),
-          }).catch((e) => setError(e.message));
-        } catch {
-          setError("Enter one name and email per line.");
-        }
-      }}
-    >
-      <label className="block">
-        Activity name
-        <input
-          name="title"
-          required
-          defaultValue={seed ? `${seed.title} again` : ""}
-          maxLength={120}
-          className={inputClass}
-        />
-      </label>
-      <label className="block">
-        Workflow
-        <select
-          value={kind}
-          onChange={(e) => setKind(e.target.value)}
-          className={inputClass}
-        >
-          <option value="quick">Quick shared costs</option>
-          <option value="planned">Planned activity</option>
-          <option value="recurring">Recurring arrangement</option>
-        </select>
-      </label>
-      <label className="block">
-        People — name, email (one per line)
-        <textarea
-          name="people"
-          required
-          rows={4}
-          defaultValue={
-            seed
-              ? seed.people.map((p) => `${p.name}, ${p.email}`).join("\n")
-              : group
-                ? group.people
-                    .filter((p) => group.joined.includes(p.email))
-                    .map((p) => `${p.name}, ${p.email}`)
-                    .join("\n")
-                : `You, ${email}\n`
-          }
-          className={inputClass}
-        />
-      </label>
-      {group && (
-        <p>Group: {group.name}. Include only the people participating.</p>
-      )}
-      {error && (
-        <p role="alert" className="text-red-700">
-          {error}
-        </p>
-      )}
-      <button
-        disabled={busy}
-        className="min-h-11 rounded-lg bg-slate-900 px-4 text-white"
-      >
-        Start activity
-      </button>
-    </form>
-  );
-}
 function GroupsPanel({
   groups,
   activities,
   email,
   busy,
   onSelect,
+  onOpenActivity,
+  onStart,
   onSave,
   onCommand,
 }: {
@@ -1062,6 +1020,8 @@ function GroupsPanel({
   email: string;
   busy: boolean;
   onSelect: (id: string) => void;
+  onOpenActivity: (id: string) => void;
+  onStart: (id: string) => void;
   onSave: (name: string, people: Person[]) => Promise<void>;
   onCommand: (g: SharedGroup, cmd: unknown) => Promise<void>;
 }) {
@@ -1089,12 +1049,54 @@ function GroupsPanel({
             activities visible to you
           </p>
           {g.joined.includes(email) ? (
-            <button
-              onClick={() => onSelect(g.id)}
-              className="min-h-11 text-sm underline"
-            >
-              Open group activities
-            </button>
+            <div className="mt-3 space-y-2">
+              <button
+                type="button"
+                onClick={() => onStart(g.id)}
+                className="min-h-11 rounded-lg bg-slate-900 px-3 text-sm text-white"
+              >
+                Start activity in {g.name}
+              </button>
+              {activities
+                .filter(
+                  (a) => a.groupId === g.id && !a.archivedBy.includes(email),
+                )
+                .slice(-3)
+                .reverse()
+                .map((a) => {
+                  const balance = a.expenses
+                    .filter((s) => s.expense.mode === "paid")
+                    .reduce((sum, s) => sum + (balances(s)[email] ?? 0), 0);
+                  return (
+                    <button
+                      key={a.id}
+                      onClick={() => onOpenActivity(a.id)}
+                      className="flex min-h-11 w-full items-center justify-between gap-3 border-b py-2 text-left text-sm"
+                    >
+                      <span className="min-w-0 break-words">{a.title}</span>
+                      <span className="shrink-0 text-xs text-app-muted">
+                        {balance > 0
+                          ? `You owe ${money(balance)}`
+                          : balance < 0
+                            ? `Owed to you ${money(-balance)}`
+                            : !a.expenses.some((s) => s.expense.mode === "paid")
+                              ? a.schedule
+                                ? "Recurring terms"
+                                : a.expenses.length
+                                  ? "Planned costs"
+                                  : "No costs yet"
+                              : "No outstanding balance"}
+                      </span>
+                    </button>
+                  );
+                })}
+              <button
+                onClick={() => onSelect(g.id)}
+                className="min-h-11 text-sm underline"
+              >
+                View all group activities
+              </button>
+            </div>
           ) : (
             <button
               disabled={busy}
@@ -1242,6 +1244,7 @@ function GroupsPanel({
       {creating && (
         <GroupEditor
           email={email}
+          shared
           busy={busy}
           onCancel={() => setCreating(false)}
           onSave={async (value) => {
@@ -1256,89 +1259,6 @@ function GroupsPanel({
           }}
         />
       )}
-    </div>
-  );
-}
-function ScheduleForm({
-  activity,
-  email,
-  busy,
-  onSave,
-}: {
-  activity: Activity;
-  email: string;
-  busy: boolean;
-  onSave: (value: unknown) => Promise<void>;
-}) {
-  const expectedVersion = useRef(activity.schedule?.version ?? 0);
-  const [start, setStart] = useState(
-      activity.schedule?.start ?? new Date().toISOString().slice(0, 10),
-    ),
-    [dueDay, setDueDay] = useState(activity.schedule?.dueDay ?? 1),
-    [variable, setVariable] = useState(activity.schedule?.variable ?? false);
-  return (
-    <div className="space-y-4 text-sm">
-      <label className="block">
-        First period starts
-        <input
-          type="date"
-          value={start}
-          onChange={(e) => setStart(e.target.value)}
-          className={inputClass}
-        />
-      </label>
-      <label className="block">
-        Due day of month (1–28)
-        <input
-          type="number"
-          min={1}
-          max={28}
-          value={dueDay}
-          onChange={(e) => setDueDay(Number(e.target.value))}
-          className={inputClass}
-        />
-      </label>
-      <label className="block">
-        <input
-          type="checkbox"
-          checked={variable}
-          onChange={(e) => setVariable(e.target.checked)}
-        />{" "}
-        Variable bill: wait for each actual amount
-      </label>
-      <p>
-        Everyone included must accept these terms before automatic publication.
-        Changed terms require fresh acceptance.
-      </p>
-      <ExpenseForm
-        allowAIDraft={false}
-        email={email}
-        busy={busy}
-        initial={
-          activity.schedule?.expense ?? {
-            title: activity.title,
-            mode: "paid",
-            participants: activity.people.map((p) => ({ ...p, paid: 0 })),
-            items: [
-              {
-                name: "Recurring cost",
-                amount: 0,
-                included: activity.people.map((p) => p.email),
-              },
-            ],
-          }
-        }
-        onSave={async (expense) =>
-          onSave({
-            type: "schedule",
-            expectedVersion: expectedVersion.current,
-            expense,
-            start,
-            dueDay,
-            variable,
-          })
-        }
-      />
     </div>
   );
 }

@@ -3,6 +3,7 @@ import { useState } from "react";
 import { groupContent, type SavedGroup } from "@/lib/pilot/groups";
 export function GroupEditor({
   email,
+  shared = false,
   initial,
   seed,
   busy,
@@ -10,6 +11,7 @@ export function GroupEditor({
   onCancel,
 }: {
   email: string;
+  shared?: boolean;
   initial?: SavedGroup;
   seed?: SavedGroup["people"];
   busy: boolean;
@@ -146,8 +148,9 @@ export function GroupEditor({
         </button>
       </div>
       <p className="text-xs leading-5 text-app-muted">
-        Only you can see this saved group. Using it prefills people; each
-        published split still needs its own invitations.
+        {shared
+          ? "Listed people receive an account-bound invitation. They must accept before joining a group activity. Each activity has its own participants."
+          : "Only you can see this saved group. Using it prefills people; each published split still needs its own invitations."}
       </p>
     </form>
   );

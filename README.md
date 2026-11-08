@@ -1,6 +1,6 @@
 # SplitFlow
 
-SplitFlow opens at `/` with email-code sign-in and a saved conversation workspace. Describe a dinner or outing, clarify missing facts, review one current split preview, and explicitly publish. Manual entry, optional saved groups, item rules, participant decisions, corrections, repayments and history remain accessible when needed. Conversations, drafts and financial records use Supabase; OpenAI drafting needs a server-side API key. The optional **Try demo** entry opens seeded records at `/demo`; demo profiles never substitute for signed-in accounts. Existing `/pilot` invitations redirect into the main workspace. See [setup and readiness](docs/PILOT-READINESS.md) for verified checks and remaining real-group release gates.
+SplitFlow brings shared groups, activities and expenses into one conversation workspace. Use the same app with isolated guest samples or sign in for real records. Quick costs, planned activities and monthly recurring arrangements support exact reviewed shares, participant decisions, corrections, references and confirmed repayments. Groups are optional; an activity can contain several costs with different payers and allocations. OpenAI setup is on hold, and contextual controls complete the workflow independently. See [the unified workspace](docs/UNIFIED-WORKSPACE.md) for behavior, recovery and release limits.
 
 ### AI-Powered Copilot for Group Payments
 
@@ -9,7 +9,7 @@ SplitFlow solves the agreement.
 
 SplitFlow turns messy shared-cost conversations into reviewable, tool-verified payment proposals, helping groups move from confusion, claims, and awkward payment questions to a clear agreement state.
 
-[App preview](https://splitflow-git-codex-real-dinner-pilot-syahmiharith.vercel.app/) · [Try demo](https://splitflow-git-codex-real-dinner-pilot-syahmiharith.vercel.app/demo) · [Technical Docs](docs/TECHNICAL.md) · [LinkedIn](https://www.linkedin.com/in/zsyhmizlkfli/)
+[App preview](https://splitflow-git-codex-real-dinner-pilot-syahmiharith.vercel.app/) · [Technical Docs](docs/TECHNICAL.md) · [LinkedIn](https://www.linkedin.com/in/zsyhmizlkfli/)
 
 **TypeScript · Next.js · OpenAI API · Tailwind CSS · Domain-Driven Design · Vercel**
 

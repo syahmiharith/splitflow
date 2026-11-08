@@ -83,7 +83,7 @@ test("conversation clarifies, keeps one draft, reviews, publishes and restores",
     ];
     return route.fulfill({ json: splits[0] });
   });
-  await page.goto("/");
+  await page.goto("/?legacy=1");
   await expect(
     page.getByRole("heading", { name: "What are we splitting?" }),
   ).toBeVisible();
@@ -171,7 +171,7 @@ test("lost conversation response retries the same operation after reload", async
     }
     return route.fulfill({ json: saved });
   });
-  await page.goto("/");
+  await page.goto("/?legacy=1");
   await page.getByLabel("Message SplitFlow").fill("Keep this dinner message");
   await page.getByRole("button", { name: "Send message" }).click();
   await expect(

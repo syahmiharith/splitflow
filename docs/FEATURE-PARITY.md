@@ -1,3 +1,7 @@
+# Current direction
+
+The separate demo is retired in favor of one guest/signed-in activity workspace. See [UNIFIED-WORKSPACE.md](UNIFIED-WORKSPACE.md) for the implemented model. The audit below is historical; its separate-demo recommendations are superseded by the user's consolidation request.
+
 # Main experience and demo feature parity
 
 Source audit: 2026-11-07, implementation baseline `9a860d7`. This is a code comparison, not a new browser or deployed acceptance run. The main experience is `/`; `/demo` supplies synthetic examples. Sharing a shell does not establish feature parity.

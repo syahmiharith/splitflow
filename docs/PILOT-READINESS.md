@@ -1,3 +1,7 @@
+# Current workspace update
+
+The default app now uses a unified guest/signed-in conversation for shared groups, multi-expense activities and monthly recurring costs. See [UNIFIED-WORKSPACE.md](UNIFIED-WORKSPACE.md). OpenAI setup is on hold. The earlier implementation evidence below is historical and must not be counted as verification of the new workspace.
+
 # Conversation-first workspace update — 2026-11-07
 
 The main `/` entry now provides account-private saved conversations, a single current split preview, optional manual entry and compact review before explicit publication. The same financial operations continue to handle invitations, responses, corrections and confirmed repayments. Your splits supplies action/waiting/settled filters and a payment overview; details expose correction reasons, activity and revision history. Manual entry can reuse people from a previous split. `/demo` retains the broader synthetic group and prototype capabilities; reusable real group management is not yet implemented.

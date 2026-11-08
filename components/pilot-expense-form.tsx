@@ -15,8 +15,14 @@ export function ExpenseForm({
   busy,
   onSave,
   onDrafted,
+  draftStorageKey,
+  onDraftChange,
+  allowAIDraft = true,
 }: {
   email: string;
+  allowAIDraft?: boolean;
+  draftStorageKey?: string;
+  onDraftChange?: (expense: Expense) => void;
   original?: Expense;
   initial?: Expense;
   startInReview?: boolean;
@@ -25,9 +31,18 @@ export function ExpenseForm({
   onDrafted?: () => void;
   onSave: (expense: Expense, reason: string) => Promise<void>;
 }) {
-  const [draft, setDraft] = useState<Expense>(
-    original ??
-      initial ?? {
+  const [draft, setDraft] = useState<Expense>(() => {
+    if (draftStorageKey) {
+      try {
+        const raw = localStorage.getItem(draftStorageKey);
+        if (raw) return JSON.parse(raw);
+      } catch {
+        /* Recover from the supplied expense below. */
+      }
+    }
+    return (
+      initial ??
+      original ?? {
         title: "",
         mode: "paid",
         participants: [
@@ -35,8 +50,16 @@ export function ExpenseForm({
           { name: "", email: "", paid: 0 },
         ],
         items: [{ name: "Dinner", amount: 0, included: [] }],
-      },
-  );
+      }
+    );
+  });
+  useEffect(() => {
+    if (draftStorageKey)
+      localStorage.setItem(draftStorageKey, JSON.stringify(draft));
+  }, [draft, draftStorageKey]);
+  useEffect(() => {
+    onDraftChange?.(draft);
+  }, [draft, onDraftChange]);
   const heading = useRef<HTMLHeadingElement>(null);
   const [payer, setPayer] = useState(
     Math.max(
@@ -57,6 +80,7 @@ export function ExpenseForm({
             initial.items.some(
               (item) =>
                 item.custom ||
+                item.units ||
                 item.included.length !== initial.participants.length,
             ) ||
             initial.participants.filter((p) => p.paid > 0).length > 1)),
@@ -149,10 +173,20 @@ export function ExpenseForm({
         className="space-y-5 rounded-lg border border-app-border bg-white p-5 md:p-6"
         onSubmit={(event) => {
           event.preventDefault();
-          void onSave(expense, reason);
+          void onSave(expense, reason)
+            .then(() => {
+              if (draftStorageKey) localStorage.removeItem(draftStorageKey);
+            })
+            .catch((e) =>
+              setError(e instanceof Error ? e.message : "Unable to publish."),
+            );
         }}
       >
-        <h2 ref={heading} tabIndex={-1} className="text-lg font-semibold focus:outline-none">
+        <h2
+          ref={heading}
+          tabIndex={-1}
+          className="text-lg font-semibold focus:outline-none"
+        >
           Review before publishing
         </h2>
         <div>
@@ -174,7 +208,10 @@ export function ExpenseForm({
               <span className="min-w-0 break-words">
                 {person.name}
                 <span className="mt-1 block text-app-muted">
-                  Paid ₩{person.paid.toLocaleString()}
+                  {expense.mode === "planned"
+                    ? "Expected contribution"
+                    : "Paid"}{" "}
+                  ₩{person.paid.toLocaleString()}
                 </span>
               </span>
               <span className="shrink-0 text-right font-semibold tabular-nums">
@@ -195,7 +232,12 @@ export function ExpenseForm({
               <li key={index}>
                 {item.name} · ₩{item.amount.toLocaleString()}
                 <p className="text-app-muted">
-                  {item.custom ? "Custom shares" : "Equal shares"} ·{" "}
+                  {item.custom
+                    ? "Custom shares"
+                    : item.units
+                      ? "By units"
+                      : "Equal shares"}{" "}
+                  ·{" "}
                   {item.included
                     .map(
                       (email) =>
@@ -218,6 +260,11 @@ export function ExpenseForm({
               className="mt-2 block w-full rounded border p-3"
             />
           </label>
+        )}
+        {error && (
+          <p role="alert" className="text-sm text-red-700">
+            {error}
+          </p>
         )}
         <div className="flex flex-wrap gap-3">
           <button
@@ -262,7 +309,11 @@ export function ExpenseForm({
         else prepare();
       }}
     >
-      <h2 ref={heading} tabIndex={-1} className="text-lg font-semibold focus:outline-none">
+      <h2
+        ref={heading}
+        tabIndex={-1}
+        className="text-lg font-semibold focus:outline-none"
+      >
         {review
           ? "Review before publishing"
           : original
@@ -270,7 +321,7 @@ export function ExpenseForm({
             : "Expense details"}
       </h2>
       <p role="alert">{error}</p>
-      {!original && !review && (
+      {allowAIDraft && !original && !review && (
         <details>
           <summary>Describe expenses</summary>
           <label className="block">
@@ -497,6 +548,7 @@ export function ExpenseForm({
                             ? {
                                 ...v,
                                 custom: undefined,
+                                units: undefined,
                                 included: e.target.checked
                                   ? [...v.included, p.email]
                                   : v.included.filter(
@@ -522,6 +574,7 @@ export function ExpenseForm({
                         i === index
                           ? {
                               ...v,
+                              units: undefined,
                               custom: e.target.checked
                                 ? Object.fromEntries(
                                     v.included.map((email) => [email, 0]),
@@ -535,6 +588,63 @@ export function ExpenseForm({
                 />{" "}
                 Set individual amounts
               </label>
+              <label className="block">
+                <input
+                  type="checkbox"
+                  checked={Boolean(item.units)}
+                  onChange={(e) =>
+                    setDraft({
+                      ...draft,
+                      items: draft.items.map((v, i) =>
+                        i === index
+                          ? {
+                              ...v,
+                              custom: undefined,
+                              units: e.target.checked
+                                ? Object.fromEntries(
+                                    v.included.map((email) => [email, 1]),
+                                  )
+                                : undefined,
+                            }
+                          : v,
+                      ),
+                    })
+                  }
+                />{" "}
+                By units
+              </label>
+              {item.units &&
+                item.included.map((email) => (
+                  <label key={email} className="block">
+                    {draft.participants.find((p) => p.email === email)?.name}{" "}
+                    units
+                    <input
+                      type="number"
+                      min="1"
+                      max="1000000"
+                      step="1"
+                      required
+                      value={item.units?.[email] ?? 1}
+                      onChange={(e) =>
+                        setDraft({
+                          ...draft,
+                          items: draft.items.map((v, i) =>
+                            i === index
+                              ? {
+                                  ...v,
+                                  units: {
+                                    ...v.units,
+                                    [email]: Number(e.target.value),
+                                  },
+                                }
+                              : v,
+                          ),
+                        })
+                      }
+                      className="block w-full border p-3"
+                    />
+                  </label>
+                ))}
               {item.custom &&
                 item.included.map((email) => (
                   <label key={email} className="block">

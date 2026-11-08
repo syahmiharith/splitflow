@@ -15,7 +15,7 @@ if (
   throw new Error("Live local tests require the isolated Supabase config.");
 const mail = "http://127.0.0.1:55424";
 const run = () => `${Date.now()}-${Math.floor(Math.random() * 10000)}`;
-async function signIn(page: Page, email: string, path = "/") {
+async function signIn(page: Page, email: string, path = "/?legacy=1") {
   await page.goto(path);
   await page.getByLabel("Email", { exact: true }).fill(email);
   const existing = await (

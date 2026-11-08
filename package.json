@@ -11,8 +11,7 @@
     "typecheck": "tsc --noEmit --incremental false",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:e2e": "node tests/e2e/run-e2e.mjs",
-    "test:agent:live": "node tests/e2e/run-live-agent.mjs"
+    "test:e2e": "node tests/e2e/run-e2e.mjs"
   },
   "dependencies": {
     "@ai-sdk/react": "^3.0.192",

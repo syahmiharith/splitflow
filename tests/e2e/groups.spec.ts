@@ -38,7 +38,7 @@ test("a lost group save replays its key after reload and retains its reviewed pe
     }
     return route.fulfill({ json: saved });
   });
-  await page.goto("/");
+  await page.goto("/?legacy=1");
   await page.getByRole("button", { name: "Groups", exact: true }).click();
   const modal = page.getByRole("dialog", { name: "Saved groups", exact: true });
   await modal.getByRole("button", { name: "New group", exact: true }).click();
@@ -120,7 +120,7 @@ test("stale group edits require a fresh review and retain the organizer's text",
     group = { ...group, ...input, revision: 3 };
     return route.fulfill({ json: group });
   });
-  await page.goto("/");
+  await page.goto("/?legacy=1");
   await page.getByRole("button", { name: "Groups", exact: true }).click();
   const modal = page.getByRole("dialog", { name: "Saved groups", exact: true });
   await modal

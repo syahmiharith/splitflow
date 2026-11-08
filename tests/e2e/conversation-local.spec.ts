@@ -11,7 +11,7 @@ if (
 )
   throw new Error("Local-only fixture");
 async function signIn(page: Page, email: string) {
-  await page.goto("/");
+  await page.goto("/?legacy=1");
   await page.getByLabel("Email", { exact: true }).fill(email);
   await page
     .getByRole("button", { name: "Send email code", exact: true })
@@ -214,7 +214,7 @@ test("saved groups persist privately and prefill an explicitly reviewed split wi
     (value) => localStorage.setItem("splitflow-pilot-session", value!),
     session,
   );
-  await second.goto("/");
+  await second.goto("/?legacy=1");
   await second.getByRole("button", { name: "Groups", exact: true }).click();
   await expect(
     second.getByRole("dialog", { name: "Saved groups" }),

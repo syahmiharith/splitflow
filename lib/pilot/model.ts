@@ -22,6 +22,9 @@ export const expenseSchema = z.object({
         amount: won.positive(),
         included: z.array(z.email().toLowerCase()).min(1),
         custom: z.record(z.string(), won).optional(),
+        units: z
+          .record(z.string(), z.number().int().min(1).max(1000000))
+          .optional(),
       }),
     )
     .min(1)
@@ -39,6 +42,7 @@ export type Repayment = {
   to: string;
   amount: number;
   status: "reported" | "confirmed" | "disputed";
+  reference?: string;
 };
 export type Split = {
   id: string;
@@ -62,6 +66,15 @@ export function calculateExpense(input: Expense) {
       item.included.some((email) => !emails.includes(email))
     )
       throw new Error("Select valid participants for each item.");
+    if (
+      item.units &&
+      (item.custom ||
+        Object.keys(item.units).length !== item.included.length ||
+        item.included.some((email) => item.units?.[email] === undefined))
+    )
+      throw new Error(
+        "Units must match included people and cannot be combined with custom amounts.",
+      );
     let allocation: Record<string, number>;
     if (item.custom) {
       if (
@@ -78,7 +91,11 @@ export function calculateExpense(input: Expense) {
         item.amount,
         item.included.map((id) => ({
           id,
-          rawAmount: item.amount / item.included.length,
+          rawAmount:
+            (item.amount * (item.units?.[id] ?? 1)) /
+            (item.units
+              ? Object.values(item.units).reduce((a, b) => a + b, 0)
+              : item.included.length),
         })),
       );
     }
@@ -112,7 +129,11 @@ export function itemShare(item: Expense["items"][number], email: string) {
       item.amount,
       item.included.map((id) => ({
         id,
-        rawAmount: item.amount / item.included.length,
+        rawAmount:
+          (item.amount * (item.units?.[id] ?? 1)) /
+          (item.units
+            ? Object.values(item.units).reduce((a, b) => a + b, 0)
+            : item.included.length),
       })),
     )[email]
   );
@@ -124,7 +145,7 @@ function participantCommitment(expense: Expense, email: string) {
       .filter((item) => item.included.includes(email))
       .map((item) => {
         const amount = itemShare(item, email);
-        return [item.name, amount];
+        return [item.name, amount, item.units?.[email] ?? null];
       }),
   );
 }
@@ -144,6 +165,7 @@ export const commandSchema = z.discriminatedUnion("type", [
     type: z.literal("report"),
     to: z.email().toLowerCase(),
     amount: won.positive(),
+    reference: z.string().trim().max(200).optional(),
   }),
   z.object({
     type: z.literal("receipt"),
@@ -221,11 +243,17 @@ export function applyCommand(
       to: command.to,
       amount: command.amount,
       status: "reported",
+      ...(command.reference ? { reference: command.reference } : {}),
     });
   }
   if (command.type === "receipt") {
     const payment = next.repayments.find((p) => p.id === command.paymentId);
-    if (!payment || payment.to !== actor || payment.status !== "reported")
+    if (
+      !payment ||
+      payment.to !== actor ||
+      (payment.status !== "reported" &&
+        !(payment.status === "disputed" && command.status === "confirmed"))
+    )
       throw new Error("Only the recipient can review a reported payment.");
     payment.status = command.status;
   }
@@ -233,7 +261,11 @@ export function applyCommand(
   next.audit.push({
     actor,
     action:
-      command.type === "revise" ? `Revision: ${command.reason}` : command.type,
+      command.type === "revise"
+        ? `Revision: ${command.reason}`
+        : command.type === "receipt"
+          ? `receipt: ${command.paymentId} ${command.status}`
+          : command.type,
     at: new Date().toISOString(),
   });
   return next;

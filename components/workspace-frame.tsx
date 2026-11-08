@@ -13,7 +13,12 @@ import {
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { Conversation } from "@/lib/pilot/conversation";
 const navigation = [
-  { href: "/", label: "New conversation", key: "home", icon: MessageSquare },
+  {
+    href: "/?legacy=1",
+    label: "New conversation",
+    key: "home",
+    icon: MessageSquare,
+  },
   {
     href: "/?view=splits",
     label: "Your splits",
@@ -104,10 +109,10 @@ export function WorkspaceFrame({
         </div>
         <div className="space-y-3 p-5">
           <Link
-            href="/demo"
+            href="/"
             className="flex min-h-11 items-center gap-2 text-sm text-app-muted"
           >
-            Try demo
+            Activities
             <ArrowUpRight className="h-4 w-4" aria-hidden="true" />
           </Link>
           {email ? (
@@ -183,10 +188,10 @@ export function WorkspaceFrame({
             )}
             {!email && (
               <Link
-                href="/demo"
+                href="/"
                 className="min-h-11 py-3 text-sm text-app-muted lg:hidden"
               >
-                Try demo
+                Activities
               </Link>
             )}
           </div>

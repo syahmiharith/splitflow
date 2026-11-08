@@ -42,7 +42,7 @@ export function ExpenseCard({
     remaining = balances(split);
   const targets = settlements(split).filter((p) => p.from === email);
   return (
-    <article className="rounded-xl border border-app-border bg-white p-4 md:p-5">
+    <article className="sf-response">
       <div className="flex justify-between gap-4">
         <div>
           <h3 className="font-semibold">{split.expense.title}</h3>

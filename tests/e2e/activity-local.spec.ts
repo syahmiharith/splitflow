@@ -152,6 +152,7 @@ test("shared group acceptance, private activity, member cost and independent rel
   await expect(
     member.getByRole("heading", { name: "Materials", exact: true }),
   ).toBeVisible();
+  await page.getByLabel("More activity actions").click();
   await page.getByRole("button", { name: "Add cost", exact: true }).click();
   const editor = page.getByRole("region", { name: "Review expense" });
   await editor
@@ -179,6 +180,7 @@ test("shared group acceptance, private activity, member cost and independent rel
   ).toBeNull();
   await editor.getByRole("button", { name: "Close Review expense" }).click();
   await page.reload();
+  await page.getByLabel("More activity actions").click();
   await page.getByRole("button", { name: "Add cost", exact: true }).click();
   await expect(
     page

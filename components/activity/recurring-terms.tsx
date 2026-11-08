@@ -29,7 +29,7 @@ export function RecurringTerms({
   );
   return (
     <section
-      className="rounded-xl border p-4 text-sm"
+      className="sf-response"
       aria-label="Recurring terms"
     >
       <h2 className="font-semibold">{schedule.expense.title} · monthly</h2>

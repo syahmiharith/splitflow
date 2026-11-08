@@ -86,3 +86,82 @@ textarea:focus-visible {
 .conversation-workspace textarea#split-message { border: 0; }
 
 .conversation-workspace dialog form { border: 0; border-radius: 0; }
+
+/* Conversation shell: measured against the ChatGPT web references in docs/CHATGPT-CONVERSATION.md. */
+.sf-workspace {
+  --sf-ink: #0d0d0d;
+  --sf-muted: #767676;
+  --sf-sidebar: #f9f9f9;
+  --sf-hover: #ececec;
+  --sf-line: #e5e5e5;
+  color: var(--sf-ink);
+  font-family: Arial, Helvetica, sans-serif;
+}
+.sf-workspace .text-app-muted { color: var(--sf-muted); }
+.sf-sidebar { display: none; width: 260px; flex-shrink: 0; flex-direction: column; padding: 0 8px 8px; background: var(--sf-sidebar); overflow-y: auto; }
+@media (min-width: 1024px) { .sf-sidebar.lg\:flex { display: flex; } }
+.sf-sidebar-top { display: flex; align-items: center; justify-content: space-between; height: 64px; flex-shrink: 0; padding: 0 4px; }
+.sf-icon-button { display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; flex-shrink: 0; border-radius: 8px; cursor: pointer; list-style: none; }
+.sf-icon-button:hover { background: var(--sf-hover); }
+.sf-icon-button::-webkit-details-marker { display: none; }
+.sf-nav-row { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 36px; padding: 8px 10px; text-align: left; border-radius: 8px; font-size: 14px; line-height: 20px; }
+.sf-nav-row:hover, .sf-nav-selected { background: var(--sf-hover); }
+.sf-nav-label { padding: 26px 10px 8px; color: #8f8f8f; font-size: 12px; line-height: 16px; }
+.sf-account { display: flex; align-items: center; gap: 8px; margin-top: auto; padding: 18px 6px 8px; }
+.sf-avatar { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; background: #e4e4e4; flex-shrink: 0; font-size: 13px; }
+.sf-account-select { width: 100%; padding: 0; border: 0; background: transparent; font-size: 14px; line-height: 22px; }
+.sf-header { display: flex; align-items: center; gap: 8px; min-height: 56px; padding: 8px 16px; position: relative; }
+.sf-brand { display: flex; align-items: center; gap: 6px; padding: 6px; font-size: 20px; line-height: 28px; border-radius: 8px; }
+.sf-brand:hover { background: var(--sf-sidebar); }
+.sf-brand svg { color: var(--sf-muted); }
+.sf-sample-badge { position: absolute; left: 50%; transform: translateX(-50%); color: var(--sf-muted); font-size: 12px; }
+.sf-signin { border-radius: 24px; border: 1px solid var(--sf-line); padding: 8px 14px; font-size: 14px; white-space: nowrap; }
+.sf-header-share { display: flex; align-items: center; gap: 8px; padding: 8px; font-size: 14px; border-radius: 8px; }
+.sf-header-share:hover { background: var(--sf-hover); }
+.sf-thread { width: 100%; max-width: 816px; padding: 24px 24px 36px; margin: 0 auto; }
+.sf-thread > * + * { margin-top: 28px; }
+.sf-thread-home { max-width: 816px; padding-top: 0; height: 100%; }
+.sf-home { padding-top: clamp(100px, 27vh, 320px); }
+.sf-home h1 { text-align: center; font-size: 28px; font-weight: 400; line-height: 36px; margin: 0 0 42px; letter-spacing: -.6px; }
+.sf-composer-dock { flex-shrink: 0; padding: 8px 24px 8px; background: white; }
+.sf-home .sf-composer-dock { padding: 0; }
+.sf-composer { position: relative; max-width: 768px; margin: 0 auto; padding: 7px; border: 1px solid var(--sf-line); border-radius: 30px; box-shadow: 0 2px 5px #00000008; }
+.sf-composer-input { min-height: 42px; min-width: 0; flex: 1; resize: none; border: 0; background: transparent; padding: 10px 8px; font-size: 16px; line-height: 22px; outline: none; }
+.sf-composer-input::placeholder { color: #8f8f8f; }
+.sf-composer-input:focus-visible { outline: none; }
+.sf-composer:focus-within { border-color: #b4b4b4; }
+.sf-composer summary { height: 42px; width: 40px; }
+.sf-send { display: grid; place-items: center; width: 36px; height: 36px; margin: 3px; flex-shrink: 0; border-radius: 50%; background: #0d0d0d; color: white; }
+.sf-send:disabled { background: #ececec; color: #a0a0a0; }
+.sf-composer-note { max-width: 768px; margin: 8px auto 0; text-align: center; font-size: 11px; line-height: 16px; color: var(--sf-muted); }
+.sf-popup { border: 1px solid var(--sf-line); background: white; border-radius: 16px; padding: 6px; box-shadow: 0 6px 24px #00000018; z-index: 30; }
+.sf-popup button, .sf-popup a { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 40px; padding: 9px 10px; border-radius: 8px; text-align: left; font-size: 14px; }
+.sf-popup button:hover, .sf-popup a:hover { background: var(--sf-sidebar); }
+.sf-message-own { margin-left: auto; width: fit-content; max-width: 85%; border-radius: 24px; background: #f4f4f4; padding: 12px 20px; font-size: 16px; }
+.sf-message-other { padding: 8px 0; font-size: 16px; }
+.sf-response { border: 0; border-radius: 0; background: white; padding: 12px 0 24px; font-size: 16px; line-height: 1.6; }
+.sf-response h3, .sf-response h2 { font-size: 20px; line-height: 28px; }
+.sf-response > details { border-top: 1px solid var(--sf-line); }
+.sf-activity-summary { padding-bottom: 12px; }
+.sf-inline-panel { padding: 20px 0 32px; border-top: 1px solid var(--sf-line); }
+.sf-inline-panel > header { margin-bottom: 24px; }
+.sf-inline-panel > header h1 { font-size: 20px; }
+@media (max-width: 639px) {
+  .sf-header { padding: 8px; gap: 3px; }
+  .sf-brand { font-size: 18px; padding: 4px; }
+  .sf-sample-badge { display: none; }
+  .sf-thread { padding: 20px 16px 28px; }
+  .sf-thread-home { padding-top: 0; }
+  .sf-home { padding-top: 24vh; }
+  .sf-home h1 { font-size: 24px; line-height: 32px; margin-bottom: 30px; }
+  .sf-composer-dock { padding: 8px 12px; }
+  .sf-composer-input { font-size: 16px; }
+  .sf-composer-note { font-size: 10px; }
+  .sf-message-own { max-width: 90%; }
+}
+.sf-nav-drawer { margin: 0; height: 100dvh; max-height: 100dvh; width: min(300px, 88vw); max-width: none; border: 0; padding: 0; background: var(--sf-sidebar); }
+.sf-nav-drawer::backdrop { background: #0006; }
+.sf-nav-drawer > header { height: 56px; border: 0; background: var(--sf-sidebar); padding: 8px 16px; }
+.sf-nav-drawer > div { padding: 8px; height: calc(100% - 56px); }
+.sf-nav-drawer > div > div { min-height: 100%; }
+.sf-workspace .sf-inline-panel button.bg-slate-900, .sf-workspace .sf-response button.bg-slate-900 { background: var(--sf-ink); border-radius: 22px; }

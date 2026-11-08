@@ -23,7 +23,7 @@ export function ActivityDialog({
       ref={ref}
       onCancel={onClose}
       aria-label={title}
-      className="m-auto max-h-[90dvh] w-[calc(100%-24px)] max-w-2xl overflow-y-auto rounded-xl p-0 backdrop:bg-black/30"
+      className={title === "Navigation" ? "sf-nav-drawer" : "m-auto max-h-[90dvh] w-[calc(100%-24px)] max-w-2xl overflow-y-auto rounded-xl p-0 backdrop:bg-black/30"}
     >
       <header className="sticky top-0 z-10 flex items-center justify-between border-b bg-white px-5 py-3">
         <h2 className="font-semibold">{title}</h2>
@@ -54,7 +54,8 @@ export function ActivityPanel({
   useLayoutEffect(() => {
     const previous = document.activeElement as HTMLElement;
     heading.current?.focus();
-    heading.current?.scrollIntoView({ block: "start" });
+    const main = heading.current?.closest("main");
+    if (main && heading.current) main.scrollTop += heading.current.getBoundingClientRect().top - main.getBoundingClientRect().top - 24;
     return () => previous?.focus();
   }, []);
   return (
@@ -66,7 +67,7 @@ export function ActivityPanel({
           onClose();
         }
       }}
-      className="max-w-full border-t border-slate-200 pb-8 pt-6"
+      className="sf-inline-panel max-w-full"
     >
       <header className="mb-5 flex items-center justify-between gap-3">
         <h1

@@ -1,4 +1,12 @@
-import { test, expect } from "@playwright/test";
+import { test, expect, type Page } from "@playwright/test";
+async function openActivity(page: Page, name: string) {
+  if ((page.viewportSize()?.width ?? 1440) < 1024) await page.getByRole("button", { name: "Open navigation" }).click();
+  await page.getByRole("button", { name, exact: true }).filter({ visible: true }).first().click();
+}
+async function composerAction(page: Page, name: string) {
+  await page.getByLabel("More activity actions").click();
+  await page.getByRole("button", { name, exact: true }).click();
+}
 test("guest activity uses the same conversation for costs and recipient confirmation", async ({
   page,
 }) => {
@@ -17,11 +25,7 @@ test("guest activity uses the same conversation for costs and recipient confirma
         .getByText("Guest sample workspace", { exact: true })
         .filter({ visible: true }),
     ).toBeVisible();
-  await page
-    .getByRole("button", { name: "Weekend together", exact: true })
-    .filter({ visible: true })
-    .first()
-    .click();
+  await openActivity(page, "Weekend together");
   await expect(
     page.getByRole("heading", { name: "Dinner", exact: true }),
   ).toBeVisible();
@@ -61,7 +65,7 @@ test("quick activity publishes an expense and keeps it in the conversation", asy
   page,
 }) => {
   await page.goto("/");
-  await page.getByRole("button", { name: "Split a cost", exact: true }).click();
+  await composerAction(page, "Split a cost");
   const create = page.getByRole("region", { name: "New activity" });
   await create.getByLabel("Activity name").fill("Court booking");
   await create.getByRole("button", { name: "Continue to people" }).click();
@@ -69,7 +73,7 @@ test("quick activity publishes an expense and keeps it in the conversation", asy
   await create.getByLabel("Activity person 2 name").fill("Minji");
   await create.getByLabel("Activity person 2 email").fill("minji@example.test");
   await create.getByRole("button", { name: "Start activity" }).click();
-  await page.getByRole("button", { name: "Add cost", exact: true }).click();
+  await composerAction(page, "Add cost");
   const review = page.getByRole("region", { name: "Review expense" });
   await review.getByLabel("Total (KRW)", { exact: true }).fill("60001");
   await review
@@ -93,9 +97,7 @@ test("recurring terms require acceptance before a period appears", async ({
   page,
 }) => {
   await page.goto("/");
-  await page
-    .getByRole("button", { name: "Set up recurring costs", exact: true })
-    .click();
+  await composerAction(page, "Set up recurring costs");
   const create = page.getByRole("region", { name: "New activity" });
   await create.getByLabel("Activity name").fill("Shared rent");
   await create.getByRole("button", { name: "Continue to people" }).click();
@@ -148,11 +150,8 @@ test("repeating an activity reuses people and rules without copying payment hist
   page,
 }) => {
   await page.goto("/");
-  await page
-    .getByRole("button", { name: "Weekend together", exact: true })
-    .filter({ visible: true })
-    .first()
-    .click();
+  await openActivity(page, "Weekend together");
+  await page.getByLabel("Conversation options").click();
   await page
     .getByRole("button", { name: "Repeat activity", exact: true })
     .click();
@@ -168,6 +167,7 @@ test("repeating an activity reuses people and rules without copying payment hist
   await expect(
     page.getByLabel("Activity expenses").locator("article"),
   ).toHaveCount(0);
+  await page.getByLabel("More activity actions").click();
   await page.getByLabel("Reuse expense rules").selectOption("0");
   await expect(
     page
@@ -316,11 +316,7 @@ test("recurring edit keeps terms in context and shows who still needs to accept"
   page,
 }) => {
   await page.goto("/");
-  await page
-    .getByRole("button", { name: "Household rent", exact: true })
-    .filter({ visible: true })
-    .first()
-    .click();
+  await openActivity(page, "Household rent");
   const terms = page.getByRole("region", { name: "Recurring terms" });
   await expect(
     terms.getByText("Waiting for Minji", { exact: true }),
@@ -358,11 +354,7 @@ test("cost editing stays inline with discussion and the persistent composer", as
   page,
 }) => {
   await page.goto("/");
-  await page
-    .getByRole("button", { name: "Weekend together", exact: true })
-    .filter({ visible: true })
-    .first()
-    .click();
+  await openActivity(page, "Weekend together");
   await page
     .getByLabel("Message your activity")
     .fill("Keep the dinner and taxi together");
@@ -370,7 +362,7 @@ test("cost editing stays inline with discussion and the persistent composer", as
   await expect(
     page.getByText("Keep the dinner and taxi together", { exact: true }),
   ).toBeVisible();
-  await page.getByRole("button", { name: "Add cost", exact: true }).click();
+  await composerAction(page, "Add cost");
   const editor = page.getByRole("region", { name: "Review expense" });
   await expect(editor).toBeVisible();
   await expect(page.getByRole("dialog")).toHaveCount(0);

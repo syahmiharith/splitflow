@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { Plus, Menu, Users, ArrowUp, ChevronDown } from "lucide-react";
+import { Plus, Menu, Users, ArrowUp, ChevronDown, PanelLeft, SquarePen, Search, Receipt, MoreHorizontal, Share2 } from "lucide-react";
 import { clearSession, getSession } from "@/lib/pilot/session";
 import {
   loadWorkspace,
@@ -34,7 +34,8 @@ export default function ActivityWorkspace() {
     [list, setList] = useState(false),
     [archive, setArchive] = useState(false),
     [query, setQuery] = useState(""),
-    [menu, setMenu] = useState(false);
+    [menu, setMenu] = useState(false),
+    [sidebarOpen, setSidebarOpen] = useState(true);
   const [modal, setModal] = useState<
       "new" | "groups" | "expense" | "schedule" | "signin" | "share" | null
     >(null),
@@ -217,11 +218,12 @@ export default function ActivityWorkspace() {
         <button
           onClick={() => {
             select("");
-            setModal("new");
+            setModal(null);
+            requestAnimationFrame(() => composerRef.current?.focus());
           }}
-          className="flex min-h-11 items-center gap-2 rounded-lg px-3 text-sm hover:bg-slate-200"
+          className="sf-nav-row"
         >
-          <Plus size={16} />
+          <SquarePen size={18} />
           New conversation
         </button>
         <button
@@ -229,11 +231,31 @@ export default function ActivityWorkspace() {
             setList(true);
             setMenu(false);
           }}
-          className="min-h-11 rounded-lg px-3 text-left text-sm hover:bg-slate-200"
+          className="sf-nav-row"
         >
+          <Search size={18} />
           Your splits
         </button>
-        <p className="px-3 pb-2 pt-7 text-xs text-app-muted">
+        {groups.length > 0 && (
+          <>
+            <p className="sf-nav-label">Groups</p>
+            {groups.map((g) => (
+              <button
+                key={g.id}
+                onClick={() => {
+                  setGroup(g.id);
+                  setModal("groups");
+                  setMenu(false);
+                  setList(false);
+                }}
+                className="sf-nav-row"
+              >
+                {g.name}
+              </button>
+            ))}
+          </>
+        )}
+        <p className="sf-nav-label">
           Recent conversations
         </p>
         {activities
@@ -244,89 +266,34 @@ export default function ActivityWorkspace() {
             <button
               key={a.id}
               onClick={() => select(a.id)}
-              className={`min-h-11 truncate rounded-lg px-3 text-left text-sm ${selected === a.id ? "bg-slate-200" : "hover:bg-slate-100"}`}
+              className={`sf-nav-row truncate ${selected === a.id ? "sf-nav-selected" : ""}`}
             >
               {a.title}
             </button>
           ))}
-        {groups.length > 0 && (
-          <>
-            <p className="px-3 pb-2 pt-6 text-xs text-app-muted">Groups</p>
-            {groups.map((g) => (
-              <button
-                key={g.id}
-                onClick={() => {
-                  setGroup(g.id);
-                  setModal("groups");
-                  setMenu(false);
-                  setList(false);
-                }}
-                className="min-h-11 truncate rounded-lg px-3 text-left text-sm hover:bg-slate-100"
-              >
-                {g.name}
-              </button>
-            ))}
-          </>
-        )}
-        <div className="mt-auto space-y-2 pt-6">
-          {guest ? (
-            <>
-              <p className="px-3 text-xs font-medium">Guest sample workspace</p>
-              <label className="block px-3 text-xs">
-                Sample person
-                <select
-                  value={email}
-                  onChange={(e) => {
-                    setEmail(e.target.value);
-                  }}
-                  className="mt-2 w-full rounded border bg-white p-2"
-                >
-                  {samplePeople.map((p) => (
-                    <option key={p.email} value={p.email}>
-                      {p.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <button
-                onClick={() => setModal("signin")}
-                className="min-h-11 px-3 text-sm underline"
-              >
-                Sign in for real activities
-              </button>
-              <button
-                onClick={() => {
-                  resetSample();
-                  select("");
-                  void refresh();
-                }}
-                className="min-h-11 px-3 text-xs text-app-muted"
-              >
-                Reset sample records
-              </button>
-            </>
-          ) : (
-            <>
-              <p className="truncate px-3 text-xs">{email}</p>
-              <a
-                href="/?legacy=1"
-                className="block min-h-11 px-3 py-3 text-xs underline"
-              >
-                Previous saved records
-              </a>
-              <button
-                onClick={() => {
-                  clearSession();
-                  setGuest(true);
-                  setEmail(samplePeople[0].email);
-                  select("");
-                }}
-                className="min-h-11 px-3 text-sm"
-              >
-                Sign out
-              </button>
-            </>
-          )}
+        <div className="sf-account">
+          <span className="sf-avatar" aria-hidden="true">{(guest ? samplePeople.find(p => p.email === email)?.name : email)?.slice(0, 1).toUpperCase()}</span>
+          <div className="min-w-0 flex-1">
+            {guest ? <label className="block">
+              <span className="sr-only">Sample person</span>
+              <select value={email} onChange={e => setEmail(e.target.value)} className="sf-account-select">
+                {samplePeople.map(p => <option key={p.email} value={p.email}>{p.name}</option>)}
+              </select>
+            </label> : <p className="truncate text-sm">{email}</p>}
+            <p className="text-xs text-app-muted">{guest ? "Guest sample workspace" : "Personal account"}</p>
+          </div>
+          <details className="relative">
+            <summary aria-label="Account options" className="sf-icon-button"><MoreHorizontal size={18}/></summary>
+            <div className="sf-popup absolute bottom-full right-0 mb-2 w-52">
+              {guest ? <>
+                <button onClick={() => setModal("signin")}>Sign in for real activities</button>
+                <button onClick={() => { resetSample(); select(""); void refresh(); }}>Reset sample records</button>
+              </> : <>
+                <a href="/?legacy=1">Previous saved records</a>
+                <button onClick={() => { clearSession(); setGuest(true); setEmail(samplePeople[0].email); select(""); }}>Sign out</button>
+              </>}
+            </div>
+          </details>
         </div>
       </>
     );
@@ -492,9 +459,9 @@ export default function ActivityWorkspace() {
   }
   function renderComposer() {
     return (
-      <div className="bg-white px-4 pb-3 pt-2">
+      <div className="sf-composer-dock">
         <form
-          className="relative mx-auto max-w-3xl rounded-2xl border border-app-border p-2"
+          className="sf-composer"
           onSubmit={(e) => {
             e.preventDefault();
             if (!activity) {
@@ -510,42 +477,23 @@ export default function ActivityWorkspace() {
           <label className="sr-only" htmlFor="activity-message">
             Message your activity
           </label>
-          <div className="flex items-end gap-2">
-            <textarea
-              ref={composerRef}
-              disabled={Boolean(selected && !activity)}
-              maxLength={4000}
-              onKeyDown={(e) => {
-                if (
-                  e.key === "Enter" &&
-                  !e.shiftKey &&
-                  !e.nativeEvent.isComposing
-                ) {
-                  e.preventDefault();
-                  if (text.trim() && !busy && !pending)
-                    e.currentTarget.form?.requestSubmit();
-                }
+          <div className="flex items-end gap-1">
+            <details
+              className="static"
+              onClick={(e) => {
+                if ((e.target as HTMLElement).closest("button"))
+                  e.currentTarget.removeAttribute("open");
               }}
-              id="activity-message"
-              value={text}
-              onChange={(e) => setText(e.target.value)}
-              rows={1}
-              placeholder={
-                activity
-                  ? "Message this activity…"
-                  : "What are we sharing costs for?"
-              }
-              className="min-h-11 min-w-0 flex-1 resize-none rounded-lg p-3 text-sm outline-none focus-visible:ring-2"
-            />
-            <button
-              aria-label={activity ? "Send message" : "Start conversation"}
-              disabled={busy || !text.trim() || Boolean(pending)}
-              className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-slate-900 text-white disabled:opacity-40"
             >
-              <ArrowUp size={18} />
-            </button>
-          </div>
-          <div className="flex flex-wrap items-center gap-1">
+              <summary
+                aria-label="More activity actions"
+                className="grid h-11 w-11 cursor-pointer list-none place-items-center rounded-full hover:bg-slate-100"
+              >
+                <Plus size={19} />
+              </summary>
+              <div className="sf-popup absolute bottom-full left-0 z-20 mb-2 w-64 max-w-full">
+                {activity && <button type="button" disabled={busy || Boolean(pending)} onClick={() => openExpense()}><Receipt size={17}/>Add cost</button>}
+                {!activity && (["quick", "planned", "recurring"] as const).map(kind => <button key={kind} type="button" onClick={() => { setModal("new"); sessionStorage.setItem("splitflow-new-kind", kind); }}>{kind === "quick" ? "Split a cost" : kind === "planned" ? "Plan an activity" : "Set up recurring costs"}</button>)}
             {Boolean(activity?.templates?.length) && (
               <select
                 aria-label="Reuse expense rules"
@@ -584,28 +532,7 @@ export default function ActivityWorkspace() {
                 ))}
               </select>
             )}
-            <button
-              type="button"
-              disabled={busy || Boolean(pending)}
-              onClick={() => (activity ? openExpense() : setModal("new"))}
-              className="min-h-11 rounded-lg px-3 text-sm hover:bg-slate-100"
-            >
-              Add cost
-            </button>
-            <details
-              className="static"
-              onClick={(e) => {
-                if ((e.target as HTMLElement).closest("button"))
-                  e.currentTarget.removeAttribute("open");
-              }}
-            >
-              <summary
-                aria-label="More activity actions"
-                className="grid h-11 w-11 cursor-pointer list-none place-items-center rounded-full hover:bg-slate-100"
-              >
-                <Plus size={19} />
-              </summary>
-              <div className="absolute bottom-full left-0 z-20 mb-2 flex w-60 max-w-full flex-col rounded-xl border border-app-border bg-white p-2 shadow-lg">
+
                 <button
                   type="button"
                   onClick={() => setModal(activity ? "share" : "groups")}
@@ -637,9 +564,43 @@ export default function ActivityWorkspace() {
                 )}{" "}
               </div>
             </details>
+            <textarea
+              ref={composerRef}
+              disabled={Boolean(selected && !activity)}
+              maxLength={4000}
+              onKeyDown={(e) => {
+                if (
+                  e.key === "Enter" &&
+                  !e.shiftKey &&
+                  !e.nativeEvent.isComposing
+                ) {
+                  e.preventDefault();
+                  if (text.trim() && !busy && !pending)
+                    e.currentTarget.form?.requestSubmit();
+                }
+              }}
+              id="activity-message"
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              rows={1}
+              placeholder={
+                activity
+                  ? "Message activity…"
+                  : "Describe a cost…"
+              }
+              className="sf-composer-input"
+            />
+            <button
+              aria-label={activity ? "Send message" : "Start conversation"}
+              disabled={busy || !text.trim() || Boolean(pending)}
+              className="sf-send"
+            >
+              <ArrowUp size={18} />
+            </button>
           </div>
+
         </form>
-        <p className="mx-auto mt-2 max-w-3xl text-xs text-app-muted">
+        <p className={`sf-composer-note ${activity ? "" : "sr-only"}`}>
           {activity
             ? "Messages go to this activity. Financial changes need your review."
             : "Start with an activity name. Add people and costs in the conversation."}
@@ -654,30 +615,32 @@ export default function ActivityWorkspace() {
       </p>
     );
   return (
-    <div className="flex h-dvh bg-white text-app-text">
-      <aside className="hidden w-60 shrink-0 flex-col bg-slate-50 p-3 lg:flex">
-        <a href="/" className="px-3 py-5 text-xl font-semibold">
-          SplitFlow
-        </a>
+    <div className="sf-workspace flex h-dvh bg-white text-app-text" onKeyDown={e => {
+      if (e.key === "Escape") {
+        const details = (e.target as HTMLElement).closest("details[open]");
+        if (details) { details.removeAttribute("open"); (details.querySelector("summary") as HTMLElement)?.focus(); e.stopPropagation(); }
+      }
+    }}>
+      <aside className={`sf-sidebar ${sidebarOpen ? "lg:flex" : ""}`}>
+        <div className="sf-sidebar-top">
+          <a href="/" aria-label="SplitFlow home" className="sf-icon-button"><Receipt size={23}/></a>
+          <button aria-label="Collapse sidebar" onClick={() => setSidebarOpen(false)} className="sf-icon-button"><PanelLeft size={19}/></button>
+        </div>
         {nav()}
       </aside>
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex min-h-16 items-center gap-3 border-b border-slate-100 px-4">
+        <header className="sf-header">
           <button
             aria-label="Open navigation"
-            onClick={() => setMenu(true)}
-            className="h-11 w-11 lg:hidden"
+            onClick={() => { if (window.innerWidth >= 1024) setSidebarOpen(true); else setMenu(true); }}
+            className={`sf-icon-button ${sidebarOpen ? "lg:hidden" : ""}`}
           >
             <Menu size={20} />
           </button>
-          <span
-            title={activity?.title}
-            className="min-w-0 flex-1 truncate text-sm font-medium"
-          >
-            {activity?.title ?? "SplitFlow"}
-          </span>
+          <button className="sf-brand" onClick={() => { setList(false); setModal("groups"); }} aria-label="Workspace groups">SplitFlow <ChevronDown size={16}/></button>
+          <div className="flex-1"/>
           {guest && (
-            <span className="shrink-0 rounded bg-amber-50 px-2 py-1 text-xs text-amber-900">
+            <span className="sf-sample-badge">
               Sample
             </span>
           )}
@@ -687,23 +650,51 @@ export default function ActivityWorkspace() {
               setModal("groups");
             }}
             aria-label="Groups"
-            className="flex min-h-11 items-center gap-2 px-2 text-sm"
+            className="sf-icon-button"
           >
             <Users size={16} />
-            <span className="hidden sm:inline">Groups</span>
-            <ChevronDown size={14} />
+            
           </button>
+          {activity && <button className="sf-header-share" aria-label="Share activity" onClick={() => setModal("share")}><Share2 size={17}/><span className="hidden sm:inline">Share</span></button>}
+          {activity && <details className="relative" onClick={e => { if ((e.target as HTMLElement).closest("button")) e.currentTarget.removeAttribute("open"); }}>
+            <summary aria-label="Conversation options" className="sf-icon-button"><MoreHorizontal size={20}/></summary>
+            <div className="sf-popup absolute right-0 top-full w-48">                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() => {
+                        setRepeatSource(activity);
+                        setModal("new");
+                      }}
+                      className="min-h-11 text-xs underline"
+                    >
+                      Repeat activity
+                    </button>
+                    <button
+                      disabled={busy}
+                      onClick={() =>
+                        void command({
+                          type: "archive",
+                          archived: !activity.archivedBy.includes(email),
+                        }).catch(() => {})
+                      }
+                      className="min-h-11 text-xs underline"
+                    >
+                      {activity.archivedBy.includes(email)
+                        ? "Restore"
+                        : "Archive"}
+                    </button></div>
+          </details>}
           {guest && (
             <button
               onClick={() => setModal("signin")}
-              className="min-h-11 px-2 text-sm"
+              className="sf-signin"
             >
               Sign in
             </button>
           )}
         </header>
-        <main className="min-h-0 flex-1 overflow-y-auto">
-          <div className="mx-auto max-w-3xl space-y-5 px-4 py-6 md:px-8">
+        <main className="sf-main min-h-0 flex-1 overflow-y-auto">
+          <div className={`sf-thread ${!activity && !inlineFlow && !list ? "sf-thread-home" : ""}`}>
             {error && (
               <p
                 role="alert"
@@ -798,57 +789,20 @@ export default function ActivityWorkspace() {
               </>
             ) : !activity ? (
               !inlineFlow && (
-                <section className="py-12 md:py-20">
-                  <h1 className="text-center text-2xl font-semibold tracking-tight">
-                    What are we sharing costs for?
-                  </h1>
-                  <p className="mt-3 text-center text-sm leading-6 text-app-muted">
-                    Rent, a trip, dinner or something else. Keep the costs and
-                    decisions together in one conversation.
-                  </p>
-                  <div className="mt-6">{renderComposer()}</div>
-                  <div className="mt-4 flex flex-wrap justify-center gap-2">
-                    {(["quick", "planned", "recurring"] as const).map(
-                      (kind) => (
-                        <button
-                          key={kind}
-                          onClick={() => {
-                            setModal("new");
-                            sessionStorage.setItem("splitflow-new-kind", kind);
-                          }}
-                          className="min-h-11 rounded-lg border px-4 text-sm"
-                        >
-                          {kind === "quick"
-                            ? "Split a cost"
-                            : kind === "planned"
-                              ? "Plan an activity"
-                              : "Set up recurring costs"}
-                        </button>
-                      ),
-                    )}
-                  </div>
-                  <div className="mt-8 space-y-2">
-                    {visible.slice(0, 3).map((a) => (
-                      <button
-                        key={a.id}
-                        onClick={() => select(a.id)}
-                        className="block min-h-11 text-sm underline"
-                      >
-                        {a.title}
-                      </button>
-                    ))}
-                  </div>
+                <section className="sf-home">
+                  <h1>What are we sharing costs for?</h1>
+                  {renderComposer()}
                 </section>
               )
             ) : (
               <>
                 <section
-                  className="border-b border-slate-100 pb-3"
+                  className="sf-activity-summary"
                   aria-label="Activity summary"
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div>
-                      <h1 className="text-xl font-semibold">
+                      <h1 className="text-lg font-semibold">
                         {activity.title}
                       </h1>
                       <p className="mt-1 text-xs text-app-muted">
@@ -858,31 +812,7 @@ export default function ActivityWorkspace() {
                           : ""}
                       </p>
                     </div>
-                    <button
-                      type="button"
-                      disabled={busy}
-                      onClick={() => {
-                        setRepeatSource(activity);
-                        setModal("new");
-                      }}
-                      className="min-h-11 text-xs underline"
-                    >
-                      Repeat activity
-                    </button>
-                    <button
-                      disabled={busy}
-                      onClick={() =>
-                        void command({
-                          type: "archive",
-                          archived: !activity.archivedBy.includes(email),
-                        }).catch(() => {})
-                      }
-                      className="min-h-11 text-xs underline"
-                    >
-                      {activity.archivedBy.includes(email)
-                        ? "Restore"
-                        : "Archive"}
-                    </button>
+
                   </div>
                   <details className="mt-2 text-sm">
                     <summary className="min-h-11 cursor-pointer py-3">
@@ -1040,11 +970,11 @@ export default function ActivityWorkspace() {
                             key={entry.id}
                             className={
                               entry.message.actor === email
-                                ? "ml-auto max-w-[85%] rounded-2xl bg-slate-100 px-4 py-3 text-sm"
-                                : "max-w-full py-2 text-sm"
+                                ? "sf-message-own"
+                                : "sf-message-other"
                             }
                           >
-                            <p className="mb-1 text-xs text-app-muted">
+                            <p className={entry.message.actor === email ? "sr-only" : "mb-2 text-xs text-app-muted"}>
                               {activity.people.find(
                                 (p) => p.email === entry.message.actor,
                               )?.name ?? entry.message.actor}

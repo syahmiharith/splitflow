@@ -1,4 +1,11 @@
 import { test, expect, type Page } from "@playwright/test";
+test.beforeEach(async ({ page }) => {
+  await page.route("**/api/workspace/assistant**", (route) =>
+    route.fulfill({
+      json: route.request().url().includes("list=1") ? [] : null,
+    }),
+  );
+});
 async function openActivity(page: Page, name: string) {
   if ((page.viewportSize()?.width ?? 1440) < 1024)
     await page.getByRole("button", { name: "Open navigation" }).click();
@@ -9,7 +16,7 @@ async function openActivity(page: Page, name: string) {
     .click();
 }
 async function composerAction(page: Page, name: string) {
-  await page.getByLabel("More activity actions").click();
+  await page.getByLabel("Enter manually").click();
   await page.getByRole("button", { name, exact: true }).click();
 }
 test("guest activity uses the same conversation for costs and recipient confirmation", async ({
@@ -184,7 +191,7 @@ test("repeating an activity reuses people and rules without copying payment hist
   await expect(
     page.getByLabel("Activity expenses").locator("article"),
   ).toHaveCount(0);
-  await page.getByLabel("More activity actions").click();
+  await page.getByLabel("Enter manually").click();
   await page.getByLabel("Reuse expense rules").selectOption("0");
   await expect(
     page
@@ -273,6 +280,7 @@ test("an interrupted activity submission replays its original key after reload",
     return route.fulfill({ json: document() });
   });
   await page.goto(`/?activity=${id}`);
+  await page.getByLabel("Message destination").selectOption("group");
   await page
     .getByLabel("Message your activity")
     .fill("Remember the shared tickets");
@@ -372,6 +380,7 @@ test("cost editing stays inline with discussion and the persistent composer", as
 }) => {
   await page.goto("/");
   await openActivity(page, "Weekend together");
+  await page.getByLabel("Message destination").selectOption("group");
   await page
     .getByLabel("Message your activity")
     .fill("Keep the dinner and taxi together");
@@ -399,7 +408,7 @@ test("cost editing stays inline with discussion and the persistent composer", as
     page.getByText("The taxi receipt is ready", { exact: true }),
   ).toBeAttached();
   await page.getByRole("button", { name: "Close Review expense" }).click();
-  await page.getByLabel("More activity actions").click();
+  await page.getByLabel("Enter manually").click();
   await page
     .getByRole("button", { name: "People & share", exact: true })
     .click();
@@ -416,6 +425,12 @@ test("a conversation starts from the composer and keeps the opening message", as
   await page.goto("/");
   await page.getByLabel("Message your activity").fill("Saturday tennis");
   await page.getByRole("button", { name: "Start conversation" }).click();
+  await expect(
+    page.getByRole("region", { name: "Private assistant conversation" }),
+  ).toContainText("Assistant unavailable");
+  await page
+    .getByRole("button", { name: "Enter manually", exact: true })
+    .click();
   const setup = page.getByRole("region", { name: "New activity" });
   await expect(setup.getByLabel("Activity name")).toHaveValue(
     "Saturday tennis",
@@ -430,7 +445,7 @@ test("a conversation starts from the composer and keeps the opening message", as
   await expect(setup).not.toBeVisible();
   await expect(
     page
-      .getByRole("region", { name: "Conversation" })
+      .getByRole("region", { name: "Private assistant conversation" })
       .getByText("Saturday tennis", { exact: true }),
   ).toBeVisible();
   await expect(page.getByLabel("Message your activity")).toHaveValue("");

@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { z } from "zod";
 import {
   actor,
   database,
@@ -8,25 +7,11 @@ import {
   PilotError,
 } from "@/lib/pilot/server";
 import {
-  activityInput,
-  groupInput,
-  activityCommand,
-  groupCommand,
-  createActivity,
-  changeActivity,
-  createGroup,
-  changeGroup,
-  type Activity,
-  type SharedGroup,
-} from "@/lib/activity/model";
-const inputSchema = z.object({
-  id: z.uuid(),
-  key: z.uuid(),
-  expected: z.number().int().min(0),
-  kind: z.enum(["group", "activity"]),
-  input: z.unknown().optional(),
-  command: z.unknown().optional(),
-});
+  operationSchema as inputSchema,
+  prepareOperation,
+  WorkspaceError,
+} from "@/lib/activity/operations";
+import type { RecordRow } from "@/lib/activity/client";
 export async function GET(request: NextRequest) {
   try {
     const user = await actor(request);
@@ -37,7 +22,11 @@ export async function GET(request: NextRequest) {
       headers: { "Cache-Control": "no-store" },
     });
   } catch (error) {
-    return failure(error);
+    return failure(
+      error instanceof WorkspaceError
+        ? new PilotError(error.message, error.status)
+        : error,
+    );
   }
 }
 export async function POST(request: NextRequest) {
@@ -48,7 +37,7 @@ export async function POST(request: NextRequest) {
     const rows = await database(
       `activity_records?id=eq.${input.id}&select=kind,document`,
     );
-    const current = rows[0]?.document as Activity | SharedGroup | undefined;
+    const current = rows[0]?.document as RecordRow["document"] | undefined;
     if (current && !current.people.some((p) => p.email === user.email))
       throw new PilotError("Workspace unavailable for this account.", 403);
     const prior = await database(
@@ -59,51 +48,15 @@ export async function POST(request: NextRequest) {
         throw new PilotError("Operation unavailable.", 403);
       return NextResponse.json(prior[0].result);
     }
-    let next: Activity | SharedGroup;
-    if (input.expected === 0) {
-      if (current) throw new PilotError("This record already exists.", 409);
-      if (input.kind === "group")
-        next = createGroup(user.email, groupInput.parse(input.input));
-      else {
-        const value = activityInput.parse(input.input);
-        if (value.groupId) {
-          const groups = await database(
-            `activity_records?id=eq.${value.groupId}&kind=eq.group&select=document`,
-          );
-          const group = groups[0]?.document as SharedGroup | undefined;
-          if (
-            !group?.joined.includes(user.email) ||
-            value.people.some((p) => !group.joined.includes(p.email))
-          )
-            throw new PilotError(
-              "Choose joined group members for this activity.",
-              403,
-            );
-        }
-        next = createActivity(user.email, value);
-      }
-      next.id = input.id;
-    } else {
-      if (!current || rows[0].kind !== input.kind)
-        throw new PilotError("Workspace unavailable.", 403);
-      if (current.revision !== input.expected)
-        throw new PilotError(
-          "This activity changed. Review the latest version before retrying.",
-          409,
-        );
-      next =
-        input.kind === "group"
-          ? changeGroup(
-              current as SharedGroup,
-              user.email,
-              groupCommand.parse(input.command),
-            )
-          : changeActivity(
-              current as Activity,
-              user.email,
-              activityCommand.parse(input.command),
-            );
+    const context: RecordRow[] = rows;
+    const groupId = (input.input as { groupId?: string } | undefined)?.groupId;
+    if (input.kind === "activity" && input.expected === 0 && groupId) {
+      const groups = await database(
+        `activity_records?id=eq.${encodeURIComponent(groupId)}&kind=eq.group&select=kind,document`,
+      );
+      context.push(...groups);
     }
+    const next = prepareOperation(context, user.email, input).document;
     const result = await database("rpc/commit_activity", {
       method: "POST",
       body: JSON.stringify({
@@ -117,6 +70,10 @@ export async function POST(request: NextRequest) {
     });
     return NextResponse.json(result);
   } catch (error) {
-    return failure(error);
+    return failure(
+      error instanceof WorkspaceError
+        ? new PilotError(error.message, error.status)
+        : error,
+    );
   }
 }

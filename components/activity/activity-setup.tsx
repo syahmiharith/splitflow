@@ -22,6 +22,8 @@ export function NewActivityForm({
   groups,
   seed,
   suggestedTitle,
+  repeat = true,
+  onDraftChange,
   busy,
   onSave,
 }: {
@@ -30,6 +32,8 @@ export function NewActivityForm({
   groups: SharedGroup[];
   seed?: Activity;
   suggestedTitle?: string;
+  repeat?: boolean;
+  onDraftChange?: (draft: unknown) => void;
   busy: boolean;
   onSave: (value: unknown) => Promise<void>;
 }) {
@@ -48,8 +52,23 @@ export function NewActivityForm({
   const [error, setError] = useState("");
   const [step, setStep] = useState(0);
   const [title, setTitle] = useState(
-    seed ? `${seed.title} again` : (suggestedTitle ?? ""),
+    seed
+      ? repeat
+        ? `${seed.title} again`
+        : seed.title
+      : (suggestedTitle ?? ""),
   );
+  const draftCallback = useRef(onDraftChange);
+  draftCallback.current = onDraftChange;
+  useEffect(() => {
+    draftCallback.current?.({
+      kind: "activity",
+      title,
+      activityKind: kind,
+      groupId,
+      people,
+    });
+  }, [title, kind, groupId, people]);
   const stepHeading = useRef<HTMLHeadingElement>(null);
   useEffect(() => {
     if (step) stepHeading.current?.focus();
@@ -323,11 +342,15 @@ export function NewActivityForm({
 }
 
 export function ScheduleForm({
+  onDraftChange,
+  seed,
   activity,
   email,
   busy,
   onSave,
 }: {
+  onDraftChange?: (draft: unknown) => void;
+  seed?: { expense: Expense; start: string; dueDay: number; variable: boolean };
   activity: Activity;
   email: string;
   busy: boolean;
@@ -335,6 +358,9 @@ export function ScheduleForm({
 }) {
   const expectedVersion = useRef(activity.schedule?.version ?? 0);
   const [options] = useState(() => [
+    ...(seed
+      ? [{ id: "assistant", label: "Assistant draft", expense: seed.expense }]
+      : []),
     ...(activity.schedule
       ? [
           {
@@ -361,11 +387,31 @@ export function ScheduleForm({
     [advanced, setAdvanced] = useState(false),
     [error, setError] = useState("");
   const [start, setStart] = useState(
-    activity.schedule?.start ??
+    seed?.start ??
+      activity.schedule?.start ??
       new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Seoul" }),
   );
-  const [dueDay, setDueDay] = useState(activity.schedule?.dueDay ?? 1),
-    [variable, setVariable] = useState(activity.schedule?.variable ?? false);
+  const [dueDay, setDueDay] = useState(
+      seed?.dueDay ?? activity.schedule?.dueDay ?? 1,
+    ),
+    [variable, setVariable] = useState(
+      seed?.variable ?? activity.schedule?.variable ?? false,
+    );
+  const draftCallback = useRef(onDraftChange);
+  draftCallback.current = onDraftChange;
+  useEffect(() => {
+    draftCallback.current?.({
+      kind: "schedule",
+      activityId: activity.id,
+      expense,
+      title,
+      amount,
+      payer,
+      start,
+      dueDay,
+      variable,
+    });
+  }, [activity.id, expense, title, amount, payer, start, dueDay, variable]);
   const heading = useRef<HTMLHeadingElement>(null);
   useEffect(() => {
     heading.current?.focus();

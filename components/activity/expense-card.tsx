@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   balances,
   calculateExpense,
@@ -17,12 +17,14 @@ export const money = (value: number) =>
     maximumFractionDigits: 0,
   }).format(value);
 export function ExpenseCard({
+  draftCommand,
   split,
   email,
   busy,
   onCommand,
   onEdit,
 }: {
+  draftCommand?: Record<string, unknown>;
   split: Split & { period?: string; dueDate?: string };
   email: string;
   busy: boolean;
@@ -30,6 +32,14 @@ export function ExpenseCard({
   onEdit: () => void;
 }) {
   const [action, setAction] = useState<"correction" | "payment" | null>(null);
+  useEffect(() => {
+    if (draftCommand?.type === "report") setAction("payment");
+    else if (
+      draftCommand?.type === "respond" &&
+      draftCommand.status === "correction"
+    )
+      setAction("correction");
+  }, [draftCommand]);
   const [reviewed, setReviewed] = useState(split.revision);
   const stale = reviewed !== split.revision;
   async function act(command: z.infer<typeof commandSchema>) {
@@ -235,6 +245,11 @@ export function ExpenseCard({
             What needs correcting?
             <textarea
               name="reason"
+              defaultValue={
+                typeof draftCommand?.reason === "string"
+                  ? draftCommand.reason
+                  : ""
+              }
               required
               maxLength={500}
               className="mt-2 w-full rounded-lg border p-3"
@@ -268,7 +283,11 @@ export function ExpenseCard({
             Recipient
             <select
               name="to"
-              defaultValue={targets[0]?.to}
+              defaultValue={
+                typeof draftCommand?.to === "string"
+                  ? draftCommand.to
+                  : targets[0]?.to
+              }
               onChange={(e) => {
                 const input = e.currentTarget.form?.elements.namedItem(
                   "amount",
@@ -295,7 +314,11 @@ export function ExpenseCard({
               min={1}
               step={1}
               required
-              defaultValue={targets[0]?.amount ?? remaining[email]}
+              defaultValue={
+                typeof draftCommand?.amount === "number"
+                  ? draftCommand.amount
+                  : (targets[0]?.amount ?? remaining[email])
+              }
               className="mt-1 block w-full rounded-lg border p-3"
             />
           </label>
@@ -303,6 +326,11 @@ export function ExpenseCard({
             Reference (optional)
             <input
               name="reference"
+              defaultValue={
+                typeof draftCommand?.reference === "string"
+                  ? draftCommand.reference
+                  : ""
+              }
               maxLength={200}
               className="mt-1 block w-full rounded-lg border p-3"
             />

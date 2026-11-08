@@ -15,6 +15,9 @@ async function signIn(page: Page, email: string) {
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
   const modal = page.getByRole("dialog", { name: "Sign in" });
   await modal.getByLabel("Email", { exact: true }).fill(email);
+  const mailboxUrl = `http://127.0.0.1:55424/api/v1/search?query=${encodeURIComponent(`to:${email}`)}`;
+  const existing = await (await page.request.get(mailboxUrl)).json();
+  const previousIds = new Set(existing.messages.map((m: { ID: string }) => m.ID));
   await modal.getByRole("button", { name: "Send email code" }).click();
   let code = "";
   await expect(async () => {
@@ -23,10 +26,11 @@ async function signIn(page: Page, email: string) {
         `http://127.0.0.1:55424/api/v1/search?query=${encodeURIComponent(`to:${email}`)}`,
       )
     ).json();
-    expect(rows.messages.length).toBeGreaterThan(0);
+    const fresh = rows.messages.find((m: { ID: string }) => !previousIds.has(m.ID));
+    expect(fresh).toBeDefined();
     const mail = await (
       await page.request.get(
-        `http://127.0.0.1:55424/api/v1/message/${rows.messages[0].ID}`,
+        `http://127.0.0.1:55424/api/v1/message/${fresh.ID}`,
       )
     ).json();
     code = (mail.Text || mail.HTML || "").match(/\b\d{6}\b/)?.[0] ?? "";
@@ -152,7 +156,7 @@ test("shared group acceptance, private activity, member cost and independent rel
   await expect(
     member.getByRole("heading", { name: "Materials", exact: true }),
   ).toBeVisible();
-  await page.getByLabel("More activity actions").click();
+  await page.getByLabel("Enter manually").click();
   await page.getByRole("button", { name: "Add cost", exact: true }).click();
   const editor = page.getByRole("region", { name: "Review expense" });
   await editor
@@ -180,7 +184,7 @@ test("shared group acceptance, private activity, member cost and independent rel
   ).toBeNull();
   await editor.getByRole("button", { name: "Close Review expense" }).click();
   await page.reload();
-  await page.getByLabel("More activity actions").click();
+  await page.getByLabel("Enter manually").click();
   await page.getByRole("button", { name: "Add cost", exact: true }).click();
   await expect(
     page
@@ -189,4 +193,36 @@ test("shared group acceptance, private activity, member cost and independent rel
   ).toHaveValue("Private unfinished cost");
   await context.close();
   await otherContext.close();
+});
+
+test("private assistant survives another signed-in session and stays hidden from other accounts", async ({
+  page,
+  browser,
+}) => {
+  const run = `${Date.now()}-${test.info().project.name}`,
+    email = `assistant-browser-${run}@example.test`,
+    other = `assistant-other-${run}@example.test`;
+  await signIn(page, email);
+  await page
+    .getByLabel("Message your activity")
+    .fill("Private dinner request for 60000 won");
+  await page.getByRole("button", { name: "Start conversation" }).click();
+  const privateChat = page.getByRole("region", {
+    name: "Private assistant conversation",
+  });
+  await expect(privateChat).toContainText("Assistant unavailable");
+  const context = await browser.newContext();
+  const second = await context.newPage();
+  await signIn(second, other);
+  await expect(
+    second.getByText("Private dinner request for 60000 won", { exact: true }),
+  ).toHaveCount(0);
+  await context.close();
+  const recovery = await browser.newContext();
+  const recovered = await recovery.newPage();
+  await signIn(recovered, email);
+  await expect(
+    recovered.getByRole("region", { name: "Private assistant conversation" }),
+  ).toContainText("Private dinner request for 60000 won");
+  await recovery.close();
 });

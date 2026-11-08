@@ -1,4 +1,8 @@
 "use client";
+import { pilotRequest } from "@/lib/pilot/session";
+import { useAssistant } from "./use-assistant";
+import { AssistantThread } from "./assistant-thread";
+import type { Preview } from "@/lib/assistant/model";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import {
@@ -23,7 +27,12 @@ import {
   type RecordRow,
   type Operation,
 } from "@/lib/activity/client";
-import type { Activity, SharedGroup, Person } from "@/lib/activity/model";
+import {
+  createActivity,
+  type Activity,
+  type SharedGroup,
+  type Person,
+} from "@/lib/activity/model";
 import { type Expense, type Split } from "@/lib/pilot/model";
 import { MoneyPage } from "./money-page";
 import { MoneyOverview, MoneyStatus } from "./money-overview";
@@ -247,6 +256,7 @@ export default function ActivityWorkspace() {
       <>
         <button
           onClick={() => {
+            assistant.fresh();
             select("");
             setModal(null);
             requestAnimationFrame(() => composerRef.current?.focus());
@@ -297,6 +307,28 @@ export default function ActivityWorkspace() {
                     />
                   </span>
                 </span>
+              </button>
+            ))}
+          </>
+        )}
+        {assistant.recents.length > 0 && (
+          <>
+            <p className="sf-nav-label">Private conversations</p>
+            {assistant.recents.slice(0, 8).map((t) => (
+              <button
+                key={t.id}
+                className="sf-nav-row truncate"
+                onClick={() => {
+                  void assistant
+                    .open(t)
+                    .then(() => {
+                      select(t.activityId ?? "");
+                      setModal(null);
+                    })
+                    .catch((e) => setError(e.message));
+                }}
+              >
+                {t.title}
               </button>
             ))}
           </>
@@ -385,6 +417,145 @@ export default function ActivityWorkspace() {
       </>
     );
   }
+  const [manualGroup, setManualGroup] = useState<{
+    name: string;
+    people: Person[];
+    target?: string;
+  }>();
+  const [manualGroupCommand, setManualGroupCommand] = useState<{
+    type: string;
+    name?: string;
+  }>();
+  const [manualPayment, setManualPayment] = useState<{
+    id: string;
+    command: Record<string, unknown>;
+  }>();
+  const [manualSchedule, setManualSchedule] = useState<{
+    expense: Expense;
+    start: string;
+    dueDay: number;
+    variable: boolean;
+  }>();
+  const [manualSeed, setManualSeed] = useState<Activity>();
+  const [manualExpense, setManualExpense] = useState<Expense>();
+  const [composerMode, setComposerMode] = useState<"assistant" | "group">(
+    "assistant",
+  );
+  useEffect(() => setComposerMode("assistant"), [selected, email]);
+  const assistant = useAssistant(
+    guest,
+    email,
+    selected || null,
+    ready,
+    async (thread) => {
+      await refresh();
+      if (thread.activityId && thread.activityId !== selected)
+        select(thread.activityId);
+    },
+  );
+  const manualContextKey = `splitflow-manual-context:${guest ? "sample" : "real"}:${email}:${selected || "home"}`;
+  function retainManualContext(value: unknown) {
+    localStorage.setItem(manualContextKey, JSON.stringify(value));
+  }
+  async function enterManually(preview?: Preview) {
+    const last = assistant.thread?.draft?.operations.at(-1);
+    const cmd = last?.command as Record<string, unknown> | undefined;
+    if (last?.kind === "group") {
+      const g = groups.find((g) => g.id === last.id);
+      if (!g) setManualGroup(last.input as { name: string; people: Person[] });
+      else if (cmd?.type === "invite")
+        setManualGroup({
+          name: g.name,
+          people: cmd.people as Person[],
+          target: g.id,
+        });
+      else {
+        setGroup(g.id);
+        setManualGroupCommand(cmd as { type: string; name?: string });
+      }
+      if (assistant.thread?.pending) await assistant.send("manual");
+      setModal("groups");
+      return;
+    }
+    if (last?.kind === "activity" && cmd?.type === "schedule" && activity) {
+      setManualSchedule(
+        cmd as unknown as {
+          expense: Expense;
+          start: string;
+          dueDay: number;
+          variable: boolean;
+        },
+      );
+      if (assistant.thread?.pending) await assistant.send("manual");
+      setModal("schedule");
+      return;
+    }
+    if (
+      cmd?.type === "expenseCommand" &&
+      (cmd.command as { type: string })?.type !== "revise"
+    ) {
+      if (assistant.thread?.pending) await assistant.send("manual");
+      setManualPayment({
+        id: cmd.id as string,
+        command: cmd.command as Record<string, unknown>,
+      });
+      requestAnimationFrame(() =>
+        document
+          .getElementById(`expense-${cmd.id}`)
+          ?.scrollIntoView({ block: "center" }),
+      );
+      return;
+    }
+    const staged = assistant.thread?.draft?.operations.find(
+      (op) => op.kind === "activity" && op.expected === 0,
+    );
+    if (!activity && staged?.input) {
+      setManualSeed(
+        createActivity(
+          email,
+          staged.input as Parameters<typeof createActivity>[1],
+        ),
+      );
+      setManualExpense(preview?.expense);
+    }
+    if (assistant.thread?.pending) await assistant.send("manual");
+    if (
+      preview?.expense &&
+      activity &&
+      (!preview.activityId || preview.activityId === activity.id)
+    ) {
+      const slot =
+        preview.expenseId &&
+        activity.expenses.some((s) => s.id === preview.expenseId)
+          ? preview.expenseId
+          : "new";
+      const key = `splitflow-activity-draft:${guest ? "sample" : "real"}:${email}:${activity.id}:${slot}`;
+      localStorage.setItem(key, JSON.stringify(preview.expense));
+      if (!guest) {
+        const path = `/api/workspace/drafts?activity=${activity.id}&slot=${slot}`;
+        const previous = await pilotRequest(path);
+        await pilotRequest(path, {
+          method: "POST",
+          body: JSON.stringify({
+            expected: previous?.revision ?? 0,
+            key: crypto.randomUUID(),
+            expense: preview.expense,
+          }),
+        });
+      }
+      setEditing(activity.expenses.find((s) => s.id === slot));
+      setPreset(preview.expense);
+      setModal("expense");
+    } else {
+      if (!activity && assistant.thread?.messages.length)
+        setText(
+          assistant.thread.messages.filter((m) => m.role === "user").at(-1)
+            ?.text ?? "",
+        );
+      if (activity) openExpense();
+      else setModal("new");
+    }
+  }
   const inlineFlow = Boolean(modal && modal !== "signin");
   const modalTitle =
     modal === "new"
@@ -399,7 +570,12 @@ export default function ActivityWorkspace() {
               ? "People & share"
               : "Sign in";
   function closeWorkflow() {
-    if (!busy) setModal(null);
+    if (!busy) {
+      setModal(null);
+      setManualGroup(undefined);
+      setManualGroupCommand(undefined);
+      setManualSchedule(undefined);
+    }
   }
   function workflowContent() {
     return (
@@ -426,7 +602,9 @@ export default function ActivityWorkspace() {
                 ? groups.find((g) => g.id === repeatSource.groupId)
                 : chosenGroup
             }
-            seed={repeatSource}
+            seed={manualSeed ?? repeatSource}
+            repeat={Boolean(repeatSource)}
+            onDraftChange={retainManualContext}
             suggestedTitle={!activity ? text.slice(0, 120) : undefined}
             busy={busy}
             onSave={async (input) => {
@@ -438,15 +616,20 @@ export default function ActivityWorkspace() {
               });
               setModal(null);
               setRepeatSource(undefined);
+              setManualSeed(undefined);
               select(value!.id);
-              if (!activity && text.trim()) {
-                await submit({
-                  kind: "activity",
-                  id: value!.id,
-                  expected: value!.revision,
-                  command: { type: "message", text: text.trim() },
-                });
-                setText("");
+              if (
+                !activity &&
+                assistant.thread?.messages.length &&
+                !assistant.thread.pending
+              )
+                await assistant.attach(value!.id);
+              setText("");
+              if (manualExpense) {
+                setPreset(manualExpense);
+                setEditing(undefined);
+                setManualExpense(undefined);
+                setModal("expense");
               }
             }}
           />
@@ -455,6 +638,9 @@ export default function ActivityWorkspace() {
           <GroupsPanel
             groups={groups}
             initialGroupId={group || activity?.groupId}
+            onDraftChange={retainManualContext}
+            createSeed={manualGroup}
+            commandSeed={manualGroupCommand}
             activities={activities}
             email={email}
             busy={busy}
@@ -474,12 +660,24 @@ export default function ActivityWorkspace() {
               setModal(null);
             }}
             onSave={async (name, people) => {
+              if (manualGroup?.target) {
+                const g = groups.find((g) => g.id === manualGroup.target)!;
+                await submit({
+                  kind: "group",
+                  id: g.id,
+                  expected: g.revision,
+                  command: { type: "invite", people },
+                });
+                setManualGroup(undefined);
+                return g.id;
+              }
               const created = await submit({
                 kind: "group",
                 id: crypto.randomUUID(),
                 expected: 0,
                 input: { name, people },
               });
+              setManualGroup(undefined);
               return created!.id;
             }}
             onCommand={async (g, cmd) => {
@@ -531,6 +729,8 @@ export default function ActivityWorkspace() {
         )}
         {modal === "schedule" && activity && (
           <ScheduleForm
+            seed={manualSchedule}
+            onDraftChange={retainManualContext}
             activity={activity}
             email={email}
             busy={busy}
@@ -547,18 +747,40 @@ export default function ActivityWorkspace() {
   function renderComposer() {
     return (
       <div className="sf-composer-dock">
+        <div className="sf-composer-mode">
+          <label>
+            Send to{" "}
+            <select
+              aria-label="Message destination"
+              value={composerMode}
+              onChange={(e) =>
+                setComposerMode(e.target.value as "assistant" | "group")
+              }
+            >
+              <option value="assistant">SplitFlow · private</option>
+              {activity && <option value="group">Message group</option>}
+            </select>
+          </label>
+        </div>
         <form
           className="sf-composer"
           onSubmit={(e) => {
             e.preventDefault();
-            if (!activity) {
-              setModal("new");
-              return;
-            }
             const value = text;
-            void command({ type: "message", text: value })
-              .then(() => setText(""))
-              .catch(() => {});
+            if (composerMode === "group" && activity) {
+              void command({ type: "message", text: value })
+                .then(() => setText(""))
+                .catch(() => {});
+            } else {
+              void assistant
+                .send(
+                  "send",
+                  value,
+                  localStorage.getItem(manualContextKey) ?? undefined,
+                )
+                .then(() => setText(""))
+                .catch(() => {});
+            }
           }}
         >
           <label className="sr-only" htmlFor="activity-message">
@@ -573,7 +795,7 @@ export default function ActivityWorkspace() {
               }}
             >
               <summary
-                aria-label="More activity actions"
+                aria-label="Enter manually"
                 className="grid h-11 w-11 cursor-pointer list-none place-items-center rounded-full hover:bg-slate-100"
               >
                 <Plus size={19} />
@@ -690,7 +912,7 @@ export default function ActivityWorkspace() {
                   !e.nativeEvent.isComposing
                 ) {
                   e.preventDefault();
-                  if (text.trim() && !busy && !pending)
+                  if (text.trim() && !busy && !pending && !assistant.busy)
                     e.currentTarget.form?.requestSubmit();
                 }
               }}
@@ -698,12 +920,22 @@ export default function ActivityWorkspace() {
               value={text}
               onChange={(e) => setText(e.target.value)}
               rows={1}
-              placeholder={activity ? "Message activity…" : "Describe a cost…"}
+              placeholder={
+                composerMode === "group" && activity
+                  ? "Message the people in this activity…"
+                  : "Ask SplitFlow to split, change or settle a cost…"
+              }
               className="sf-composer-input"
             />
             <button
               aria-label={activity ? "Send message" : "Start conversation"}
-              disabled={busy || !text.trim() || Boolean(pending)}
+              disabled={
+                busy ||
+                assistant.busy ||
+                (composerMode === "assistant" && !assistant.thread) ||
+                !text.trim() ||
+                Boolean(pending)
+              }
               className="sf-send"
             >
               <ArrowUp size={18} />
@@ -712,8 +944,10 @@ export default function ActivityWorkspace() {
         </form>
         <p className={`sf-composer-note ${activity ? "" : "sr-only"}`}>
           {activity
-            ? "Messages go to this activity. Financial changes need your review."
-            : "Start with an activity name. Add people and costs in the conversation."}
+            ? composerMode === "group"
+              ? "Visible to the people in this activity. No assistant actions."
+              : "Private assistant · Shared changes need your confirmation."
+            : "Describe what you want to do. Manual entry is optional."}
         </p>
       </div>
     );
@@ -847,7 +1081,7 @@ export default function ActivityWorkspace() {
         </header>
         <main className="sf-main min-h-0 flex-1 overflow-y-auto">
           <div
-            className={`sf-thread ${!activity && !inlineFlow && !list && !moneyView ? "sf-thread-home" : ""}`}
+            className={`sf-thread ${!activity && !assistant.thread?.messages.length && !inlineFlow && !list && !moneyView ? "sf-thread-home" : ""}`}
           >
             {error && (
               <p
@@ -980,8 +1214,13 @@ export default function ActivityWorkspace() {
                   </p>
                 )}
               </>
+            ) : selected && !activity ? (
+              <p role="status" className="text-sm text-app-muted">
+                Loading this activity…
+              </p>
             ) : !activity ? (
-              !inlineFlow && (
+              !inlineFlow &&
+              !assistant.thread?.messages.length && (
                 <section className="sf-home">
                   <h1>What are we sharing costs for?</h1>
                   {renderComposer()}
@@ -1099,6 +1338,11 @@ export default function ActivityWorkspace() {
                         entry.kind === "expense" ? (
                           <ExpenseCard
                             key={entry.id}
+                            draftCommand={
+                              manualPayment?.id === entry.id
+                                ? manualPayment.command
+                                : undefined
+                            }
                             split={entry.split}
                             email={email}
                             busy={busy || Boolean(pending)}
@@ -1155,6 +1399,25 @@ export default function ActivityWorkspace() {
                 </details>
               </>
             )}
+            {!moneyView && (
+              <AssistantThread
+                thread={assistant.thread}
+                busy={assistant.busy}
+                error={assistant.error}
+                onConfirm={() => {
+                  void assistant.send("confirm").catch(() => {});
+                }}
+                onCancel={() => {
+                  void assistant.send("cancel").catch(() => {});
+                }}
+                onRetry={() => {
+                  void assistant.send("retry").catch(() => {});
+                }}
+                onManual={(preview) => {
+                  void enterManually(preview).catch((e) => setError(e.message));
+                }}
+              />
+            )}
             {inlineFlow && (
               <ActivityPanel
                 key={modal}
@@ -1166,8 +1429,11 @@ export default function ActivityWorkspace() {
             )}
           </div>
         </main>
-        {(!moneyView || inlineFlow) &&
-          (activity || inlineFlow) &&
+        {(!selected || Boolean(activity)) &&
+          (!moneyView || inlineFlow) &&
+          (activity ||
+            inlineFlow ||
+            Boolean(assistant.thread?.messages.length)) &&
           (!list || inlineFlow) &&
           renderComposer()}
       </div>
@@ -1185,6 +1451,9 @@ export default function ActivityWorkspace() {
   );
 }
 function GroupsPanel({
+  onDraftChange,
+  createSeed,
+  commandSeed,
   groups,
   initialGroupId,
   activities,
@@ -1198,6 +1467,9 @@ function GroupsPanel({
 }: {
   groups: SharedGroup[];
   initialGroupId?: string;
+  onDraftChange?: (draft: unknown) => void;
+  createSeed?: { name: string; people: Person[] };
+  commandSeed?: { type: string; name?: string };
   activities: Activity[];
   email: string;
   busy: boolean;
@@ -1207,9 +1479,13 @@ function GroupsPanel({
   onSave: (name: string, people: Person[]) => Promise<string>;
   onCommand: (g: SharedGroup, cmd: unknown) => Promise<void>;
 }) {
-  const [focused, setFocused] = useState(initialGroupId ?? "");
-  const [view, setView] = useState<"activities" | "people">("activities");
-  const [creating, setCreating] = useState(false),
+  const [focused, setFocused] = useState(
+    createSeed ? "" : (initialGroupId ?? ""),
+  );
+  const [view, setView] = useState<"activities" | "people">(
+    commandSeed ? "people" : "activities",
+  );
+  const [creating, setCreating] = useState(Boolean(createSeed)),
     [error, setError] = useState(""),
     [notice, setNotice] = useState("");
   return (
@@ -1430,7 +1706,10 @@ function GroupsPanel({
                   </div>
                 ))}
                 {g.owner === email ? (
-                  <details className="sf-disclosure">
+                  <details
+                    className="sf-disclosure"
+                    open={commandSeed?.type === "rename" || undefined}
+                  >
                     <summary>Rename group</summary>
                     <form
                       className="mt-3"
@@ -1448,7 +1727,11 @@ function GroupsPanel({
                         Group name
                         <input
                           name="name"
-                          defaultValue={g.name}
+                          defaultValue={
+                            commandSeed?.type === "rename"
+                              ? commandSeed.name
+                              : g.name
+                          }
                           required
                           className={inputClass}
                         />
@@ -1530,6 +1813,12 @@ function GroupsPanel({
       )}
       {creating && (
         <GroupEditor
+          onDraftChange={onDraftChange}
+          initial={
+            createSeed
+              ? { ...createSeed, id: "manual-seed", revision: 0 }
+              : undefined
+          }
           email={email}
           shared
           busy={busy}

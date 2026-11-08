@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { groupContent, type SavedGroup } from "@/lib/pilot/groups";
 export function GroupEditor({
   email,
@@ -9,6 +9,7 @@ export function GroupEditor({
   busy,
   onSave,
   onCancel,
+  onDraftChange,
 }: {
   email: string;
   shared?: boolean;
@@ -17,6 +18,7 @@ export function GroupEditor({
   busy: boolean;
   onSave: (group: Pick<SavedGroup, "name" | "people">) => Promise<void>;
   onCancel: () => void;
+  onDraftChange?: (draft: unknown) => void;
 }) {
   const [name, setName] = useState(initial?.name ?? "");
   const [step, setStep] = useState(0);
@@ -30,6 +32,11 @@ export function GroupEditor({
     ...initialPeople.filter((p) => p.email !== email),
   ]);
   const [error, setError] = useState("");
+  const draftCallback = useRef(onDraftChange);
+  draftCallback.current = onDraftChange;
+  useEffect(() => {
+    draftCallback.current?.({ kind: "group", name, people });
+  }, [name, people]);
   return (
     <form
       className={shared ? "sf-flow space-y-5" : "space-y-5 p-5"}

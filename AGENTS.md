@@ -4,6 +4,8 @@ The main signed-in dinner and outing workspace at / uses Supabase email-code aut
 
 Read-only money inspection uses dedicated compact Expenses, Balances and Repayments views. Financial mutations stay inline in the original conversation; overview rows hand back to that context. Do not restore sprawling read-only summaries above the composer.
 
+The composer addresses the private assistant by default; Message group is an explicit non-agent mode. Manual input is secondary. Financial or membership mutations require confirmation of a stored exact proposal. Do not expose a model commit tool or silently publish private messages. OpenAI credentials remain on hold; scripted providers belong only in tests.
+
 # SplitFlow Agent Instructions
 
 ## Product Direction

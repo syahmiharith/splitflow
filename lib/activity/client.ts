@@ -1,7 +1,7 @@
+import { prepareOperation, prepareBatch } from "./operations";
 import { pilotRequest } from "@/lib/pilot/session";
 import {
   createGroup,
-  changeGroup,
   createActivity,
   changeActivity,
   publishDuePeriods,
@@ -179,36 +179,7 @@ export async function writeWorkspace(
   }
   if ((row?.document.revision ?? 0) !== op.expected)
     throw Error("This activity changed. Review the latest version.");
-  let document: Activity | SharedGroup;
-  if (op.kind === "group")
-    document = row
-      ? changeGroup(
-          row.document as SharedGroup,
-          email,
-          op.command as Parameters<typeof changeGroup>[2],
-        )
-      : createGroup(email, op.input as Parameters<typeof createGroup>[1]);
-  else {
-    const input = op.input as Parameters<typeof createActivity>[1];
-    if (!row && input.groupId) {
-      const group = value.rows.find(
-        (r) => r.kind === "group" && r.document.id === input.groupId,
-      )?.document as SharedGroup | undefined;
-      if (
-        !group?.joined.includes(email) ||
-        input.people.some((p) => !group.joined.includes(p.email))
-      )
-        throw Error("Choose joined group members.");
-    }
-    document = row
-      ? changeActivity(
-          row.document as Activity,
-          email,
-          op.command as Parameters<typeof changeActivity>[2],
-        )
-      : createActivity(email, input);
-  }
-  document.id = op.id;
+  const { document } = prepareOperation(value.rows, email, op);
   value.rows = value.rows.filter((r) => r.document.id !== op.id);
   value.rows.push({ kind: op.kind, document } as RecordRow);
   value.operations[`${email}:${op.key}`] = document;
@@ -217,4 +188,19 @@ export async function writeWorkspace(
 }
 export function resetSample() {
   localStorage.removeItem(storage);
+}
+
+/** One storage commit; a failed member of a batch leaves the sample untouched. */
+export function commitSampleBatch(email: string, operations: Operation[]) {
+  const state = sampleState();
+  const prior = operations.map((op) => state.operations[`${email}:${op.key}`]);
+  if (prior.every(Boolean)) return prior;
+  if (prior.some(Boolean)) throw Error("Incomplete operation batch.");
+  const prepared = prepareBatch(state.rows, email, operations);
+  state.rows = prepared.rows;
+  operations.forEach((op, i) => {
+    state.operations[`${email}:${op.key}`] = prepared.results[i].document;
+  });
+  localStorage.setItem(storage, JSON.stringify(state));
+  return prepared.results.map((r) => r.document);
 }

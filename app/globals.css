@@ -201,3 +201,41 @@ textarea:focus-visible {
 .sf-split-rules { border-top: 1px solid var(--sf-line); padding-top: 8px; }
 .sf-split-rules > * + * { margin-top: 12px; }
 .sf-split-rules > summary { color: var(--sf-ink); border-radius: 12px; background: var(--sf-sidebar); padding: 12px; }
+
+/* Reading uses a compact ledger; financial actions remain in the conversation. */
+.sf-ledger { font-size: 14px; }
+.sf-ledger-heading { display:flex; justify-content:space-between; align-items:center; gap:16px; }
+.sf-ledger-heading h1 { font-size:22px; font-weight:600; margin-top:4px; }
+.sf-ledger-heading button { min-height:44px; font-size:13px; }
+.sf-ledger-position { padding:16px 0; }
+.sf-ledger-position > p { font-size:12px; color:var(--sf-muted); margin-top:4px; }
+.sf-ledger-tabs { display:flex; border-bottom:1px solid var(--sf-line); gap:20px; }
+.sf-ledger-tabs button { min-height:44px; border-bottom:2px solid transparent; }
+.sf-ledger-tabs button[aria-current] { border-color:var(--sf-ink); font-weight:600; }
+.sf-ledger-row { display:flex; width:100%; gap:12px; align-items:center; text-align:left; padding:10px 0; min-height:56px; border-bottom:1px solid var(--sf-line); }
+button.sf-ledger-row:hover { background:var(--sf-sidebar); }
+.sf-ledger-description { flex:1; min-width:0; }
+.sf-ledger-row strong { font-weight:500; }
+.sf-ledger-row small { display:block; font-size:12px; color:var(--sf-muted); line-height:18px; overflow-wrap:anywhere; }
+.sf-ledger-row .sf-owe { color:#9a4911; }.sf-ledger-row .sf-owed { color:#147963; }
+.sf-ledger-date { width:36px; flex-shrink:0; font-size:12px; color:var(--sf-muted); }
+.sf-ledger-amount { text-align:right; font-variant-numeric:tabular-nums; max-width:45%; }
+.sf-ledger-avatar { width:28px; height:28px; border-radius:50%; background:var(--sf-hover); display:grid; place-items:center; }
+.sf-ledger-subheading { font-size:12px; color:var(--sf-muted); margin-top:24px; }
+.sf-ledger-footnote { font-size:12px; color:var(--sf-muted); margin-top:16px; }
+.sf-ledger-empty { padding:24px 0; color:var(--sf-muted); }
+.sf-conversation-money { display:flex; align-items:center; justify-content:space-between; gap:12px; font-size:13px; margin-top:8px; }
+.sf-conversation-money button { min-height:44px; text-align:right; }
+.sf-thread > * + * { margin-top:16px; }
+.sf-expense-row { padding:12px 0; font-size:14px; line-height:1.4; }
+.sf-expense-row h3 { font-size:16px; line-height:22px; }
+.sf-expense-row > details { margin-top:8px; }
+.sf-expense-row > details summary { padding:10px 0; }
+.sf-expense-row > .mt-3 { margin-top:8px; }
+.sf-expense-row > .mt-5 { margin-top:12px; }
+.sf-message-own { padding:8px 14px; font-size:14px; }
+.sf-message-other { padding:4px 0; font-size:14px; }
+.sf-activity-summary { padding-bottom:0; }
+@media(max-width:420px) { .sf-ledger-row { gap:8px; }.sf-ledger-heading h1 { font-size:20px; }.sf-ledger-date { width:30px; } }
+.sf-ledger-search { display:block; margin:12px 0 4px; }
+.sf-ledger-search input { width:100%; min-height:40px; border:1px solid var(--sf-line); border-radius:8px; padding:8px 12px; background:var(--sf-sidebar); font-size:13px; }

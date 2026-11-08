@@ -2,6 +2,8 @@
 
 The main signed-in dinner and outing workspace at / uses Supabase email-code authentication and Postgres. The main experience is conversation-first: a quiet conversation list, one thread/composer and one current split preview. Manual entry remains available without AI. Review, invitations, participant decisions, corrections, confirmed repayments and history use explicit controls and appear when needed. Deterministic money logic remains mandatory. Avoid agent-role displays, artificial waiting, duplicate artifact summaries, mandatory groups and a dashboard before the conversation. The user now requires one app for real and sample use: the guest sample workspace must share the signed-in activity components and deterministic domain model. Replace and remove the separate /demo implementation after parity checks. Shared groups contain activities; activities contain multiple expenses and may use quick, planned or recurring workflows. Most actions belong inside the activity conversation. /pilot is a compatibility redirect, never a second app. OpenAI setup is explicitly on hold. No payment processing. Keep guest sample records isolated from real accounts; never promote simulated payment confirmations into real records.
 
+Read-only money inspection uses dedicated compact Expenses, Balances and Repayments views. Financial mutations stay inline in the original conversation; overview rows hand back to that context. Do not restore sprawling read-only summaries above the composer.
+
 # SplitFlow Agent Instructions
 
 ## Product Direction

@@ -11,3 +11,9 @@ Group summaries include accessible activities, including archived records. Histo
 Only recipient-confirmed receipts reduce balances. Reported and disputed payments remain historical records without reducing debt. Overpayments remain visible as credits. Changing a repayment recipient prefills the matching obligation amount. Financial changes still require explicit review and existing server authorization.
 
 Validation: typecheck, lint, production build; 260 unit/API tests; 42 browser tests (16 conditional tests skipped); 12 additional local Supabase tests covering independent sessions, invitations, permissions, revisions and confirmed transfers. Twenty visual states at 320, 375, 768 and 1440 pixels had no overflow or browser errors and retained the composer. These checks do not establish real-user adoption or operational pilot readiness. OpenAI configuration remains on hold.
+
+## Compact reading views
+
+User review revised the information architecture: read-only inspection belongs on a dedicated view, while mutations stay in the conversation. Group sidebar entries and Your splits now open a compact overview with Expenses, Balances and Repayments tabs. Activity conversations link to their scoped overview. URL state preserves the overview on reload; selecting an expense, obligation or transfer returns to and focuses its original conversation expense. The overview omits the composer and exposes no financial mutation controls. Group management hands back to the inline workflow.
+
+Rows align totals and personal impact, use short payer summaries, and preserve full breakdowns in the conversation. The conversation balance area is now one line; message and expense spacing and typography are tighter. Existing confirmation, authorization and deterministic calculation semantics are unchanged. New browser coverage verifies reading-mode reload, absent composer and focused conversation handoff.

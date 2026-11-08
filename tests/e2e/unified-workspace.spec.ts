@@ -503,3 +503,34 @@ test("group management stays disclosed and preserves the conversation", async ({
     page.getByRole("heading", { name: "Weekend together", exact: true }),
   ).toBeVisible();
 });
+
+test("money overview reads compactly and hands actions back to the conversation", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await openActivity(page, "Weekend together");
+  await page.getByRole("button", { name: "Expenses & balances" }).click();
+  const overview = page.getByRole("region", { name: "Money overview" });
+  await expect(overview).toBeVisible();
+  await expect(page.getByLabel("Message your activity")).toHaveCount(0);
+  await expect(
+    overview.getByRole("button").filter({ hasText: "Dinner" }),
+  ).toContainText("₩60,000");
+  await page.reload();
+  await expect(overview).toBeVisible();
+  await overview.getByRole("button", { name: "Balances", exact: true }).click();
+  await expect(overview).toContainText("Who repays whom");
+  await overview
+    .getByRole("button")
+    .filter({ hasText: "Minji → Alex" })
+    .click();
+  await expect(
+    page.getByRole("article", { name: "Dinner expense" }),
+  ).toBeFocused();
+  await expect(page.getByLabel("Message your activity")).toBeVisible();
+  await page.getByRole("button", { name: "Expenses & balances" }).click();
+  await overview
+    .getByRole("button", { name: "Repayments", exact: true })
+    .click();
+  await expect(overview).toContainText("No repayments reported");
+});

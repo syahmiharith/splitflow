@@ -25,6 +25,7 @@ import {
 } from "@/lib/activity/client";
 import type { Activity, SharedGroup, Person } from "@/lib/activity/model";
 import { type Expense, type Split } from "@/lib/pilot/model";
+import { MoneyPage } from "./money-page";
 import { MoneyOverview, MoneyStatus } from "./money-overview";
 import { ActivityShare } from "./share";
 import { NewActivityForm, ScheduleForm } from "./activity-setup";
@@ -43,7 +44,7 @@ export default function ActivityWorkspace() {
     [email, setEmail] = useState(samplePeople[0].email),
     [rows, setRows] = useState<RecordRow[]>([]),
     [selected, setSelected] = useState(search.get("activity") ?? ""),
-    [group, setGroup] = useState(""),
+    [group, setGroup] = useState(search.get("overviewGroup") ?? ""),
     [list, setList] = useState(false),
     [archive, setArchive] = useState(false),
     [query, setQuery] = useState(""),
@@ -58,7 +59,22 @@ export default function ActivityWorkspace() {
     [error, setError] = useState(""),
     [text, setText] = useState(""),
     [pending, setPending] = useState<Operation>();
+  const [moneyView, setMoneyView] = useState<
+    "group" | "activity" | "all" | null
+  >(() => {
+    const value = search.get("overview");
+    return value === "group" || value === "activity" || value === "all"
+      ? value
+      : null;
+  });
   const [repeatSource, setRepeatSource] = useState<Activity>();
+  useEffect(() => {
+    if (!moneyView) return;
+    const params = new URLSearchParams({ overview: moneyView });
+    if (selected) params.set("activity", selected);
+    if (moneyView === "group") params.set("overviewGroup", group);
+    window.history.replaceState(null, "", `/?${params}`);
+  }, [moneyView, group, selected]);
   const composerRef = useRef<HTMLTextAreaElement>(null);
   useEffect(() => {
     const node = composerRef.current;
@@ -213,6 +229,7 @@ export default function ActivityWorkspace() {
     setModal("expense");
   }
   function select(id: string) {
+    setMoneyView(null);
     setSelected(id);
     setList(false);
     setMenu(false);
@@ -241,7 +258,9 @@ export default function ActivityWorkspace() {
         </button>
         <button
           onClick={() => {
-            setList(true);
+            setMoneyView("all");
+            setModal(null);
+            setList(false);
             setMenu(false);
           }}
           className="sf-nav-row"
@@ -257,11 +276,15 @@ export default function ActivityWorkspace() {
                 key={g.id}
                 onClick={() => {
                   setGroup(g.id);
-                  setModal("groups");
+                  setMoneyView("group");
+                  setModal(null);
                   setMenu(false);
                   setList(false);
                 }}
-                className="sf-nav-row"
+                className={`sf-nav-row ${moneyView === "group" && group === g.id ? "sf-nav-selected" : ""}`}
+                aria-current={
+                  moneyView === "group" && group === g.id ? "page" : undefined
+                }
               >
                 <span className="min-w-0">
                   <span className="block truncate">{g.name}</span>
@@ -287,7 +310,7 @@ export default function ActivityWorkspace() {
             <button
               key={a.id}
               onClick={() => select(a.id)}
-              className={`sf-nav-row truncate ${selected === a.id ? "sf-nav-selected" : ""}`}
+              className={`sf-nav-row truncate ${!moneyView && selected === a.id ? "sf-nav-selected" : ""}`}
             >
               {a.title}
             </button>
@@ -556,7 +579,7 @@ export default function ActivityWorkspace() {
                 <Plus size={19} />
               </summary>
               <div className="sf-popup absolute bottom-full left-0 z-20 mb-2 w-64 max-w-full">
-                {activity && (
+                {activity && !moneyView && (
                   <button
                     type="button"
                     disabled={busy || Boolean(pending)}
@@ -764,7 +787,7 @@ export default function ActivityWorkspace() {
           >
             <Users size={16} />
           </button>
-          {activity && (
+          {activity && !moneyView && (
             <button
               className="sf-header-share"
               aria-label="Share activity"
@@ -774,7 +797,7 @@ export default function ActivityWorkspace() {
               <span className="hidden sm:inline">Share</span>
             </button>
           )}
-          {activity && (
+          {activity && !moneyView && (
             <details
               className="relative"
               onClick={(e) => {
@@ -824,7 +847,7 @@ export default function ActivityWorkspace() {
         </header>
         <main className="sf-main min-h-0 flex-1 overflow-y-auto">
           <div
-            className={`sf-thread ${!activity && !inlineFlow && !list ? "sf-thread-home" : ""}`}
+            className={`sf-thread ${!activity && !inlineFlow && !list && !moneyView ? "sf-thread-home" : ""}`}
           >
             {error && (
               <p
@@ -861,7 +884,43 @@ export default function ActivityWorkspace() {
                 </button>
               </div>
             )}
-            {list && !inlineFlow ? (
+            {moneyView && !inlineFlow ? (
+              <MoneyPage
+                key={`${moneyView}:${group}:${selected}`}
+                title={
+                  moneyView === "group"
+                    ? (chosenGroup?.name ?? "Group")
+                    : moneyView === "activity"
+                      ? (activity?.title ?? "Activity")
+                      : "Your splits"
+                }
+                activities={
+                  moneyView === "group"
+                    ? activities.filter((a) => a.groupId === group)
+                    : moneyView === "activity"
+                      ? activities.filter((a) => a.id === selected)
+                      : activities
+                }
+                email={email}
+                onManage={
+                  moneyView === "group"
+                    ? () => {
+                        setMoneyView(null);
+                        setModal("groups");
+                      }
+                    : undefined
+                }
+                onOpen={(id, expense) => {
+                  select(id);
+                  setModal(null);
+                  requestAnimationFrame(() => {
+                    const node = document.getElementById(`expense-${expense}`);
+                    node?.scrollIntoView({ block: "center" });
+                    node?.focus();
+                  });
+                }}
+              />
+            ) : list && !inlineFlow ? (
               <>
                 <div className="flex items-center justify-between">
                   <h1 className="text-xl font-semibold">
@@ -947,17 +1006,21 @@ export default function ActivityWorkspace() {
                       </p>
                     </div>
                   </div>
-                  <MoneyOverview
-                    splits={activity.expenses}
-                    people={activity.people}
-                    email={email}
-                    onOpenExpense={(id) => {
-                      document
-                        .getElementById(`expense-${id}`)
-                        ?.scrollIntoView({ block: "center" });
-                      document.getElementById(`expense-${id}`)?.focus();
-                    }}
-                  />
+                  <div
+                    className="sf-conversation-money"
+                    role="region"
+                    aria-label="Activity money"
+                  >
+                    <MoneyStatus splits={activity.expenses} email={email} />
+                    <button
+                      onClick={() => {
+                        setMoneyView("activity");
+                        setModal(null);
+                      }}
+                    >
+                      Expenses & balances →
+                    </button>
+                  </div>
                 </section>
                 {!activity.expenses.length &&
                   !activity.schedule &&
@@ -1015,8 +1078,8 @@ export default function ActivityWorkspace() {
                     }
                   />
                 )}
-                <section aria-label="Conversation" className="space-y-6">
-                  <div aria-label="Activity expenses" className="space-y-6">
+                <section aria-label="Conversation" className="space-y-3">
+                  <div aria-label="Activity expenses" className="space-y-3">
                     {[
                       ...activity.messages.map((m) => ({
                         kind: "message" as const,
@@ -1103,7 +1166,10 @@ export default function ActivityWorkspace() {
             )}
           </div>
         </main>
-        {(activity || inlineFlow) && (!list || inlineFlow) && renderComposer()}
+        {(!moneyView || inlineFlow) &&
+          (activity || inlineFlow) &&
+          (!list || inlineFlow) &&
+          renderComposer()}
       </div>
       {menu && (
         <ActivityDialog title="Navigation" onClose={() => setMenu(false)}>

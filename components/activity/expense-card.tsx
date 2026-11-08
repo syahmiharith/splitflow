@@ -42,10 +42,33 @@ export function ExpenseCard({
     remaining = balances(split);
   const targets = settlements(split).filter((p) => p.from === email);
   return (
-    <article className="sf-response">
+    <article
+      id={`expense-${split.id}`}
+      tabIndex={-1}
+      aria-label={`${split.expense.title} expense`}
+      className="sf-response sf-expense-row"
+    >
       <div className="flex justify-between gap-4">
+        {split.audit[0]?.at && (
+          <time className="sf-expense-date" dateTime={split.audit[0].at}>
+            {new Date(split.audit[0].at).toLocaleDateString("en-GB", {
+              month: "short",
+              day: "numeric",
+              timeZone: "Asia/Seoul",
+            })}
+          </time>
+        )}
         <div>
           <h3 className="font-semibold">{split.expense.title}</h3>
+          <p className="mt-1 text-xs text-app-muted">
+            {split.expense.participants
+              .filter((p) => p.paid > 0)
+              .map(
+                (p) =>
+                  `${p.name} ${split.expense.mode === "planned" ? "expects to pay" : "paid"} ${money(p.paid)}`,
+              )
+              .join(" · ")}
+          </p>
           <p className="mt-1 text-xs text-app-muted">
             {split.expense.mode === "planned" ? "Planned" : "Recorded"} ·{" "}
             {money(calculated.total)}
@@ -59,7 +82,32 @@ export function ExpenseCard({
           </div>
         )}
       </div>
-      {included && <p className="mt-3 text-sm">{nextAction(split, email)}</p>}
+      {included && split.expense.mode === "paid" && (
+        <p
+          className={`mt-3 font-medium ${remaining[email] > 0 ? "sf-owe" : remaining[email] < 0 ? "sf-owed" : ""}`}
+        >
+          {remaining[email] > 0
+            ? `You owe ${money(remaining[email])}`
+            : remaining[email] < 0
+              ? `You’re owed ${money(-remaining[email])}`
+              : "Settled"}
+        </p>
+      )}
+      {targets.length > 0 && split.expense.mode === "paid" && (
+        <p className="mt-1 text-sm">
+          {targets
+            .map(
+              (t) =>
+                `Repay ${split.expense.participants.find((p) => p.email === t.to)?.name}: ${money(t.amount)}`,
+            )
+            .join(" · ")}
+        </p>
+      )}
+      {included && (
+        <p className="mt-2 text-sm text-app-muted">
+          {nextAction(split, email)}
+        </p>
+      )}
       {stale && (
         <div role="status" className="mt-3 rounded-lg bg-amber-50 p-3 text-sm">
           <p>
@@ -221,6 +269,13 @@ export function ExpenseCard({
             <select
               name="to"
               defaultValue={targets[0]?.to}
+              onChange={(e) => {
+                const input = e.currentTarget.form?.elements.namedItem(
+                  "amount",
+                ) as HTMLInputElement | null;
+                const target = targets.find((t) => t.to === e.target.value);
+                if (input) input.value = String(target?.amount ?? "");
+              }}
               className="mt-1 block w-full rounded-lg border p-3"
             >
               {split.expense.participants
@@ -268,6 +323,9 @@ export function ExpenseCard({
             {r.reason || "Declined participation"}
           </p>
         ))}
+      {split.repayments.length > 0 && (
+        <h4 className="mt-5 text-sm font-medium">Repayments</h4>
+      )}
       {split.repayments.map((p) => (
         <div key={p.id} className="mt-3 border-t pt-3 text-sm">
           <p>

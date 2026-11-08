@@ -24,13 +24,14 @@ import {
   type Operation,
 } from "@/lib/activity/client";
 import type { Activity, SharedGroup, Person } from "@/lib/activity/model";
-import { balances, type Expense, type Split } from "@/lib/pilot/model";
+import { type Expense, type Split } from "@/lib/pilot/model";
+import { MoneyOverview, MoneyStatus } from "./money-overview";
 import { ActivityShare } from "./share";
 import { NewActivityForm, ScheduleForm } from "./activity-setup";
 import { GroupEditor } from "@/components/group-editor";
 import { ActivityDialog, ActivityPanel } from "./dialog";
 import { ActivitySignIn } from "./sign-in";
-import { ExpenseCard, money } from "./expense-card";
+import { ExpenseCard } from "./expense-card";
 import { RecurringTerms } from "./recurring-terms";
 import { ActivityExpenseEditor } from "./expense-editor";
 import { splitState } from "@/lib/pilot/next-action";
@@ -262,7 +263,17 @@ export default function ActivityWorkspace() {
                 }}
                 className="sf-nav-row"
               >
-                {g.name}
+                <span className="min-w-0">
+                  <span className="block truncate">{g.name}</span>
+                  <span className="sf-sidebar-money">
+                    <MoneyStatus
+                      splits={activities
+                        .filter((a) => a.groupId === g.id)
+                        .flatMap((a) => a.expenses)}
+                      email={email}
+                    />
+                  </span>
+                </span>
               </button>
             ))}
           </>
@@ -898,6 +909,9 @@ export default function ActivityWorkspace() {
                     <strong>{a.title}</strong>
                     <p className="mt-1 text-sm text-app-muted">
                       {a.expenses.length} expenses · {a.kind}
+                      <span className="mt-2 block">
+                        <MoneyStatus splits={a.expenses} email={email} />
+                      </span>
                     </p>
                   </button>
                 ))}
@@ -933,66 +947,17 @@ export default function ActivityWorkspace() {
                       </p>
                     </div>
                   </div>
-                  <details className="mt-2 text-sm">
-                    <summary className="min-h-11 cursor-pointer py-3">
-                      Balances and people
-                    </summary>
-                    {activity.people.map((p) => {
-                      const amount = activity.expenses
-                        .filter((s) => s.expense.mode === "paid")
-                        .reduce((n, s) => n + (balances(s)[p.email] ?? 0), 0);
-                      return (
-                        <p key={p.email} className="flex justify-between py-1">
-                          <span>{p.name}</span>
-                          <span>
-                            {amount > 0
-                              ? "Owes "
-                              : amount < 0
-                                ? "Is owed "
-                                : ""}
-                            {money(Math.abs(amount))}
-                          </span>
-                        </p>
-                      );
-                    })}
-                    <div className="mt-3 border-t pt-3">
-                      <p>
-                        Paid toward costs:{" "}
-                        {money(
-                          activity.expenses
-                            .filter((s) => s.expense.mode === "paid")
-                            .reduce(
-                              (sum, s) =>
-                                sum +
-                                (s.expense.participants.find(
-                                  (p) => p.email === email,
-                                )?.paid ?? 0),
-                              0,
-                            ),
-                        )}
-                      </p>
-                      <p>
-                        Confirmed transfers received:{" "}
-                        {money(
-                          activity.expenses.reduce(
-                            (sum, s) =>
-                              sum +
-                              s.repayments
-                                .filter(
-                                  (p) =>
-                                    p.status === "confirmed" && p.to === email,
-                                )
-                                .reduce((n, p) => n + p.amount, 0),
-                            0,
-                          ),
-                        )}
-                      </p>
-                    </div>
-                    <p className="mt-2 text-xs text-app-muted">
-                      Confirmed receipts only. Planned costs are shown
-                      separately on their cards.
-                    </p>
-                  </details>
+                  <MoneyOverview
+                    splits={activity.expenses}
+                    people={activity.people}
+                    email={email}
+                    onOpenExpense={(id) => {
+                      document
+                        .getElementById(`expense-${id}`)
+                        ?.scrollIntoView({ block: "center" });
+                      document.getElementById(`expense-${id}`)?.focus();
+                    }}
+                  />
                 </section>
                 {!activity.expenses.length &&
                   !activity.schedule &&
@@ -1241,6 +1206,28 @@ function GroupsPanel({
               invited · {activities.filter((a) => a.groupId === g.id).length}{" "}
               activities visible to you
             </p>
+            <MoneyOverview
+              group
+              splits={activities
+                .filter((a) => a.groupId === g.id)
+                .flatMap((a) => a.expenses)}
+              people={g.people}
+              email={email}
+              onOpenExpense={(id) => {
+                const a = activities.find((a) =>
+                  a.expenses.some((s) => s.id === id),
+                );
+                if (a) {
+                  onOpenActivity(a.id);
+                  requestAnimationFrame(() => {
+                    document
+                      .getElementById(`expense-${id}`)
+                      ?.scrollIntoView({ block: "center" });
+                    document.getElementById(`expense-${id}`)?.focus();
+                  });
+                }
+              }}
+            />
             <div
               className="flex gap-2 border-b"
               role="tablist"
@@ -1283,9 +1270,6 @@ function GroupsPanel({
                     .slice()
                     .reverse()
                     .map((a) => {
-                      const balance = a.expenses
-                        .filter((s) => s.expense.mode === "paid")
-                        .reduce((sum, s) => sum + (balances(s)[email] ?? 0), 0);
                       return (
                         <button
                           key={a.id}
@@ -1294,19 +1278,7 @@ function GroupsPanel({
                         >
                           <span className="min-w-0 break-words">{a.title}</span>
                           <span className="shrink-0 text-xs text-app-muted">
-                            {balance > 0
-                              ? `You owe ${money(balance)}`
-                              : balance < 0
-                                ? `Owed to you ${money(-balance)}`
-                                : !a.expenses.some(
-                                      (s) => s.expense.mode === "paid",
-                                    )
-                                  ? a.schedule
-                                    ? "Recurring terms"
-                                    : a.expenses.length
-                                      ? "Planned costs"
-                                      : "No costs yet"
-                                  : "No outstanding balance"}
+                            <MoneyStatus splits={a.expenses} email={email} />
                           </span>
                         </button>
                       );

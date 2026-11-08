@@ -8,6 +8,7 @@ import {
 } from "@/lib/pilot/model";
 export function ExpenseForm({
   email,
+  compact = false,
   original,
   initial,
   startInReview = false,
@@ -23,6 +24,7 @@ export function ExpenseForm({
   reviewHeading = "Review before publishing",
 }: {
   email: string;
+  compact?: boolean;
   reviewLabel?: string;
   publishLabel?: string;
   reviewHeading?: string;
@@ -393,60 +395,6 @@ export function ExpenseForm({
             <option value="planned">Plan an expense</option>
           </select>
         </label>
-        <p>Participants</p>
-        {draft.participants.map((p, i) => (
-          <div key={i} className="grid gap-2 sm:grid-cols-2">
-            <label>
-              Name
-              <input
-                required
-                value={p.name}
-                onChange={(e) => updatePerson(i, "name", e.target.value)}
-                className="block w-full border p-3"
-              />
-            </label>
-            <label>
-              Email
-              <input
-                required
-                type="email"
-                disabled={Boolean(original)}
-                value={p.email}
-                onChange={(e) => updatePerson(i, "email", e.target.value)}
-                className="block w-full border p-3"
-              />
-            </label>
-            {advanced && (
-              <label>
-                Paid or committed (KRW)
-                <input
-                  type="number"
-                  min="0"
-                  step="1"
-                  value={p.paid}
-                  onChange={(e) => updatePerson(i, "paid", e.target.value)}
-                  className="block w-full border p-3"
-                />
-              </label>
-            )}
-          </div>
-        ))}
-        {!original && (
-          <button
-            type="button"
-            onClick={() =>
-              setDraft({
-                ...draft,
-                participants: [
-                  ...draft.participants,
-                  { name: "", email: "", paid: 0 },
-                ],
-              })
-            }
-          >
-            Add participant
-          </button>
-        )}
         {!advanced && (
           <label className="block">
             Total (KRW)
@@ -468,84 +416,200 @@ export function ExpenseForm({
             />
           </label>
         )}
-        {!advanced && (
-          <label className="block">
-            {draft.mode === "paid" ? "Who paid" : "Who will pay"}
-            <select
-              className="block w-full border p-3"
-              value={payer}
-              onChange={(event) => setPayer(Number(event.target.value))}
+        <details
+          open={!compact || advanced}
+          className={compact ? "sf-split-rules" : "contents"}
+        >
+          <summary className={compact ? "sf-money-disclosure" : "hidden"}>
+            {advanced
+              ? "Custom payer and split rules"
+              : `${draft.mode === "paid" ? "Paid" : "To be paid"} by ${draft.participants[payer]?.name || "you"} · split equally`}{" "}
+            <span aria-hidden="true">⌄</span>
+          </summary>
+          {!advanced && (
+            <label className="block">
+              {draft.mode === "paid" ? "Who paid" : "Who will pay"}
+              <select
+                className="block w-full border p-3"
+                value={payer}
+                onChange={(event) => setPayer(Number(event.target.value))}
+              >
+                {draft.participants.map((person, index) => (
+                  <option key={index} value={index}>
+                    {person.name || `Participant ${index + 1}`}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+          <p>Participants</p>
+          {draft.participants.map((p, i) => (
+            <div key={i} className="grid gap-2 sm:grid-cols-2">
+              <label>
+                Name
+                <input
+                  required
+                  value={p.name}
+                  onChange={(e) => updatePerson(i, "name", e.target.value)}
+                  className="block w-full border p-3"
+                />
+              </label>
+              <label>
+                Email
+                <input
+                  required
+                  type="email"
+                  disabled={Boolean(original)}
+                  value={p.email}
+                  onChange={(e) => updatePerson(i, "email", e.target.value)}
+                  className="block w-full border p-3"
+                />
+              </label>
+              {advanced && (
+                <label>
+                  Paid or committed (KRW)
+                  <input
+                    type="number"
+                    min="0"
+                    step="1"
+                    value={p.paid}
+                    onChange={(e) => updatePerson(i, "paid", e.target.value)}
+                    className="block w-full border p-3"
+                  />
+                </label>
+              )}
+            </div>
+          ))}
+          {!original && (
+            <button
+              type="button"
+              onClick={() =>
+                setDraft({
+                  ...draft,
+                  participants: [
+                    ...draft.participants,
+                    { name: "", email: "", paid: 0 },
+                  ],
+                })
+              }
             >
-              {draft.participants.map((person, index) => (
-                <option key={index} value={index}>
-                  {person.name || `Participant ${index + 1}`}
-                </option>
-              ))}
-            </select>
+              Add participant
+            </button>
+          )}
+          <label className="block">
+            <input
+              type="checkbox"
+              checked={advanced}
+              onChange={(e) => {
+                setAdvanced(e.target.checked);
+                setDraft({
+                  ...draft,
+                  items: draft.items.map((item) => ({
+                    ...item,
+                    included: draft.participants.map((p) => p.email),
+                  })),
+                });
+              }}
+            />{" "}
+            Item exclusions, custom shares or multiple payers
           </label>
-        )}
-        <label className="block">
-          <input
-            type="checkbox"
-            checked={advanced}
-            onChange={(e) => {
-              setAdvanced(e.target.checked);
-              setDraft({
-                ...draft,
-                items: draft.items.map((item) => ({
-                  ...item,
-                  included: draft.participants.map((p) => p.email),
-                })),
-              });
-            }}
-          />{" "}
-          Item exclusions, custom shares or multiple payers
-        </label>
-        {advanced &&
-          draft.items.map((item, index) => (
-            <div key={index} className="space-y-2 border p-3">
-              <label>
-                Item
-                <input
-                  required
-                  value={item.name}
-                  onChange={(e) =>
-                    setDraft({
-                      ...draft,
-                      items: draft.items.map((v, i) =>
-                        i === index ? { ...v, name: e.target.value } : v,
-                      ),
-                    })
-                  }
-                  className="block w-full border p-3"
-                />
-              </label>
-              <label>
-                Amount (KRW)
-                <input
-                  required
-                  type="number"
-                  min="1"
-                  step="1"
-                  value={item.amount || ""}
-                  onChange={(e) =>
-                    setDraft({
-                      ...draft,
-                      items: draft.items.map((v, i) =>
-                        i === index
-                          ? { ...v, amount: Number(e.target.value) }
-                          : v,
-                      ),
-                    })
-                  }
-                  className="block w-full border p-3"
-                />
-              </label>
-              {draft.participants.map((p) => (
-                <label key={p.email} className="block">
+          {advanced &&
+            draft.items.map((item, index) => (
+              <div key={index} className="space-y-2 border p-3">
+                <label>
+                  Item
+                  <input
+                    required
+                    value={item.name}
+                    onChange={(e) =>
+                      setDraft({
+                        ...draft,
+                        items: draft.items.map((v, i) =>
+                          i === index ? { ...v, name: e.target.value } : v,
+                        ),
+                      })
+                    }
+                    className="block w-full border p-3"
+                  />
+                </label>
+                <label>
+                  Amount (KRW)
+                  <input
+                    required
+                    type="number"
+                    min="1"
+                    step="1"
+                    value={item.amount || ""}
+                    onChange={(e) =>
+                      setDraft({
+                        ...draft,
+                        items: draft.items.map((v, i) =>
+                          i === index
+                            ? { ...v, amount: Number(e.target.value) }
+                            : v,
+                        ),
+                      })
+                    }
+                    className="block w-full border p-3"
+                  />
+                </label>
+                {draft.participants.map((p) => (
+                  <label key={p.email} className="block">
+                    <input
+                      type="checkbox"
+                      checked={item.included.includes(p.email)}
+                      onChange={(e) =>
+                        setDraft({
+                          ...draft,
+                          items: draft.items.map((v, i) =>
+                            i === index
+                              ? {
+                                  ...v,
+                                  custom: undefined,
+                                  units: undefined,
+                                  included: e.target.checked
+                                    ? [...v.included, p.email]
+                                    : v.included.filter(
+                                        (email) => email !== p.email,
+                                      ),
+                                }
+                              : v,
+                          ),
+                        })
+                      }
+                    />{" "}
+                    {p.name || "Participant"}
+                  </label>
+                ))}
+                <label className="block">
                   <input
                     type="checkbox"
-                    checked={item.included.includes(p.email)}
+                    checked={Boolean(item.custom)}
+                    onChange={(e) =>
+                      setDraft({
+                        ...draft,
+                        items: draft.items.map((v, i) =>
+                          i === index
+                            ? {
+                                ...v,
+                                units: undefined,
+                                custom: e.target.checked
+                                  ? Object.fromEntries(
+                                      v.included.map((email) => [email, 0]),
+                                    )
+                                  : undefined,
+                              }
+                            : v,
+                        ),
+                      })
+                    }
+                  />{" "}
+                  Set individual amounts
+                </label>
+                <label className="block">
+                  <input
+                    type="checkbox"
+                    checked={Boolean(item.units)}
                     onChange={(e) =>
                       setDraft({
                         ...draft,
@@ -554,165 +618,114 @@ export function ExpenseForm({
                             ? {
                                 ...v,
                                 custom: undefined,
-                                units: undefined,
-                                included: e.target.checked
-                                  ? [...v.included, p.email]
-                                  : v.included.filter(
-                                      (email) => email !== p.email,
-                                    ),
+                                units: e.target.checked
+                                  ? Object.fromEntries(
+                                      v.included.map((email) => [email, 1]),
+                                    )
+                                  : undefined,
                               }
                             : v,
                         ),
                       })
                     }
                   />{" "}
-                  {p.name || "Participant"}
+                  By units
                 </label>
-              ))}
-              <label className="block">
-                <input
-                  type="checkbox"
-                  checked={Boolean(item.custom)}
-                  onChange={(e) =>
-                    setDraft({
-                      ...draft,
-                      items: draft.items.map((v, i) =>
-                        i === index
-                          ? {
-                              ...v,
-                              units: undefined,
-                              custom: e.target.checked
-                                ? Object.fromEntries(
-                                    v.included.map((email) => [email, 0]),
-                                  )
-                                : undefined,
-                            }
-                          : v,
-                      ),
-                    })
-                  }
-                />{" "}
-                Set individual amounts
-              </label>
-              <label className="block">
-                <input
-                  type="checkbox"
-                  checked={Boolean(item.units)}
-                  onChange={(e) =>
-                    setDraft({
-                      ...draft,
-                      items: draft.items.map((v, i) =>
-                        i === index
-                          ? {
-                              ...v,
-                              custom: undefined,
-                              units: e.target.checked
-                                ? Object.fromEntries(
-                                    v.included.map((email) => [email, 1]),
-                                  )
-                                : undefined,
-                            }
-                          : v,
-                      ),
-                    })
-                  }
-                />{" "}
-                By units
-              </label>
-              {item.units &&
-                item.included.map((email) => (
-                  <label key={email} className="block">
-                    {draft.participants.find((p) => p.email === email)?.name}{" "}
-                    units
-                    <input
-                      type="number"
-                      min="1"
-                      max="1000000"
-                      step="1"
-                      required
-                      value={item.units?.[email] ?? 1}
-                      onChange={(e) =>
-                        setDraft({
-                          ...draft,
-                          items: draft.items.map((v, i) =>
-                            i === index
-                              ? {
-                                  ...v,
-                                  units: {
-                                    ...v.units,
-                                    [email]: Number(e.target.value),
-                                  },
-                                }
-                              : v,
-                          ),
-                        })
-                      }
-                      className="block w-full border p-3"
-                    />
-                  </label>
-                ))}
-              {item.custom &&
-                item.included.map((email) => (
-                  <label key={email} className="block">
-                    {draft.participants.find((p) => p.email === email)?.name}
-                    <input
-                      type="number"
-                      min="0"
-                      step="1"
-                      value={item.custom?.[email] ?? 0}
-                      className="block border p-3"
-                      onChange={(e) =>
-                        setDraft({
-                          ...draft,
-                          items: draft.items.map((v, i) =>
-                            i === index
-                              ? {
-                                  ...v,
-                                  custom: {
-                                    ...v.custom,
-                                    [email]: Number(e.target.value),
-                                  },
-                                }
-                              : v,
-                          ),
-                        })
-                      }
-                    />
-                  </label>
-                ))}
-            </div>
-          ))}
-        {advanced && (
-          <button
-            type="button"
-            onClick={() =>
-              setDraft({
-                ...draft,
-                items: [
-                  ...draft.items,
-                  {
-                    name: "",
-                    amount: 0,
-                    included: draft.participants.map((p) => p.email),
-                  },
-                ],
-              })
-            }
-          >
-            Add item
-          </button>
-        )}
-        {original && (
-          <label className="block">
-            Reason for change
-            <input
-              required
-              value={reason}
-              onChange={(e) => setReason(e.target.value)}
-              className="block w-full border p-3"
-            />
-          </label>
-        )}
+                {item.units &&
+                  item.included.map((email) => (
+                    <label key={email} className="block">
+                      {draft.participants.find((p) => p.email === email)?.name}{" "}
+                      units
+                      <input
+                        type="number"
+                        min="1"
+                        max="1000000"
+                        step="1"
+                        required
+                        value={item.units?.[email] ?? 1}
+                        onChange={(e) =>
+                          setDraft({
+                            ...draft,
+                            items: draft.items.map((v, i) =>
+                              i === index
+                                ? {
+                                    ...v,
+                                    units: {
+                                      ...v.units,
+                                      [email]: Number(e.target.value),
+                                    },
+                                  }
+                                : v,
+                            ),
+                          })
+                        }
+                        className="block w-full border p-3"
+                      />
+                    </label>
+                  ))}
+                {item.custom &&
+                  item.included.map((email) => (
+                    <label key={email} className="block">
+                      {draft.participants.find((p) => p.email === email)?.name}
+                      <input
+                        type="number"
+                        min="0"
+                        step="1"
+                        value={item.custom?.[email] ?? 0}
+                        className="block border p-3"
+                        onChange={(e) =>
+                          setDraft({
+                            ...draft,
+                            items: draft.items.map((v, i) =>
+                              i === index
+                                ? {
+                                    ...v,
+                                    custom: {
+                                      ...v.custom,
+                                      [email]: Number(e.target.value),
+                                    },
+                                  }
+                                : v,
+                            ),
+                          })
+                        }
+                      />
+                    </label>
+                  ))}
+              </div>
+            ))}
+          {advanced && (
+            <button
+              type="button"
+              onClick={() =>
+                setDraft({
+                  ...draft,
+                  items: [
+                    ...draft.items,
+                    {
+                      name: "",
+                      amount: 0,
+                      included: draft.participants.map((p) => p.email),
+                    },
+                  ],
+                })
+              }
+            >
+              Add item
+            </button>
+          )}
+          {original && (
+            <label className="block">
+              Reason for change
+              <input
+                required
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+                className="block w-full border p-3"
+              />
+            </label>
+          )}
+        </details>
       </fieldset>
       {review && (
         <>

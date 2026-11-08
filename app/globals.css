@@ -182,3 +182,22 @@ textarea:focus-visible {
 .sf-group-activity { display: flex; width: 100%; min-height: 56px; align-items: center; justify-content: space-between; gap: 16px; border-bottom: 1px solid var(--sf-line); padding: 12px 0; text-align: left; font-size: 14px; }
 @media(max-width: 639px) { .sf-group-activity { align-items: flex-start; flex-direction: column; gap: 4px; } }
 .sf-inline-panel > header .sf-flow-label { font-size: 13px; line-height: 20px; }
+.sf-money-status { display: inline-flex; flex-wrap: wrap; gap: 4px 14px; }
+.sf-owe { color: #9a4911; }
+.sf-owed { color: #147963; }
+.sf-sidebar-money { display: block; font-size: 11px; line-height: 16px; font-weight: 400; margin-top: 3px; }
+.sf-money-overview { margin: 16px 0; }
+.sf-money-disclosure { cursor: pointer; min-height: 40px; padding: 10px 0; font-size: 13px; }
+.sf-money-person { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 12px 0; font-size: 14px; }
+.sf-obligation { display: flex; justify-content: space-between; align-items: center; gap: 12px; width: 100%; text-align: left; border-bottom: 1px solid var(--sf-line); padding: 12px 0; font-size: 14px; }
+.sf-obligation small { display: block; color: var(--sf-muted); margin-top: 3px; }
+.sf-money-totals { display: grid; grid-template-columns: 1fr auto; gap: 12px; padding: 12px 0; font-size: 14px; }
+.sf-money-totals dd { text-align: right; font-variant-numeric: tabular-nums; }
+.sf-expense-row { border-top: 1px solid var(--sf-line); }
+.sf-expense-date { flex-shrink: 0; width: 40px; color: var(--sf-muted); font-size: 12px; line-height: 18px; padding-top: 4px; }
+.sf-expense-row > div:first-child > div:first-of-type { flex: 1; }
+@media(max-width: 420px) { .sf-expense-date { width: 30px; } .sf-expense-row > div:first-child { gap: 10px; } }
+.sf-compact-expense > form { border: 0; padding: 0; border-radius: 0; }
+.sf-split-rules { border-top: 1px solid var(--sf-line); padding-top: 8px; }
+.sf-split-rules > * + * { margin-top: 12px; }
+.sf-split-rules > summary { color: var(--sf-ink); border-radius: 12px; background: var(--sf-sidebar); padding: 12px; }

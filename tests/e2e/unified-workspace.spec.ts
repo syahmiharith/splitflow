@@ -34,6 +34,9 @@ test("guest activity uses the same conversation for costs and recipient confirma
   await expect(
     page.getByRole("heading", { name: "Dinner", exact: true }),
   ).toBeVisible();
+  await expect(
+    page.getByRole("region", { name: "Activity money" }),
+  ).toContainText("You’re owed ₩40,000");
   if (test.info().project.name === "mobile")
     await page.getByRole("button", { name: "Open navigation" }).click();
   await page
@@ -45,8 +48,14 @@ test("guest activity uses the same conversation for costs and recipient confirma
   await page
     .getByRole("button", { name: "Report payment", exact: true })
     .click();
+  await expect(
+    page.getByRole("region", { name: "Activity money" }),
+  ).toContainText("You owe ₩20,000");
   await page.getByLabel("Reference (optional)").fill("Sample transfer");
   await page.getByRole("button", { name: "Report sent", exact: true }).click();
+  await expect(
+    page.getByRole("region", { name: "Activity money" }),
+  ).toContainText("You owe ₩20,000");
   await expect(
     page.getByText("Sample transfer", { exact: true }),
   ).toBeVisible();
@@ -62,6 +71,9 @@ test("guest activity uses the same conversation for costs and recipient confirma
     .getByRole("button", { name: "Confirm received", exact: true })
     .click();
   await expect(page.getByText(/₩20,000 · confirmed/)).toBeVisible();
+  await expect(
+    page.getByRole("region", { name: "Activity money" }),
+  ).toContainText("You’re owed ₩20,000");
   await page.reload();
   await expect(page.getByText(/₩20,000 · confirmed/)).toBeVisible();
 });
@@ -455,7 +467,11 @@ test("group management stays disclosed and preserves the conversation", async ({
   await openActivity(page, "Weekend together");
   await page.getByRole("button", { name: "Groups", exact: true }).click();
   const panel = page.getByRole("region", { name: "Shared groups" });
-  if (!(await panel.getByRole("tab", { name: "People & invitations" }).isVisible())) {
+  if (
+    !(await panel
+      .getByRole("tab", { name: "People & invitations" })
+      .isVisible())
+  ) {
     await panel.getByRole("button", { name: /^Friends & housemates/ }).click();
   }
   await panel.getByRole("tab", { name: "People & invitations" }).click();

@@ -112,7 +112,7 @@ export function ActivityExpenseEditor({
   if (!loaded)
     return <p role="status">{status || "Loading your private draft…"}</p>;
   return (
-    <div className="space-y-3">
+    <div className="sf-compact-expense space-y-3">
       {status && (
         <p role="status" className="text-xs text-app-muted">
           {status}
@@ -132,6 +132,7 @@ export function ActivityExpenseEditor({
         </button>
       )}
       <ExpenseForm
+        compact
         allowAIDraft={false}
         key={version}
         email={email}

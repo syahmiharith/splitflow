@@ -1,4 +1,5 @@
 "use client";
+import { Dialog } from "@/components/controls/dialog";
 import Link from "next/link";
 import {
   FileText,
@@ -49,15 +50,10 @@ export function WorkspaceFrame({
 }) {
   const content = useRef<HTMLElement>(null);
   const [menuOpen, setMenuOpen] = useState(false);
-  const menu = useRef<HTMLDialogElement>(null);
   useEffect(() => {
     content.current?.scrollTo({ top: 0 });
     setMenuOpen(false);
   }, [viewKey]);
-  useEffect(() => {
-    if (menuOpen) menu.current?.showModal();
-    else menu.current?.close();
-  }, [menuOpen]);
   function sidebar() {
     return (
       <>
@@ -214,12 +210,11 @@ export function WorkspaceFrame({
           </div>
         </main>
       </div>
-      <dialog
-        aria-label="Navigation"
-        ref={menu}
-        onCancel={() => setMenuOpen(false)}
+      <Dialog
+        open={menuOpen}
         onClose={() => setMenuOpen(false)}
-        className="m-0 h-dvh max-h-none w-72 max-w-[90vw] bg-slate-50 p-0 text-app-text backdrop:bg-black/30"
+        title="Navigation"
+        drawer
       >
         <div className="flex h-full flex-col">
           <button
@@ -231,7 +226,7 @@ export function WorkspaceFrame({
           </button>
           {sidebar()}
         </div>
-      </dialog>
+      </Dialog>
     </div>
   );
 }

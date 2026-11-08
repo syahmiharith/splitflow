@@ -252,3 +252,54 @@ button.sf-ledger-row:hover { background:var(--sf-sidebar); }
 .sf-assistant-confirm { background:var(--sf-ink);color:white;border-radius:8px;padding:0 14px; }
 .sf-assistant-status { font-size:13px; padding:12px; background:var(--sf-sidebar); border-radius:8px; }
 .sf-assistant-status button { text-decoration:underline; }
+
+/* Reference-led controls: quiet triggers, compact selected rows, focused surfaces. */
+.sf-select { display:inline-flex; align-items:center; justify-content:space-between; gap:12px; width:100%; min-height:44px; padding:10px 12px; border:1px solid var(--sf-line,#e5e5e5); border-radius:10px; background:white; color:var(--sf-ink,#202020); font-size:14px; font-weight:400; text-align:left; cursor:pointer; }
+.sf-select > span:first-child { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0; }
+.sf-select > span:last-child { flex-shrink:0; color:var(--sf-muted,#737373); }
+.sf-select:disabled { cursor:not-allowed; opacity:.5; }
+.sf-select[data-state="open"] { background:var(--sf-hover,#f3f3f3); }
+.sf-select-menu { z-index:100; width:max-content; min-width:var(--radix-select-trigger-width); max-width:calc(100vw - 24px); max-height:min(320px,var(--radix-select-content-available-height)); overflow:hidden; border:1px solid #e9e9e9; border-radius:12px; background:#fff; color:#202020; box-shadow:0 4px 20px #00000012,0 1px 4px #00000008; font-size:14px; }
+.sf-select-options { padding:5px; }
+.sf-select-option { display:flex; align-items:center; justify-content:space-between; gap:20px; min-height:40px; padding:9px 10px; border-radius:7px; outline:none; cursor:pointer; user-select:none; overflow-wrap:anywhere; }
+.sf-select-option[data-highlighted] { background:#f3f3f3; }
+.sf-select-option[data-state="checked"] { font-weight:500; }
+.sf-select-option[data-disabled] { opacity:.4; cursor:not-allowed; }
+.sf-select-scroll { display:flex; justify-content:center; padding:4px; }
+.sf-account-select.sf-select { padding:0 4px 0 0; min-height:28px; border:0; background:transparent; }
+.sf-composer-mode label { display:flex; align-items:center; gap:4px; }
+.sf-composer-mode .sf-select { width:auto; min-height:32px; padding:4px 7px; border:0; background:transparent; font-size:12px; }
+.sf-composer-mode .sf-select:hover { background:var(--sf-hover,#f3f3f3); }
+.sf-dialog-backdrop { position:fixed; inset:0; z-index:80; background:#0006; animation:sf-controls-in .12s ease-out; }
+.sf-dialog-surface { position:fixed; z-index:81; left:50%; top:50%; transform:translate(-50%,-50%); width:calc(100% - 32px); max-width:560px; max-height:calc(100dvh - 48px); overflow-y:auto; overscroll-behavior:contain; background:white; color:#202020; border:1px solid #e7e7e7; border-radius:16px; box-shadow:0 16px 64px #0002; outline:none; animation:sf-controls-in .12s ease-out; }
+.sf-dialog-heading { position:sticky; top:0; z-index:1; display:flex; align-items:center; justify-content:space-between; gap:12px; padding:16px 20px 8px; background:white; }
+.sf-dialog-heading h2 { font-size:17px; font-weight:600; letter-spacing:-.02em; }
+.sf-dialog-close { display:grid; place-items:center; flex-shrink:0; width:36px; height:36px; border:0; border-radius:50%; background:transparent; color:#737373; }
+.sf-dialog-close:hover { background:#f3f3f3; color:#202020; }
+.sf-dialog-body { padding:8px 20px 24px; }
+.sf-dialog-drawer { left:0; top:0; transform:none; width:min(300px,88vw); height:100dvh; max-height:100dvh; border:0; border-radius:0 16px 16px 0; background:var(--sf-sidebar,#f8f8f8); }
+.sf-dialog-drawer .sf-dialog-heading { background:var(--sf-sidebar,#f8f8f8); }
+.sf-dialog-drawer .sf-dialog-body { padding:8px; height:calc(100% - 60px); }
+.sf-dialog-drawer .sf-dialog-body > div { min-height:100%; }
+.sf-date-trigger { display:flex; align-items:center; gap:10px; width:100%; min-height:44px; padding:10px 12px; border:1px solid #e5e5e5; border-radius:10px; background:#fff; font-size:14px; text-align:left; }
+.sf-date-trigger > span { flex:1; }
+.sf-date-trigger > svg { color:#737373; flex-shrink:0; }
+.sf-calendar { z-index:100; width:288px; max-width:calc(100vw - 24px); padding:12px; border:1px solid #e7e7e7; border-radius:12px; background:white; color:#202020; box-shadow:0 4px 20px #00000012; }
+.sf-calendar-heading { display:flex; align-items:center; gap:4px; padding-bottom:10px; font-size:14px; }
+.sf-calendar-heading strong { flex:1; font-weight:500; }
+.sf-calendar-heading button { display:grid; place-items:center; width:32px; height:32px; padding:0; border:0; border-radius:7px; background:transparent; }
+.sf-calendar-week { display:grid; grid-template-columns:repeat(7,minmax(0,1fr)); text-align:center; }
+.sf-calendar-week [role="columnheader"] { padding:7px 0; font-size:11px; color:#737373; }
+.sf-calendar-week button { width:100%; height:36px; min-height:0; border:0; border-radius:7px; background:transparent; padding:0; font-size:13px; font-weight:400; }
+.sf-calendar button:hover { background:#f3f3f3; }
+.sf-calendar [aria-selected="true"] button { background:#202020; color:white; }
+.sf-calendar [aria-current="date"] { font-weight:700; text-decoration:underline; text-underline-offset:4px; }
+.sf-calendar-footer { display:flex; justify-content:space-between; margin-top:10px; padding-top:8px; border-top:1px solid #eee; }
+.sf-calendar-footer button { padding:8px; border:0; border-radius:7px; background:transparent; font-size:12px; }
+.sf-inline-panel [role="alert"], .sf-dialog-surface [role="alert"], .sf-workspace [role="alert"] { padding:12px 14px; border:1px solid #edd9d5; border-radius:10px; background:#fdf6f4; color:#923e30; font-size:13px; line-height:1.5; }
+@keyframes sf-controls-in { from { opacity:0; } to { opacity:1; } }
+@media(max-width:600px) { .sf-dialog-surface:not(.sf-dialog-drawer) { width:calc(100% - 24px); max-height:calc(100dvh - 24px); border-radius:14px; } .sf-dialog-heading { padding:12px 16px 8px; } .sf-dialog-body { padding:8px 16px 20px; } .sf-select-option { min-height:44px; } }
+@media(prefers-reduced-motion:reduce) { .sf-dialog-surface,.sf-dialog-backdrop { animation:none; } }
+
+.sf-field-feedback { display:block; margin-top:6px; color:#923e30; font-size:12px; font-weight:400; line-height:1.5; }
+[aria-invalid="true"] { border-color:#b85240 !important; }

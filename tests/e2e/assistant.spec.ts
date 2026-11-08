@@ -172,7 +172,8 @@ test("guest unavailable assistant retains private messages without posting to th
   await expect(
     page.getByRole("region", { name: "Conversation", exact: true }),
   ).not.toContainText("Privately review");
-  await page.getByLabel("Message destination").selectOption("group");
+  await page.getByLabel("Message destination").click();
+  await page.getByRole("option", { name: "Message group", exact: true }).click();
   await page.getByLabel("Message your activity").fill("Hello everyone");
   await page.getByRole("button", { name: "Send message" }).click();
   await expect(

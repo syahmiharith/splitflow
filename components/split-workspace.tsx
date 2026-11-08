@@ -1,4 +1,5 @@
 "use client";
+import { Select } from "@/components/controls/select";
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -792,7 +793,7 @@ export default function SplitWorkspace() {
                     >
                       <label>
                         Recipient
-                        <select name="to" className="block border p-3">
+                        <Select name="to" className="block border p-3">
                           {split.expense.participants
                             .filter((p) => p.email !== email)
                             .map((p) => (
@@ -800,7 +801,7 @@ export default function SplitWorkspace() {
                                 {p.name}
                               </option>
                             ))}
-                        </select>
+                        </Select>
                       </label>
                       <label>
                         Amount sent (KRW)

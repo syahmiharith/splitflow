@@ -18,9 +18,8 @@ it("allows a single payer other than the organizer and focuses the review headin
   fireEvent.change(screen.getByLabelText("Total (KRW)"), {
     target: { value: "60000" },
   });
-  fireEvent.change(screen.getByLabelText("Who paid"), {
-    target: { value: "1" },
-  });
+  fireEvent.keyDown(screen.getByLabelText("Who paid"), { key: "ArrowDown" });
+  fireEvent.click(screen.getByRole("option", { name: "Guest" }));
   fireEvent.click(screen.getByRole("button", { name: "Review split" }));
   expect(
     screen.getByRole("heading", { name: "Review before publishing" }),

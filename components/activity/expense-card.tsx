@@ -1,4 +1,5 @@
 "use client";
+import { Select } from "@/components/controls/select";
 import { useState, useEffect } from "react";
 import {
   balances,
@@ -281,7 +282,7 @@ export function ExpenseCard({
         >
           <label>
             Recipient
-            <select
+            <Select
               name="to"
               defaultValue={
                 typeof draftCommand?.to === "string"
@@ -304,7 +305,7 @@ export function ExpenseCard({
                     {p.name}
                   </option>
                 ))}
-            </select>
+            </Select>
           </label>
           <label>
             Amount (KRW)

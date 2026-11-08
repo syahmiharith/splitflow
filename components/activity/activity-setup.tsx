@@ -1,4 +1,6 @@
 "use client";
+import { DatePicker } from "@/components/controls/date-picker";
+import { Select } from "@/components/controls/select";
 import { useEffect, useRef, useState } from "react";
 import {
   activityInput,
@@ -165,7 +167,7 @@ export function NewActivityForm({
           </h2>
           <label className="block">
             Use a group (optional)
-            <select
+            <Select
               value={groupId}
               disabled={Boolean(seed)}
               onChange={(e) => {
@@ -190,7 +192,7 @@ export function NewActivityForm({
                     {g.name}
                   </option>
                 ))}
-            </select>
+            </Select>
           </label>
           <fieldset disabled={busy} className="space-y-3">
             <legend className="mb-2 font-medium">
@@ -598,7 +600,7 @@ export function ScheduleForm({
                 </label>
                 <label className="block">
                   Expected payer
-                  <select
+                  <Select
                     value={payer}
                     onChange={(e) => setPayer(e.target.value)}
                     className={inputClass}
@@ -608,7 +610,7 @@ export function ScheduleForm({
                         {p.name}
                       </option>
                     ))}
-                  </select>
+                  </Select>
                 </label>
                 <p className="text-app-muted">
                   Split equally between {activity.people.length} people.
@@ -665,13 +667,7 @@ export function ScheduleForm({
           <div className="grid gap-4 sm:grid-cols-2">
             <label>
               First period starts
-              <input
-                type="date"
-                required
-                value={start}
-                onChange={(e) => setStart(e.target.value)}
-                className={inputClass}
-              />
+              <DatePicker label="First period starts" value={start} onChange={setStart} className={inputClass} />
             </label>
             <label>
               Due day of month (1–28)

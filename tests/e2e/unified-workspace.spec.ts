@@ -49,7 +49,8 @@ test("guest activity uses the same conversation for costs and recipient confirma
   await page
     .getByLabel("Sample person")
     .filter({ visible: true })
-    .selectOption("minji@example.test");
+    .click();
+  await page.getByRole("option", { name: "Minji", exact: true }).click();
   if (test.info().project.name === "mobile")
     await page.getByRole("button", { name: "Close Navigation" }).click();
   await page
@@ -71,7 +72,8 @@ test("guest activity uses the same conversation for costs and recipient confirma
   await page
     .getByLabel("Sample person")
     .filter({ visible: true })
-    .selectOption("alex@example.test");
+    .click();
+  await page.getByRole("option", { name: "Alex", exact: true }).click();
   if (test.info().project.name === "mobile")
     await page.getByRole("button", { name: "Close Navigation" }).click();
   await page
@@ -155,7 +157,8 @@ test("recurring terms require acceptance before a period appears", async ({
   await page
     .getByLabel("Sample person")
     .filter({ visible: true })
-    .selectOption("minji@example.test");
+    .click();
+  await page.getByRole("option", { name: "Minji", exact: true }).click();
   if (test.info().project.name === "mobile")
     await page.getByRole("button", { name: "Close Navigation" }).click();
   await page
@@ -192,7 +195,8 @@ test("repeating an activity reuses people and rules without copying payment hist
     page.getByLabel("Activity expenses").locator("article"),
   ).toHaveCount(0);
   await page.getByLabel("Enter manually").click();
-  await page.getByLabel("Reuse expense rules").selectOption("0");
+  await page.getByLabel("Reuse expense rules").click();
+  await page.getByRole("option", { name: "Dinner", exact: true }).click();
   await expect(
     page
       .getByRole("region", { name: "Review expense" })
@@ -280,7 +284,8 @@ test("an interrupted activity submission replays its original key after reload",
     return route.fulfill({ json: document() });
   });
   await page.goto(`/?activity=${id}`);
-  await page.getByLabel("Message destination").selectOption("group");
+  await page.getByLabel("Message destination").click();
+  await page.getByRole("option", { name: "Message group", exact: true }).click();
   await page
     .getByLabel("Message your activity")
     .fill("Remember the shared tickets");
@@ -380,7 +385,8 @@ test("cost editing stays inline with discussion and the persistent composer", as
 }) => {
   await page.goto("/");
   await openActivity(page, "Weekend together");
-  await page.getByLabel("Message destination").selectOption("group");
+  await page.getByLabel("Message destination").click();
+  await page.getByRole("option", { name: "Message group", exact: true }).click();
   await page
     .getByLabel("Message your activity")
     .fill("Keep the dinner and taxi together");

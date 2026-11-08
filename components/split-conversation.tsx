@@ -1,4 +1,6 @@
 "use client";
+import { Dialog } from "@/components/controls/dialog";
+import { Select } from "@/components/controls/select";
 import { useEffect, useRef, useState } from "react";
 import { GroupChooser } from "./group-chooser";
 import { expenseFromGroup, type SavedGroup } from "@/lib/pilot/groups";
@@ -36,7 +38,6 @@ export function SplitConversation({
   const guard = useRef(false);
   const reviewRevision = useRef(conversation?.revision ?? 0);
   const end = useRef<HTMLDivElement>(null);
-  const dialog = useRef<HTMLDialogElement>(null);
   const draft = split?.expense ?? conversation?.draft;
   const reused = previousSplits.find((s) => s.id === reuse)?.expense;
   const manualInitial = groupPreset
@@ -67,12 +68,6 @@ export function SplitConversation({
   useEffect(() => {
     end.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
   }, [conversation?.messages.length, busy]);
-  useEffect(() => {
-    if (manual || review) {
-      dialog.current?.showModal();
-      dialog.current?.querySelector<HTMLElement>("h2")?.focus();
-    } else dialog.current?.close();
-  }, [manual, review]);
   async function save(
     payload: { message?: string; draft?: Expense },
     retry = false,
@@ -352,21 +347,14 @@ export function SplitConversation({
           Drafts stay private. Review before publishing.
         </p>
       </div>
-      <dialog
-        aria-label={review ? "Review split" : "Enter expense"}
-        ref={dialog}
-        onCancel={(event) => {
-          if (busy) event.preventDefault();
-          else {
-            setManual(false);
-            setReview(false);
-          }
-        }}
+      <Dialog
+        open={manual || review}
+        title={review ? "Review split" : "Enter expense"}
+        busy={busy}
         onClose={() => {
           setManual(false);
           setReview(false);
         }}
-        className="m-auto max-h-[90dvh] w-[calc(100%-24px)] max-w-2xl overflow-y-auto rounded-xl bg-white p-0 text-app-text backdrop:bg-black/30"
       >
         <div className="sticky top-0 z-10 flex items-center justify-between border-b border-app-border bg-white px-5 py-3">
           <span className="text-sm font-semibold">
@@ -388,7 +376,7 @@ export function SplitConversation({
         {manual && !split && previousSplits.length > 0 && (
           <label className="block px-5 pt-4 text-sm">
             Reuse people from a previous split
-            <select
+            <Select
               value={reuse}
               onChange={(event) => {
                 setGroupPreset(undefined);
@@ -402,7 +390,7 @@ export function SplitConversation({
                   {s.expense.title}
                 </option>
               ))}
-            </select>
+            </Select>
           </label>
         )}
         {(manual || review) && (
@@ -421,7 +409,7 @@ export function SplitConversation({
             {error}
           </p>
         )}
-      </dialog>
+      </Dialog>
     </section>
   );
 }

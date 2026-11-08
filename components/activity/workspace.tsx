@@ -1,4 +1,5 @@
 "use client";
+import { Select } from "@/components/controls/select";
 import { pilotRequest } from "@/lib/pilot/session";
 import { useAssistant } from "./use-assistant";
 import { AssistantThread } from "./assistant-thread";
@@ -357,7 +358,7 @@ export default function ActivityWorkspace() {
             {guest ? (
               <label className="block">
                 <span className="sr-only">Sample person</span>
-                <select
+                <Select
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   className="sf-account-select"
@@ -367,7 +368,7 @@ export default function ActivityWorkspace() {
                       {p.name}
                     </option>
                   ))}
-                </select>
+                </Select>
               </label>
             ) : (
               <p className="truncate text-sm">{email}</p>
@@ -750,7 +751,7 @@ export default function ActivityWorkspace() {
         <div className="sf-composer-mode">
           <label>
             Send to{" "}
-            <select
+            <Select
               aria-label="Message destination"
               value={composerMode}
               onChange={(e) =>
@@ -759,7 +760,7 @@ export default function ActivityWorkspace() {
             >
               <option value="assistant">SplitFlow · private</option>
               {activity && <option value="group">Message group</option>}
-            </select>
+            </Select>
           </label>
         </div>
         <form
@@ -829,7 +830,7 @@ export default function ActivityWorkspace() {
                     </button>
                   ))}
                 {Boolean(activity?.templates?.length) && (
-                  <select
+                  <Select
                     aria-label="Reuse expense rules"
                     value=""
                     onChange={(e) => {
@@ -868,7 +869,7 @@ export default function ActivityWorkspace() {
                         {t.title}
                       </option>
                     ))}
-                  </select>
+                  </Select>
                 )}
                 <button
                   type="button"

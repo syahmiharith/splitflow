@@ -1,4 +1,5 @@
 "use client";
+import { Select } from "@/components/controls/select";
 import { pilotRequest } from "@/lib/pilot/session";
 import { useEffect, useRef, useState } from "react";
 import {
@@ -384,7 +385,7 @@ export function ExpenseForm({
         </label>
         <label className="block">
           Expense type
-          <select
+          <Select
             className="block border p-3"
             value={draft.mode}
             onChange={(e) =>
@@ -393,7 +394,7 @@ export function ExpenseForm({
           >
             <option value="paid">Already paid</option>
             <option value="planned">Plan an expense</option>
-          </select>
+          </Select>
         </label>
         {!advanced && (
           <label className="block">
@@ -429,7 +430,7 @@ export function ExpenseForm({
           {!advanced && (
             <label className="block">
               {draft.mode === "paid" ? "Who paid" : "Who will pay"}
-              <select
+              <Select
                 className="block w-full border p-3"
                 value={payer}
                 onChange={(event) => setPayer(Number(event.target.value))}
@@ -439,7 +440,7 @@ export function ExpenseForm({
                     {person.name || `Participant ${index + 1}`}
                   </option>
                 ))}
-              </select>
+              </Select>
             </label>
           )}
           <p>Participants</p>

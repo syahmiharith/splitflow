@@ -371,7 +371,8 @@ test("planned allocations require renewed review after a change", async ({
   ];
   await signIn(page, emails[0]);
   await newDinner(page, emails, "Planned outing");
-  await page.getByLabel("Expense type").selectOption("planned");
+  await page.getByLabel("Expense type").click();
+  await page.getByRole("option", { name: "Plan an expense", exact: true }).click();
   await publish(page);
   const link = await invitation(page, "Guest 1");
   const participant = await guest(browser, page);

@@ -1,4 +1,5 @@
 "use client";
+import { ProfileMenu } from "@/components/controls/profile-menu";
 import { Select } from "@/components/controls/select";
 import { pilotRequest } from "@/lib/pilot/session";
 import { useAssistant } from "./use-assistant";
@@ -349,39 +350,7 @@ export default function ActivityWorkspace() {
             </button>
           ))}
         <div className="sf-account">
-          <span className="sf-avatar" aria-hidden="true">
-            {(guest ? samplePeople.find((p) => p.email === email)?.name : email)
-              ?.slice(0, 1)
-              .toUpperCase()}
-          </span>
-          <div className="min-w-0 flex-1">
-            {guest ? (
-              <label className="block">
-                <span className="sr-only">Sample person</span>
-                <Select
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="sf-account-select"
-                >
-                  {samplePeople.map((p) => (
-                    <option key={p.email} value={p.email}>
-                      {p.name}
-                    </option>
-                  ))}
-                </Select>
-              </label>
-            ) : (
-              <p className="truncate text-sm">{email}</p>
-            )}
-            <p className="text-xs text-app-muted">
-              {guest ? "Guest sample workspace" : "Personal account"}
-            </p>
-          </div>
-          <details className="relative">
-            <summary aria-label="Account options" className="sf-icon-button">
-              <MoreHorizontal size={18} />
-            </summary>
-            <div className="sf-popup absolute bottom-full right-0 mb-2 w-52">
+          <ProfileMenu name={guest ? samplePeople.find(p => p.email === email)?.name ?? "Sample" : email} subtitle={guest ? "Guest sample workspace" : "Personal account"} people={guest ? samplePeople : undefined} email={email} onSelect={setEmail}>
               {guest ? (
                 <>
                   <button onClick={() => setModal("signin")}>
@@ -412,8 +381,7 @@ export default function ActivityWorkspace() {
                   </button>
                 </>
               )}
-            </div>
-          </details>
+          </ProfileMenu>
         </div>
       </>
     );

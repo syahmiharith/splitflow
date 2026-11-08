@@ -21,10 +21,9 @@ test("custom menus support keyboard selection, dismissal and mobile focus return
   if (test.info().project.name === "mobile")
     await page.getByRole("button", { name: "Open navigation" }).click();
   const person = page
-    .getByRole("combobox", { name: "Sample person" })
+    .getByRole("button", { name: "Sample person" })
     .filter({ visible: true });
-  await person.focus();
-  await page.keyboard.press("Enter");
+  await person.locator(".sf-avatar").click();
   await expect(page.getByRole("listbox")).toBeVisible();
   await expect(
     page.getByRole("option", { name: "Alex", exact: true }),
@@ -36,7 +35,7 @@ test("custom menus support keyboard selection, dismissal and mobile focus return
   await page.keyboard.press("Enter");
   await expect(person).toContainText("Minji");
   await expect(person).toBeFocused();
-  await person.click();
+  await person.getByText("Guest sample workspace").click();
   await page.keyboard.press("Escape");
   await expect(page.getByRole("listbox")).toBeHidden();
   await expect(person).toContainText("Minji");

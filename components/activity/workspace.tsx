@@ -653,7 +653,7 @@ export default function ActivityWorkspace() {
             className="sf-icon-button"
           >
             <Users size={16} />
-            
+
           </button>
           {activity && <button className="sf-header-share" aria-label="Share activity" onClick={() => setModal("share")}><Share2 size={17}/><span className="hidden sm:inline">Share</span></button>}
           {activity && <details className="relative" onClick={e => { if ((e.target as HTMLElement).closest("button")) e.currentTarget.removeAttribute("open"); }}>

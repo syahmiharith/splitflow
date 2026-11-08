@@ -481,7 +481,7 @@ export default function ActivityWorkspace() {
             ) : (
               <>
                 <section
-                  className="rounded-xl bg-slate-50 p-4"
+                  className="border-b border-slate-100 pb-3"
                   aria-label="Activity summary"
                 >
                   <div className="flex items-start justify-between gap-3">
@@ -645,9 +645,9 @@ export default function ActivityWorkspace() {
           </div>
         </main>
         {activity && !list && (
-          <div className="border-t bg-white px-4 py-3">
+          <div className="bg-white px-4 pb-3 pt-2">
             <form
-              className="mx-auto max-w-3xl rounded-xl border p-2"
+              className="mx-auto max-w-3xl rounded-2xl border border-app-border p-2"
               onSubmit={(e) => {
                 e.preventDefault();
                 const value = text;
@@ -659,14 +659,23 @@ export default function ActivityWorkspace() {
               <label className="sr-only" htmlFor="activity-message">
                 Message your activity
               </label>
-              <textarea
-                id="activity-message"
-                value={text}
-                onChange={(e) => setText(e.target.value)}
-                rows={2}
-                placeholder="Discuss costs or use an action below…"
-                className="w-full resize-none rounded-lg p-2 text-sm outline-none focus-visible:ring-2"
-              />
+              <div className="flex items-end gap-2">
+                <textarea
+                  id="activity-message"
+                  value={text}
+                  onChange={(e) => setText(e.target.value)}
+                  rows={1}
+                  placeholder="Discuss this activity…"
+                  className="min-h-11 min-w-0 flex-1 resize-y rounded-lg p-3 text-sm outline-none focus-visible:ring-2"
+                />
+                <button
+                  aria-label="Send message"
+                  disabled={busy || !text.trim() || Boolean(pending)}
+                  className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-slate-900 text-white disabled:opacity-40"
+                >
+                  <ArrowUp size={18} />
+                </button>
+              </div>
               <div className="flex flex-wrap items-center gap-1">
                 {Boolean(activity.templates?.length) && (
                   <select
@@ -745,13 +754,6 @@ export default function ActivityWorkspace() {
                     Repeat cost
                   </button>
                 )}
-                <button
-                  aria-label="Send message"
-                  disabled={busy || !text.trim() || Boolean(pending)}
-                  className="ml-auto grid h-11 w-11 place-items-center rounded-full bg-slate-900 text-white disabled:opacity-40"
-                >
-                  <ArrowUp size={18} />
-                </button>
               </div>
             </form>
             <p className="mx-auto mt-2 max-w-3xl text-xs text-app-muted">

@@ -2,7 +2,7 @@
 import type { SpendingPlan, SpendingPlanSummary } from "@/lib/activity/planning";
 import { spendingPlanChanges } from "@/lib/activity/planning";
 
-const rowClass = "flex flex-wrap items-start justify-between gap-x-3 gap-y-1 border-t border-app-border py-2";
+const rowClass = "sf-plan-change-row";
 const money = (value: number) => `₩${value.toLocaleString("en-US")}`;
 /** A snapshot of allowances and reported costs, never a balance or payment form. */
 export function SpendingPlanCard({
@@ -26,7 +26,7 @@ export function SpendingPlanCard({
   const over = summary.remainingAllowance < 0;
   return (
     <div className="sf-chat-card-section">
-      <h3>Spending plan</h3>
+      <div className="sf-money-card-title"><h3>Spending plan</h3><span>{previous && review ? "Adjustment" : "Plan"}</span></div>
       {(!review || !previous || previous.limit !== current.limit) && <p className="sf-money-message-amount">{money(current.limit)}<span> allowance limit</span></p>}
       <p className="sf-result-meta">Allowance, not available cash</p>
       {review && previous && previous.limit !== current.limit && (

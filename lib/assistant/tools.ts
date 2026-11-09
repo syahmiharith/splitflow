@@ -209,6 +209,7 @@ function describe(
   let expenseId: string | undefined;
   let summary: Preview["summary"];
   let plan: Preview["plan"];
+  let transfer: Preview["transfer"];
   if (after.kind === "group") {
     const group = d as Extract<RecordRow, { kind: "group" }>["document"];
     summary = { text: `${group.people.length} people · ${group.joined.length} joined` };
@@ -295,6 +296,9 @@ function describe(
         lines.push(label[String(sub.type)]);
         if (sub.reason) lines.push(`Reason: ${sub.reason}`);
         if (sub.type === "report") {
+          const payment = split.repayments.at(-1)!;
+          const name = (email: string) => split.expense.participants.find(p => p.email === email)?.name ?? email;
+          transfer = { from: name(payment.from), to: name(payment.to), amount: payment.amount, status: payment.status, claimStatus: claimState(split), reference: payment.reference };
           const recipient = expense.participants.find(p => p.email === sub.to);
           summary = { amount: Number(sub.amount), text: `To ${recipient?.name ?? sub.to} · Awaiting recipient confirmation` };
           lines.push(
@@ -305,6 +309,7 @@ function describe(
         if (sub.type === "receipt") {
           const p = split.repayments.find((p) => p.id === sub.paymentId)!;
           const name = (email: string) => split.expense.participants.find(person => person.email === email)?.name ?? email;
+          transfer = { from: name(p.from), to: name(p.to), amount: p.amount, status: p.status, claimStatus: claimState(split), reference: p.reference };
           summary = { amount: p.amount, text: `${name(p.from)} → ${name(p.to)} · ${sub.status === "confirmed" ? "Receipt confirmed" : "Disputed"}` };
           lines.push(`${p.from} → ${p.to}: ₩${p.amount} · ${sub.status}`);
         }
@@ -364,6 +369,7 @@ function describe(
   return {
     title,
     plan,
+    transfer,
     lines,
     summary,
     expense,

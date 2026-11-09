@@ -1,4 +1,6 @@
 "use client";
+import { MoneyState } from "./money-state";
+import { ArrowRight } from "lucide-react";
 import { SpendingPlanCard } from "./spending-plan-card";
 import type { Preview } from "@/lib/assistant/model";
 import { calculateExpense } from "@/lib/pilot/model";
@@ -26,6 +28,20 @@ export function ActionResult({
       {preview.lines.filter(Boolean).map((line, i) => <li key={i}>{line}</li>)}
     </ul>
   );
+  if (preview.transfer) {
+    const transfer = preview.transfer;
+    const status = transfer.status === "reported" ? "Awaiting recipient confirmation" : transfer.status === "confirmed" ? review && !saved ? "Confirm receipt" : "Receipt confirmed" : review && !saved ? "Dispute receipt" : "Disputed";
+    return <div className="sf-chat-card-section">
+      <div className="sf-money-card-title"><h3>{preview.title}</h3><span>Repayment</span></div>
+      <p className="sf-money-message-amount">{money(transfer.amount)}</p>
+      <p className="sf-transfer-parties"><span>{transfer.from}</span><ArrowRight size={16} aria-label="to" /><span>{transfer.to}</span></p>
+      <MoneyState tone={transfer.status === "confirmed" ? "positive" : "attention"}>{status}</MoneyState>
+      {transfer.claimStatus && transfer.claimStatus !== "agreed" && <p className="sf-result-meta">{transfer.claimStatus === "disputed" ? "Claim disputed · prior agreements retained" : "Expense awaiting agreement"}</p>}
+      {transfer.reference && <p className="sf-result-meta">{transfer.reference}</p>}
+      {review && !saved && <p className="sf-result-meta">{transfer.status === "confirmed" ? "Confirming receipt reduces the agreed outstanding amount." : "Only a confirmed receipt reduces the outstanding amount."}</p>}
+      <details><summary>Details</summary>{detail}</details>
+    </div>;
+  }
   if (!expense || preview.lines[0] !== "Add expense") {
     // Every consequence remains visible before committing: access changes,
     // recurring dates, old/new shares, credits and receipt status.
@@ -56,7 +72,7 @@ export function ActionResult({
   const payers = expense.participants.filter(p => p.paid > 0);
   return (
     <div className="sf-chat-card-section">
-      <h3>{expense.title}</h3>
+      <div className="sf-money-card-title"><h3>{expense.title}</h3><span>{expense.participants.length} people</span></div>
       <p className="sf-money-message-amount">
         {money(equal ? shares[0] : totals.total)}
         <span>{equal ? " each" : " total"}</span>
@@ -67,13 +83,13 @@ export function ActionResult({
           ? `Reported paid by ${payers.map(p => p.name).join(", ")}`
           : "Planned expense"}
       </p>
-      <p className="sf-result-meta">{expense.mode === "paid" ? "Awaiting participant agreement" : "Proposed cost"}</p>
-      {review && (
+      <MoneyState tone="attention">{expense.mode === "paid" ? "Awaiting participant agreement" : "Proposed cost"}</MoneyState>
+      {review && equal && payers.length <= 1 && (
         <p className="sf-money-message-people">
           {expense.participants.map(p => p.name).join(", ")}
         </p>
       )}
-      {review && (!equal || payers.length > 1) && (
+      {review && !saved && (!equal || payers.length > 1) && (
         <dl className="sf-result-people">
           {expense.participants.map(p => (
             <div key={p.email}>
@@ -83,7 +99,7 @@ export function ActionResult({
           ))}
         </dl>
       )}
-      {review && expense.items.filter(item =>
+      {review && !saved && expense.items.filter(item =>
         item.included.length !== expense.participants.length || item.custom || item.units,
       ).map((item, i) => (
         <p className="sf-result-item" key={i}>

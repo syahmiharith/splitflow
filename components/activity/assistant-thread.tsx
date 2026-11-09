@@ -38,10 +38,11 @@ export function AssistantThread({
     const active = status === "pending" && thread?.pending?.id === proposal.id;
     return (
       <section
-        className="sf-chat-card"
+        className={`sf-chat-card ${status === "saved" ? "sf-chat-result" : ""}`}
         aria-label={active ? "Review proposed changes" : "Previous review"}
       >
         <div className="sf-chat-card-heading">
+          {status === "saved" && <Check size={14} aria-hidden="true" />}
           <span>{active ? "Ready to confirm" : status === "saved" ? "Saved" : status === "discarded" ? "Discarded" : "Superseded"}</span>
         </div>
         {proposal.previews.map((p, i) =>
@@ -77,6 +78,9 @@ export function AssistantThread({
       </section>
     );
   }
+  function hasSavedReview(proposalId: string) {
+    return thread?.messages.some(m => m.parts?.some(part => part.type === "review" && part.proposal.id === proposalId && part.status === "saved"));
+  }
   function part(p: TurnPart, i: number) {
     if (p.type === "tool")
       return (
@@ -98,7 +102,7 @@ export function AssistantThread({
       );
     if (p.type === "review")
       return <div key={i}>{review(p.proposal, p.status)}</div>;
-    if (thread?.messages.some(m => m.parts?.some(part => part.type === "review" && part.proposal.id === p.proposalId && part.status === "saved"))) return null;
+    if (hasSavedReview(p.proposalId)) return null;
     return (
       <section
         key={i}
@@ -147,7 +151,7 @@ export function AssistantThread({
       className="sf-assistant-thread"
     >
       <p className="sf-assistant-private">Private conversation</p>
-      {thread?.messages.map((m) => (
+      {thread?.messages.filter(m => !(m.text === "Saved." && m.parts?.length && m.parts.every(p => p.type === "result" && hasSavedReview(p.proposalId)))).map((m) => (
         <div
           key={m.id}
           className={

@@ -641,7 +641,10 @@ export default function ActivityWorkspace() {
             }}
           />
         )}
-        {modal === "groups" && <FriendsPanel friends={friends} email={email} busy={busy} onSave={submit} />}
+        {modal === "groups" && <details className="sf-friends-disclosure">
+          <summary>Friends · {friends.length}{friends.some(f => !f.joined.includes(email) && f.joined.some(member => member !== email)) ? " · Add-back requests" : ""}</summary>
+          <FriendsPanel friends={friends} email={email} busy={busy} onSave={submit} />
+        </details>}
         {modal === "groups" && (
           <GroupsPanel
             groups={groups}
@@ -1520,15 +1523,17 @@ function GroupsPanel({
               key={g.id}
               type="button"
               onClick={() => setFocused(g.id)}
-              className="flex min-h-16 w-full items-center justify-between gap-3 py-4 text-left"
+              className="sf-group-money-row"
             >
-              <span>
+              <span className="sf-group-mark" aria-hidden="true"><Users size={18} /></span>
+              <span className="min-w-0 flex-1">
                 <strong className="block font-medium">{g.name}</strong>
                 <span className="text-xs text-app-muted">
                   {g.joined.length} joined · {g.people.length - g.joined.length}{" "}
                   invited
                 </span>
               </span>
+              <span className="sf-group-position"><MoneyStatus splits={activities.filter(a => a.groupId === g.id).flatMap(a => a.expenses)} email={email} /></span>
               <span aria-hidden="true">→</span>
             </button>
           ))}

@@ -8,6 +8,7 @@ export type Preview = {
   lines: string[];
   // Server-derived display summary; historical previews may omit it.
   summary?: { amount?: number; suffix?: string; text: string };
+  transfer?: { from: string; to: string; amount: number; status: "reported" | "confirmed" | "disputed"; claimStatus?: "pending" | "agreed" | "disputed"; reference?: string };
   expense?: Expense;
   activityId?: string;
   expenseId?: string;

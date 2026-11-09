@@ -453,6 +453,7 @@ describe("action-capable assistant", () => {
       amount: 40000,
       text: "To Alex · Awaiting recipient confirmation",
     });
+    expect(report.previews[0].transfer).toEqual({ from: "Minji", to: "Alex", amount: 40000, status: "reported", claimStatus: "agreed", reference: "bank" });
     rows = prepareBatch(rows, other, report.operations).rows;
     active = rows[0].document as typeof active;
     expect(balances(active.expenses[0])[other]).toBe(30000);
@@ -479,6 +480,8 @@ describe("action-capable assistant", () => {
       amount: 40000,
       text: "Minji → Alex · Receipt confirmed",
     });
+    expect(p.previews[0].transfer?.status).toBe("confirmed");
+    expect(report.previews[0].transfer?.status).toBe("reported");
     active = prepareBatch(rows, email, p.operations).rows[0]
       .document as typeof active;
     expect(balances(active.expenses[0])[other]).toBe(-10000);

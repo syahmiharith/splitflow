@@ -38,6 +38,7 @@ test("composer popover dismisses, returns focus and opens manual entry without l
 test("friend filtering and share access rows remain readable at narrow widths", async ({ page }) => {
   await page.goto("/");
   await page.getByRole("button", { name: "Groups", exact: true }).click();
+  await page.locator(".sf-friends-disclosure > summary").click();
   const friends = page.getByRole("region", { name: "Friends", exact: true });
   await friends.getByLabel("Search friends").fill("minji");
   await expect(friends.getByText("Minji", { exact: true })).toBeVisible();

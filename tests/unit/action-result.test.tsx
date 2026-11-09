@@ -46,3 +46,15 @@ describe("conversational transaction cards", () => {
     expect(screen.getByText("Alex: ₩20,000 → ₩30,000")).toBeVisible();
   });
 });
+
+it("separates a pending receipt decision from a saved confirmation in compact transfer cards", () => {
+  const preview: Preview = { title: "Dinner", lines: ["Receipt history remains available"], transfer: { from: "Minji", to: "Alex", amount: 20000, status: "confirmed", claimStatus: "disputed", reference: "Bank transfer" } };
+  const { rerender } = render(<ActionResult preview={preview} review />);
+  expect(screen.getByText("Confirm receipt")).toBeVisible();
+  expect(screen.queryByText("Receipt confirmed")).toBeNull();
+  expect(screen.getByText("Claim disputed · prior agreements retained")).toBeVisible();
+  expect(screen.getByText("Receipt history remains available")).not.toBeVisible();
+  rerender(<ActionResult preview={preview} review saved />);
+  expect(screen.getByText("Receipt confirmed")).toBeVisible();
+  expect(screen.queryByText("Confirming receipt reduces the agreed outstanding amount.")).toBeNull();
+});

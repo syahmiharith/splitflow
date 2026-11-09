@@ -44,3 +44,20 @@ Composer menu is a non-modal Popover with accessible button items, collision han
 ## Validation
 
 Typecheck, lint, 323 unit/API tests (3 environment-specific tests skipped), and production build pass. Browser regressions cover search/empty results, keyboard selection, switching from the mobile drawer, composer dismissal/focus return/draft preservation, friend filtering, share access disclosure, profile selection and recurring calendar keyboard use. Sharing layout is exercised at 320, 375, 768 and 1440 pixels. Local rendered search and friend filtering were also inspected directly. The initial development-server profile test was obstructed by the Next.js development overlay; the production-build check exercises the actual control without suppressing product errors.
+
+## Money-content follow-up — same day
+
+The user requested substantive changes to the money surfaces rather than retaining them. This section supersedes the earlier retain-only decisions for those surfaces.
+
+- [Splitwise group list, iOS](https://mobbin.com/screens/8d4a1f26-0dd5-488c-a257-990a28c15159): adopt a compact group identity row with its money position. SplitFlow now shows joined/invited membership and authorized activity balances on the group row. Friends are a disclosure above groups, with add-back requests visible in its label. No automatic debt simplification or payment processing.
+- [Splitwise group balances, iOS](https://mobbin.com/screens/973e57e7-b7d4-4be1-bfc6-d24711597608): person left, amount and direction right. Amounts now carry stronger emphasis; agreed obligations, disputed claims and unconfirmed payments remain separate. The balance handoff stays an action into the conversation.
+- [Splitwise group expenses, iOS](https://mobbin.com/screens/31e69d68-6688-42f2-bd9a-bbc95cfd28f5): date/title/payer/amount hierarchy. Expense rows now lead with the user's share, with total secondary and an explicit proposed/claimed/agreed state. Whole rows open the original conversation.
+- [Splitwise settle up, iOS](https://mobbin.com/screens/f9ccb11d-e020-436f-9ed5-8caf559871f6): named-party amount rows. Repayments now have directional markers, readable receipt state, pending/disputed rows ahead of confirmed history, and contextual receipt-review links. They do not execute transfers.
+- [Cleo category answer, iOS](https://mobbin.com/screens/c9fc6adc-37a7-435b-baff-5ca70c720ea4): inline financial answer with a short set of values and See more. Money cards now use a compact title/type line, one primary amount, aligned rows, explicit state and a separated Details footer. Pending review keeps needed consequences visible; saved results remain snapshots.
+- [YNAB allowance movement, iOS](https://mobbin.com/screens/4b36c835-5285-4ae7-a4d6-d4ebb24d8eb5): category and changed amount together. Adjustment cards keep only changed categories and use aligned before→after rows. Do not adopt the keypad/slider as the primary interface.
+
+Transfer cards use optional server-derived snapshot metadata (parties, amount, reference, receipt and claim state), not parsed model prose. Legacy cards without metadata keep their readable renderer. Pending receipt decisions say Confirm receipt/Dispute receipt; only committed cards say Receipt confirmed/Disputed. No historical rows are rewritten. All mutations still use existing command/confirmation services.
+
+Capability boundaries and evidence quality are documented separately in [Capability assessment](../CAPABILITY-ASSESSMENT.md).
+
+Verification for the money-content follow-up: 324 unit/API tests passed (3 skipped); typecheck, lint and production build passed. Sixteen desktop/mobile browser tests passed across money-view handoffs, category planning, claims, disputed revisions, reported/confirmed repayments, menus and search. Layout checks cover 320, 375, 768 and 1440 pixels. These orchestration tests use a scripted provider; they do not establish live-model parity. Repeated generic Saved messages are suppressed when the original review already displays its committed state.

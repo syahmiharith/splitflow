@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
-import { ChevronRight } from "lucide-react";
+import { MoneyState } from "./money-state";
+import { ChevronRight, ArrowUpRight, ArrowDownLeft } from "lucide-react";
 import type { Activity } from "@/lib/activity/model";
 import { balances, calculateExpense, claimState } from "@/lib/pilot/model";
 import { moneySummary } from "@/lib/activity/money-summary";
@@ -37,7 +38,7 @@ export function MoneyPage({
   ];
   const transfers = entries.flatMap((e) =>
     e.split.repayments.map((payment) => ({ ...e, payment })),
-  );
+  ).sort((a,b) => Number(a.payment.status === "confirmed") - Number(b.payment.status === "confirmed"));
   return (
     <section className="sf-ledger" aria-label="Money overview">
       <header className="sf-ledger-heading">
@@ -95,7 +96,7 @@ export function MoneyPage({
                 const payers = s.expense.participants.filter((p) => p.paid > 0);
                 return (
                   <button
-                    className="sf-ledger-row"
+                    className="sf-ledger-row sf-expense-ledger-row"
                     key={s.id}
                     onClick={() => onOpen(a.id, s.id)}
                   >
@@ -121,28 +122,14 @@ export function MoneyPage({
                       </small>
                     </span>
                     <span className="sf-ledger-amount">
-                      <strong>{money(c.total)}</strong>
-                      <small
-                        className={
-                          s.expense.mode === "planned"
-                            ? ""
-                            : b > 0
-                              ? "sf-owe"
-                              : b < 0
-                                ? "sf-owed"
-                                : ""
-                        }
-                      >
-                        {s.expense.mode === "planned"
-                          ? `Planned · share ${money(c.shares[email] ?? 0)}`
-                          : claimState(s) !== "agreed"
-                            ? `${claimState(s) === "disputed" ? "Disputed" : "Awaiting agreement"} · claimed share ${money(c.shares[email] ?? 0)}`
-                          : b > 0
-                            ? `You owe ${money(b)}`
-                            : b < 0
-                              ? `You get ${money(-b)}`
-                              : "Settled"}
-                      </small>
+                      <small>{s.expense.mode === "planned" ? "Planned share" : claimState(s) === "agreed" ? "Your share" : "Claimed share"}</small>
+                      <strong>{money(c.shares[email] ?? 0)}</strong>
+                      <small>{money(c.total)} total</small>
+                    </span>
+                    <span className="sf-ledger-row-state">
+                      <MoneyState tone={claimState(s) === "agreed" ? "positive" : "attention"}>
+                        {s.expense.mode === "planned" ? "Proposed cost" : claimState(s) === "disputed" ? "Disputed claim" : claimState(s) !== "agreed" ? "Awaiting agreement" : b > 0 ? `You owe ${money(b)}` : b < 0 ? `You get ${money(-b)}` : "Settled"}
+                      </MoneyState>
                     </span>
                   </button>
                 );
@@ -171,12 +158,10 @@ export function MoneyPage({
                   </span>
                   <span className="sf-ledger-amount">
                     {b.owe > 0 && (
-                      <small className="sf-owe">Owes {money(b.owe)}</small>
+                      <strong className="sf-owe">{money(b.owe)}<small>Owes</small></strong>
                     )}
                     {b.owed > 0 && (
-                      <small className="sf-owed">
-                        Gets back {money(b.owed)}
-                      </small>
+                      <strong className="sf-owed">{money(b.owed)}<small>Gets back</small></strong>
                     )}
                     {!b.owe && !b.owed && <small>{b.pendingClaims || b.disputedClaims ? "No agreed amount outstanding" : "Settled"}</small>}
                     {b.pendingClaims > 0 && <small>{b.pendingClaims} awaiting agreement</small>}
@@ -286,6 +271,7 @@ export function MoneyPage({
                 key={p.id}
                 onClick={() => onOpen(a.id, s.id)}
               >
+                <span className="sf-transfer-avatar" aria-hidden="true">{p.from === email ? <ArrowUpRight size={18} /> : <ArrowDownLeft size={18} />}</span>
                 <span className="sf-ledger-description">
                   <strong>
                     {
@@ -302,13 +288,8 @@ export function MoneyPage({
                 </span>
                 <span className="sf-ledger-amount">
                   <strong>{money(p.amount)}</strong>
-                  <small>
-                    {p.status === "reported"
-                      ? "Awaiting receipt"
-                      : p.status === "confirmed"
-                        ? "Confirmed"
-                        : "Disputed"}
-                  </small>
+                  <MoneyState tone={p.status === "confirmed" ? "positive" : "attention"}>{p.status === "reported" ? "Awaiting receipt" : p.status === "confirmed" ? "Confirmed" : "Disputed"}</MoneyState>
+                  {p.status !== "confirmed" && <small className="sf-row-action">{p.to === email ? p.status === "disputed" ? "Review dispute" : "Review receipt" : "View report"}</small>}
                 </span>
                 <ChevronRight className="sf-row-chevron" size={18} aria-hidden="true" />
               </button>

@@ -10,7 +10,7 @@ export function ActionResult({
   preview: Preview;
   review?: boolean;
 }) {
-  if (!preview.expense)
+  if (!preview.expense || preview.lines[0] !== "Add expense")
     return (
       <div className="sf-chat-card-section">
         <h3>{preview.title}</h3>

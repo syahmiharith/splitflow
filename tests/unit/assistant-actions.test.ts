@@ -758,13 +758,18 @@ it("does not present an empty provider output as a successful clarification", as
 });
 
 
-it("keeps the authorized current activity in context when a category query does not match its title", async () => {
+it("retrieves the authorized current activity exactly after a text search has no matches", async () => {
   const activity = fixture();
   let calls = 0;
   const scripted: Provider = async input => {
-    if (calls++ === 0) return {output:[{type:"function_call",name:"read_workspace",arguments:JSON.stringify({query:"Food Transport allowance"}),call_id:"lookup"}]};
+    const step=calls++;
+    if (step === 0) return {output:[{type:"function_call",name:"read_workspace",arguments:JSON.stringify({query:"Food Transport allowance"}),call_id:"lookup"}]};
     const outputs = input as {type?:string;output?:string}[];
-    const result = JSON.parse(outputs.find(item=>item.type==="function_call_output")!.output!);
+    const result = JSON.parse(outputs.filter(item=>item.type==="function_call_output").at(-1)!.output!);
+    if(step===1){
+      expect(result.records).toEqual([]);
+      return {output:[{type:"function_call",name:"read_workspace",arguments:JSON.stringify({recordId:activity.id}),call_id:"exact"}]};
+    }
     expect(result.records.map((row:RecordRow)=>row.document.id)).toEqual([activity.id]);
     return {output:[{type:"message",content:[{type:"output_text",text:"I found the current activity."}]}]};
   };

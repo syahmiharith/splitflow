@@ -6,6 +6,12 @@ import { runAssistant } from "@/lib/assistant/provider";
 import { emptyThread } from "@/lib/assistant/model";
 const actor="alex@example.test";
 describe("personal finance conversation tools",()=>{
+  it("shows transaction categories and split amounts in the confirmation review",()=>{
+    let state=applyFinanceCommand(emptyFinance(),{type:"account",account:{id:"cash",name:"Wallet",kind:"cash",currency:"KRW",openingBalance:100000}});
+    state=applyFinanceCommand(state,{type:"category",category:{id:"food",name:"Food",currency:"KRW"}});
+    const result=prepareFinanceCommands({revision:1,state},[{type:"transaction",transaction:{id:"meal",accountId:"cash",amount:-20000,date:"2026-11-10",kind:"expense",payee:"Groceries",cleared:true,splits:[{categoryId:"food",amount:20000}]}}]);
+    expect(result.previews[0].lines).toContain("Food: ₩20,000");
+  });
   it("prepares account and category allocations as one reviewed batch with server identifiers",()=>{
     const proposal=prepareActions({actions:[
       {type:"finance",command:{type:"account",account:{id:"wallet",name:"Wallet",kind:"cash",currency:"USD",openingBalance:10000}}},

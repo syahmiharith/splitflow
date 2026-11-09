@@ -31,8 +31,12 @@ export const financeCommandSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("classifyReimbursement"), id, sharedRepaymentId: id, originalTransactionId: id }),
   z.object({ type: z.literal("clear"), id, cleared: z.boolean() }),
   z.object({ type: z.literal("transfer"), id, from: id, to: id, date, sourceAmount: positive, destinationAmount: positive, fee: amount.nonnegative().default(0), feeCategoryId: id.optional() }),
-  z.object({ type: z.literal("allocate"), categoryId: id, month, amount }),
-  z.object({ type: z.literal("allocateCardPayment"), accountId: id, amount }),
+  z.object({
+    type: z.literal("allocate"), categoryId: id, month,
+    mode: z.enum(["change", "setMonthly"]).optional().describe("Use setMonthly when the user gives the desired total allocation for this month, such as reduce November Food from 300000 to 250000. Use change for add/remove/move an explicit amount. Omitted mode preserves legacy change behavior."),
+    amount: amount.describe("Integer minor units. With setMonthly this is the desired total allocated in the selected month, not the remaining balance. With change or omitted mode this is a SIGNED DELTA: positive adds funds, negative releases funds. Never pass a new target total as a positive change."),
+  }),
+  z.object({ type: z.literal("allocateCardPayment"), accountId: id, amount: amount.describe("Signed change in integer minor units: positive reserves additional cash for the card payment; negative releases reserved cash. This is not a target balance or an actual card payment.") }),
   z.object({ type: z.literal("goal"), id, name, categoryId: id, target: positive, targetDate: date }),
   z.object({ type: z.literal("schedule"), schedule: scheduleSchema }),
   z.object({ type: z.literal("pauseSchedule"), id, paused: z.boolean() }),
@@ -210,10 +214,13 @@ export function applyFinanceCommand(current: FinanceState, raw: unknown): Financ
     case "allocate": {
       const c = find(state.categories, command.categoryId);
       if (c.archived) throw Error("Restore this category first.");
-      if (command.amount < 0 && categoryAvailable(state, c.id, command.month) + command.amount < 0) throw Error("Cannot remove more than the category has available.");
+      if (command.mode === "setMonthly" && command.amount < 0) throw Error("Monthly allocation target cannot be negative.");
+      const monthlyAllocation = sumMoney(state.allocations.filter(a => a.categoryId === c.id && a.month === command.month).map(a => a.amount));
+      const change = command.mode === "setMonthly" ? sumMoney([command.amount, -monthlyAllocation]) : command.amount;
+      if (change < 0 && categoryAvailable(state, c.id, command.month) + change < 0) throw Error("Cannot remove more than the category has available.");
       const available = financeSummary(state, command.month).find(s => s.currency === c.currency)?.readyToAssign ?? 0;
-      if (command.amount > available) throw Error("Record funds or release another allocation first.");
-      state.allocations.push({ categoryId: c.id, month: command.month, amount: command.amount }); break;
+      if (change > available) throw Error("Record funds or release another allocation first.");
+      if (change) state.allocations.push({ categoryId: c.id, month: command.month, amount: change }); break;
     }
     case "allocateCardPayment": {
       const a = account(state, command.accountId);

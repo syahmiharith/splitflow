@@ -57,7 +57,7 @@ export function ActionResult({
         {review && !saved ? detail : (
           <>
             <p className="sf-result-meta">{preview.summary?.text ?? preview.lines[0]}</p>
-            {saved && changes.map((line, i) => <p key={i} className="sf-result-item">{line}</p>)}
+            {saved && changes.filter(line => line !== preview.summary?.text).map((line, i) => <p key={i} className="sf-result-item">{line}</p>)}
             {!preview.summary && preview.lines.filter(line =>
               /Awaiting recipient confirmation| · (confirmed|disputed)$|^Response:|^Starts /.test(line),
             ).map((line, i) => <p key={i}>{line}</p>)}

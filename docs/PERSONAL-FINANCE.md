@@ -12,6 +12,8 @@ The assistant reads relevant paginated workspace and ledger records. Historical 
 
 ## Review and recovery
 
+Personal `allocate` commands preserve signed-delta behavior for existing records. For a requested monthly allocation target, `mode: "setMonthly"` supplies the desired total allocated in that month; the server derives the delta. The target is distinct from the remaining category balance after spending and rollover. Reviews show deterministic before/after amounts and transaction category allocations.
+
 Accounts, Plan & goals and Upcoming are inspection spaces. Contextual actions return to the composer. Manual account/transaction entry and CSV mapping prepare the same inline proposals as the assistant. Import previews reject malformed rows, exclude exact repeated imports and require review of possible matches. Imports are atomic and limited to 500 selected rows per review. CSV mappings are remembered locally per account and signed-in identity.
 
 Conversation history archives older turns under the same owner/thread identity after 160 turns, normally retaining 40 active turns and keeping related review/result cards together. Earlier turns load on demand; no historical conversation is rewritten into invented user messages.
@@ -29,3 +31,9 @@ See tests/unit/assistant-history.test.ts, assistant-retrieval.test.ts, assistant
 ## Applied pilot database validation — November 10
 
 Migrations `20261110110000_conversation_segments`, `20261110111000_personal_finance` and `20261110120000_notification_outbox` were applied to the dedicated SplitFlow pilot. Their corresponding SQL suites completed successfully with transaction rollback. Outbound notifications remain disabled. Deployment/UI and actual model verification are separate gates; this database result does not establish them.
+
+## Deployed live-model verification — November 10
+
+Preview commit `cf32749` reached Ready. In a signed-in browser, actual OpenAI prepared one reviewed batch creating two synthetic recorded accounts (KRW 1,000,000 and USD 200.50), a Food category and KRW 300,000 allocation. Confirmation saved the batch. Independent Accounts and Plan & goals views showed the separate balances, Food allocation and KRW 700,000 / USD 200.50 available to assign.
+
+A subsequent allocation request exposed target-versus-delta ambiguity before confirmation; that proposal was discarded. The follow-up patch adds explicit target semantics, removes repeated saved-card amounts, exposes transaction categories in review and separates Responses API commentary from final answers. A live grocery request reached review after a payee clarification. The Mac locked before its confirmation could be verified. Remaining live action families, responsive screenshots and the allocation-fix retest are pending; scripted checks do not establish those outcomes. Brevo activation remains on hold.

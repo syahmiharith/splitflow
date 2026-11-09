@@ -20,6 +20,13 @@ const expense: Preview = {
 };
 
 describe("conversational transaction cards", () => {
+  it("shows a saved allocation change once while retaining its historical details", () => {
+    const change = "₩300,000 → ₩250,000";
+    const { container } = render(<ActionResult saved preview={{ title: "Food", lines: ["Adjust allowance", change, "Allowance · 2026-11"], summary: { text: change } }} />);
+    expect(screen.getAllByText(change).filter(element => !element.closest("details"))).toHaveLength(1);
+    expect(container.querySelector("details")).not.toHaveAttribute("open");
+    expect(screen.getByText("Allowance · 2026-11")).not.toBeVisible();
+  });
   it("keeps unequal shares and exclusions visible in review, without inputs", () => {
     const { container } = render(<ActionResult preview={expense} review />);
     expect(screen.getByText("₩20,000")).toBeVisible();

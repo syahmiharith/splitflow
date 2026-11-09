@@ -79,6 +79,23 @@ describe("personal finance", () => {
     expect(financeSummary(s)[0].cash).toBe(98000);
     expect(accountBalance(s, "bank")).toBe(108000);
   });
+  it("sets a monthly allocation target without adding it to the existing allocation", () => {
+    let s = apply(fixture(), { type: "allocate", categoryId: "food", month: "2026-11", amount: 30000 });
+    s = apply(s, { type: "allocate", mode: "setMonthly", categoryId: "food", month: "2026-11", amount: 25000 });
+    expect(categoryAvailable(s, "food", "2026-11")).toBe(25000);
+    expect(s.allocations.map(a => a.amount)).toEqual([30000, -5000]);
+    expect(apply(s, { type: "allocate", mode: "setMonthly", categoryId: "food", month: "2026-11", amount: 25000 }).allocations).toEqual(s.allocations);
+    expect(() => apply(s, { type: "allocate", mode: "setMonthly", categoryId: "food", month: "2026-11", amount: -1 })).toThrow(/negative/);
+  });
+  it("sets monthly assigned funds independently of rollover and spending", () => {
+    let s = apply(fixture(), { type: "allocate", categoryId: "food", month: "2026-10", amount: 10000 });
+    s = apply(s, { type: "allocate", categoryId: "food", month: "2026-11", amount: 30000 });
+    s = apply(s, { type: "transaction", transaction: { id: "spent", accountId: "bank", date: "2026-11-10", amount: -5000, kind: "expense", payee: "Food", splits: [{ categoryId: "food", amount: 5000 }] } });
+    s = apply(s, { type: "allocate", mode: "setMonthly", categoryId: "food", month: "2026-11", amount: 25000 });
+    expect(s.allocations.filter(a => a.month === "2026-11").reduce((sum, a) => sum + a.amount, 0)).toBe(25000);
+    expect(categoryAvailable(s, "food", "2026-11")).toBe(30000);
+    expect(() => apply(s, { type: "allocate", mode: "setMonthly", categoryId: "food", month: "2026-11", amount: 200000 })).toThrow(/funds/);
+  });
   it("corrects both transfer legs and its fee atomically", () => {
     let s = apply(fixture(), { type: "account", account: { id: "other", name: "Other", kind: "bank", currency: "USD", openingBalance: 0 } });
     s = apply(s, { type: "transfer", id: "transfer", from: "bank", to: "other", date: "2026-11-10", sourceAmount: 1000, destinationAmount: 1000, fee: 100 });

@@ -3,6 +3,8 @@ import type { AssistantThread, Proposal } from "./model";
 import type { RecordRow } from "@/lib/activity/client";
 import { assistantTools, prepareActions, readableWorkspace } from "./tools";
 export type ProviderResponse = {
+  status?: string;
+  incomplete_details?: { reason?: string };
   output: (
     | {
         type: "function_call";
@@ -53,7 +55,16 @@ export const openAIProvider: Provider = async (input, signal) => {
   }
   const text = await response.text();
   if (text.length > 180000) throw Error("Assistant response too large.");
-  return JSON.parse(text);
+  const result: ProviderResponse = JSON.parse(text);
+  if (result.status === "incomplete" || !result.output?.some(item => item.type === "function_call" || (item.type === "message" && item.content?.some(part => part.text?.trim())))) {
+    console.warn("splitflow_provider_failure", {
+      code: "incomplete_response",
+      status: result.status === "incomplete" ? "incomplete" : "empty",
+      reason: result.incomplete_details?.reason === "max_output_tokens" ? "max_output_tokens" : "other",
+    });
+    throw Error("Assistant did not finish. Retry your request.");
+  }
+  return result;
 };
 export async function runAssistant(
   thread: AssistantThread,
@@ -79,7 +90,7 @@ export async function runAssistant(
           : ""),
       })),
   ];
-  input.push({
+  if (Array.isArray(manualDrafts) && manualDrafts.length) input.push({
     role: "user",
     content: JSON.stringify({ privateManualDrafts: manualDrafts }),
   });
@@ -175,11 +186,10 @@ export async function runAssistant(
         text: "Ready for your review.",
         proposal,
       };
-    if (!called)
-      return {
-        text: text.trim().slice(0, 6000) || "What would you like to change?",
-        proposal: null,
-      };
+    if (!called) {
+      if (!text.trim()) throw Error("Assistant returned no response. Retry your request.");
+      return { text: text.trim().slice(0, 6000), proposal: null };
+    }
   }
   throw Error(
     "Assistant could not finish. Your message is saved; retry or enter manually.",

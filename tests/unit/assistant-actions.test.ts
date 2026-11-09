@@ -735,3 +735,14 @@ it("exports every action branch in the OpenAI strict schema subset", () => {
   for (const action of ["rename", "invite", "join", "leave", "remove", "plan"])
     expect(wire).toContain(`"const":"${action}"`);
 });
+
+it("does not send the empty processing placeholder or empty draft metadata as the latest turn", async () => {
+  const thread = emptyThread(crypto.randomUUID(), null);
+  thread.messages = [{id:crypto.randomUUID(),role:"user",text:"Add my friend",at:new Date().toISOString()},{id:crypto.randomUUID(),role:"assistant",text:"",at:new Date().toISOString()}];
+  let captured:unknown[]=[];
+  await runAssistant(thread,[],email,async input=>{captured=structuredClone(input);return {output:[{type:"message",content:[{type:"output_text",text:"Which email?"}]}]};});
+  expect(captured.at(-1)).toEqual({role:"user",content:"Add my friend"});
+});
+it("does not present an empty provider output as a successful clarification", async () => {
+  await expect(runAssistant(emptyThread(crypto.randomUUID(),null),[],email,async()=>({output:[]}))).rejects.toThrow("no response");
+});

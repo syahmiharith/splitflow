@@ -156,7 +156,7 @@ export function AssistantThread({
             {m.role === "user" ? "You" : "SplitFlow"}:{" "}
           </span>
           {m.parts?.filter((p) => p.type === "tool").map(part)}
-          {m.text && <p className="whitespace-pre-wrap">{m.text}</p>}
+          {m.text && !(m.text === "Ready for your review." && m.parts?.some(p => p.type === "review")) && <p className="whitespace-pre-wrap">{m.text}</p>}
           {m.parts?.filter((p) => p.type !== "tool").map(part)}
         </div>
       ))}

@@ -1379,10 +1379,11 @@ export default function ActivityWorkspace() {
                 </details>
               </>
             )}
+            {assistant.viewingEarlier && <p className="text-sm">Earlier conversation · <button className="min-h-11 underline" onClick={() => void assistant.resume().catch(e => setError(e.message))}>Return to current conversation</button></p>}
             {!moneyView && (
               <AssistantThread
                 thread={assistant.thread}
-                busy={assistant.busy}
+                busy={assistant.busy || assistant.viewingEarlier}
                 error={assistant.error}
                 onConfirm={() => {
                   void assistant.send("confirm").catch(() => {});
@@ -1419,6 +1420,7 @@ export default function ActivityWorkspace() {
             inlineFlow ||
             Boolean(assistant.thread?.messages.length)) &&
           (!list || inlineFlow) &&
+          !assistant.viewingEarlier &&
           renderComposer()}
       </div>
       {menu && (

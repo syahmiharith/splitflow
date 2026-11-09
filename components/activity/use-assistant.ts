@@ -24,6 +24,7 @@ export function useAssistant(
   const key = scope + (activityId ?? "home");
   const [recents, setRecents] = useState<ThreadSummary[]>([]);
   const [loadedKey, setLoadedKey] = useState("");
+  const [canonicalId, setCanonicalId] = useState<string | null>(null);
   const [thread, setThread] = useState<AssistantThread | null>(null),
     [busy, setBusy] = useState(false),
     [error, setError] = useState("");
@@ -58,6 +59,7 @@ export function useAssistant(
         .then((value) => {
           if (active) {
             setThread(value);
+            setCanonicalId(activityId ? value.id : null);
             setLoadedKey(key);
           }
         })
@@ -197,7 +199,14 @@ export function useAssistant(
     setLoadedKey(scope + "home");
     setError("");
   }
+  const viewingEarlier = Boolean(activityId && canonicalId && thread?.id !== canonicalId);
+  async function resume() {
+    const current = await load();
+    setThread(current); setCanonicalId(current.id); setLoadedKey(key);
+  }
   return {
+    viewingEarlier,
+    resume,
     thread: loadedKey === key ? thread : null,
     busy,
     error,

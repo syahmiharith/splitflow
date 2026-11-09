@@ -12,9 +12,12 @@ export async function GET(request: NextRequest) {
     if (request.nextUrl.searchParams.get("list") === "1") {
       const store = serverStore(user);
       const allowed = new Set((await store.rows()).map((r) => r.document.id));
-      const rows = await database(
-        `assistant_threads?owner=eq.${user.id}&select=document&order=updated_at.desc&limit=30`,
-      );
+      const rows: { document: import("@/lib/assistant/model").AssistantThread }[] = [];
+      for (let offset = 0; ; offset += 100) {
+        const page = await database(`assistant_threads?owner=eq.${user.id}&select=document&order=updated_at.desc,id.asc&limit=100&offset=${offset}`);
+        rows.push(...page);
+        if (page.length < 100) break;
+      }
       const result = rows
         .map(
           (r: { document: import("@/lib/assistant/model").AssistantThread }) =>

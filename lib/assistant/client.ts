@@ -85,8 +85,7 @@ export async function listAssistant(
   );
   return Object.values(state.threads)
     .filter((t) => !t.activityId || allowed.has(t.activityId))
-    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
-    .slice(0, 30)
+    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt) || a.id.localeCompare(b.id))
     .map((t) => ({
       id: t.id,
       activityId: t.activityId,

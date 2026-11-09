@@ -747,3 +747,17 @@ it("does not send the empty processing placeholder or empty draft metadata as th
 it("does not present an empty provider output as a successful clarification", async () => {
   await expect(runAssistant(emptyThread(crypto.randomUUID(),null),[],email,async()=>({output:[]}))).rejects.toThrow("no response");
 });
+
+
+it("keeps the authorized current activity in context when a category query does not match its title", async () => {
+  const activity = fixture();
+  let calls = 0;
+  const scripted: Provider = async input => {
+    if (calls++ === 0) return {output:[{type:"function_call",name:"read_workspace",arguments:JSON.stringify({query:"Food Transport allowance"}),call_id:"lookup"}]};
+    const outputs = input as {type?:string;output?:string}[];
+    const result = JSON.parse(outputs.find(item=>item.type==="function_call_output")!.output!);
+    expect(result.records.map((row:RecordRow)=>row.document.id)).toEqual([activity.id]);
+    return {output:[{type:"message",content:[{type:"output_text",text:"I found the current activity."}]}]};
+  };
+  await runAssistant(emptyThread(crypto.randomUUID(),activity.id),[{kind:"activity",document:activity}],email,scripted);
+});

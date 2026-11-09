@@ -149,6 +149,7 @@ export async function runAssistant(
             typeof args.query === "string" ? args.query.toLowerCase() : "";
           const matched = rows.filter(
             (r) =>
+              r.document.id === thread.activityId ||
               !query ||
               JSON.stringify({
                 id: r.document.id,

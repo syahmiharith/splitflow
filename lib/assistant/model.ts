@@ -4,6 +4,8 @@ import type { Expense } from "@/lib/pilot/model";
 export type Preview = {
   title: string;
   lines: string[];
+  // Server-derived display summary; historical previews may omit it.
+  summary?: { amount?: number; suffix?: string; text: string };
   expense?: Expense;
   activityId?: string;
   expenseId?: string;

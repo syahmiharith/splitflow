@@ -438,6 +438,10 @@ describe("action-capable assistant", () => {
       rows,
       other,
     );
+    expect(report.previews[0].summary).toEqual({
+      amount: 40000,
+      text: "To Alex · Awaiting recipient confirmation",
+    });
     rows = prepareBatch(rows, other, report.operations).rows;
     active = rows[0].document as typeof active;
     expect(balances(active.expenses[0])[other]).toBe(30000);
@@ -460,6 +464,10 @@ describe("action-capable assistant", () => {
     };
     expect(() => prepareActions(receipt, rows, other)).toThrow();
     const p = prepareActions(receipt, rows, email);
+    expect(p.previews[0].summary).toEqual({
+      amount: 40000,
+      text: "Minji → Alex · Receipt confirmed",
+    });
     active = prepareBatch(rows, email, p.operations).rows[0]
       .document as typeof active;
     expect(balances(active.expenses[0])[other]).toBe(-10000);
@@ -486,6 +494,11 @@ describe("action-capable assistant", () => {
       rows,
       email,
     );
+    expect(schedule.previews[0].summary).toEqual({
+      amount: 60000,
+      suffix: " / month",
+      text: "Active · due day 1 · starts 2026-11-08",
+    });
     rows = prepareBatch(rows, email, schedule.operations).rows;
     const accept = prepareActions(
       {

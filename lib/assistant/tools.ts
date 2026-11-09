@@ -185,8 +185,10 @@ function describe(
   const lines: string[] = [];
   let expense: Expense | undefined;
   let expenseId: string | undefined;
+  let summary: Preview["summary"];
   if (after.kind === "group") {
     const group = d as Extract<RecordRow, { kind: "group" }>["document"];
+    summary = { text: `${group.people.length} people · ${group.joined.length} joined` };
     lines.push(
       before ? label[String(cmd?.type)] : "Create group",
       ...group.people.map(
@@ -207,6 +209,7 @@ function describe(
     );
   } else {
     const activity = d as Activity;
+    summary = { text: `${activity.people.length} people` };
     lines.push(
       before
         ? label[String(cmd?.type)]
@@ -223,6 +226,7 @@ function describe(
           : undefined;
       const totals = calculateExpense(expense);
       const sub = cmd.command as Record<string, unknown> | undefined;
+      summary = { amount: totals.total, text: expense.mode === "paid" ? "Already paid" : "Planned expense" };
       if (!sub || sub.type === "revise")
         lines.push(
           `${expense.title}: ₩${totals.total.toLocaleString("en-US")} · ${expense.mode === "paid" ? "Already paid" : "Planned"}`,
@@ -246,16 +250,25 @@ function describe(
         }
         lines.push(label[String(sub.type)]);
         if (sub.reason) lines.push(`Reason: ${sub.reason}`);
-        if (sub.type === "report")
+        if (sub.type === "report") {
+          const recipient = expense.participants.find(p => p.email === sub.to);
+          summary = { amount: Number(sub.amount), text: `To ${recipient?.name ?? sub.to} · Awaiting recipient confirmation` };
           lines.push(
             `Report transfer to ${sub.to}: ₩${sub.amount}. Awaiting recipient confirmation.`,
             String(sub.reference ?? ""),
           );
+        }
         if (sub.type === "receipt") {
           const p = split.repayments.find((p) => p.id === sub.paymentId)!;
+          const name = (email: string) => split.expense.participants.find(person => person.email === email)?.name ?? email;
+          summary = { amount: p.amount, text: `${name(p.from)} → ${name(p.to)} · ${sub.status === "confirmed" ? "Receipt confirmed" : "Disputed"}` };
           lines.push(`${p.from} → ${p.to}: ₩${p.amount} · ${sub.status}`);
         }
-        if (sub.type === "respond") lines.push(`Response: ${sub.status}`);
+        if (sub.type === "respond") {
+          summary = { text: `Response: ${sub.status}` };
+          lines.push(`Response: ${sub.status}`);
+        }
+        if (sub.type === "revise") summary = { amount: totals.total, text: "Revised shares · see updated amounts and credits in details" };
       }
     }
     if (
@@ -266,6 +279,7 @@ function describe(
       const schedule = activity.schedule!;
       expense = schedule.expense;
       const c = calculateExpense(expense);
+      summary = { amount: c.total, suffix: " / month", text: `${schedule.paused ? "Paused" : "Active"} · due day ${schedule.dueDay} · starts ${schedule.start}` };
       lines.push(
         `Monthly: ${expense.title} · ₩${c.total}`,
         `Starts ${schedule.start}; due day ${schedule.dueDay}; ${schedule.variable ? "variable" : "fixed"}; ${schedule.paused ? "paused" : "active"}`,
@@ -289,6 +303,7 @@ function describe(
   return {
     title,
     lines,
+    summary,
     expense,
     expenseId,
     activityId: after.kind === "activity" ? d.id : undefined,

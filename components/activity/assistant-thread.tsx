@@ -47,7 +47,7 @@ export function AssistantThread({
               : status === "discarded"
                 ? "Discarded review"
                 : "Superseded review"}{" "}
-            · {proposal.previews.map((p) => p.title).join(", ")}
+            · {Array.from(new Set(proposal.previews.map((p) => p.title))).join(", ")}
           </summary>
           {proposal.previews.map((p, i) => (
             <div className="sf-chat-card-section" key={i}>
@@ -67,11 +67,14 @@ export function AssistantThread({
         aria-label={active ? "Review proposed changes" : "Previous review"}
       >
         <div className="sf-chat-card-heading">
-          <span>Review before saving </span>
+          <span>Ready to confirm</span>
         </div>
-        {proposal.previews.map((p, i) => (
-          <ActionResult key={i} preview={p} review />
-        ))}
+        {proposal.previews.map((p, i) =>
+          !p.expense && p.lines[0]?.startsWith("Create ") && p.activityId &&
+          proposal.previews.some(other => other.expense && other.activityId === p.activityId) ? (
+            <p key={i} className="sf-chat-card-context">New activity · {p.title}</p>
+          ) : <ActionResult key={i} preview={p} review />,
+        )}
         {active && (
           <>
             <div className="sf-chat-card-actions">
@@ -91,12 +94,9 @@ export function AssistantThread({
                   onManual(proposal.previews.find((p) => p.expense))
                 }
               >
-                Enter manually
+                Edit
               </button>
             </div>
-            <p className="sf-chat-card-note">
-              Or reply “confirm”, or describe a change.
-            </p>
           </>
         )}
       </section>
@@ -131,7 +131,7 @@ export function AssistantThread({
       >
         <div className="sf-chat-card-heading">
           <Check size={15} />
-          <span>Saved to workspace</span>
+          <span>Recorded</span>
         </div>
         {p.previews
           .filter(
@@ -145,25 +145,18 @@ export function AssistantThread({
           .map((preview, j) => (
             <ActionResult key={j} preview={preview} />
           ))}
-        <div className="sf-chat-card-actions">
-          {Array.from(new Map(p.records.map((r) => [r.id, r])).values()).map(
-            (r) => (
-              <div key={r.id}>
-                <span className="sf-chat-card-note">
-                  {r.title} · revision {r.revision}
-                </span>
-                {r.kind === "activity" && onOpen && (
-                  <button onClick={() => onOpen(r.id)}>
-                    Open activity <ChevronRight size={14} />
-                  </button>
-                )}
-              </div>
-            ),
-          )}
-        </div>
-        <p className="sf-chat-card-note">
-          Amounts reflect this saved revision.
-        </p>
+        {onOpen && p.records.some((r) => r.kind === "activity") && (
+          <div className="sf-chat-card-actions">
+            {Array.from(
+              new Map(p.records.filter((r) => r.kind === "activity").map((r) => [r.id, r])).values(),
+            ).map((r) => (
+              <button key={r.id} onClick={() => onOpen(r.id)}>
+                Open activity <ChevronRight size={14} />
+              </button>
+            ))}
+          </div>
+        )}
+
       </section>
     );
   }

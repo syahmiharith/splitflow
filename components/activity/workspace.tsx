@@ -478,6 +478,7 @@ export default function ActivityWorkspace() {
       (cmd.command as { type: string })?.type !== "revise"
     ) {
       if (assistant.thread?.pending) await assistant.send("manual");
+      setContextOpen(true);
       setManualPayment({
         id: cmd.id as string,
         command: cmd.command as Record<string, unknown>,

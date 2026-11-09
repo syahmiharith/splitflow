@@ -8,7 +8,8 @@ import { runAssistant, type Provider } from "../../lib/assistant/provider";
 import type { AssistantThread } from "../../lib/assistant/model";
 import type { RecordRow } from "../../lib/activity/client";
 
-test("scripted assistant creates and publishes through conversation without a form", async ({
+for (const method of ["confirm", "edit"] as const) {
+test(`scripted assistant ${method} preserves the conversational draft`, async ({
   page,
 }) => {
   const email = "alex@example.test",
@@ -162,6 +163,21 @@ test("scripted assistant creates and publishes through conversation without a fo
   ).toBeVisible();
   await page.reload();
   await expect(review).toBeVisible();
+  if (method === "edit") {
+    await review.getByRole("button", { name: "Edit", exact: true }).click();
+    await expect(page.getByLabel("Activity name", { exact: true })).toHaveValue("Dinner with Minji");
+    expect(rows).toHaveLength(0);
+    await expect(review).toHaveCount(0);
+    return;
+  }
+  if (test.info().project.name === "chromium") {
+    for (const width of [320, 375, 768, 1440]) {
+      await page.setViewportSize({ width, height: 1000 });
+      await review.scrollIntoViewIfNeeded();
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+      await page.screenshot({ path: `../outputs/conversation-workspace/money-review-${width}.png` });
+    }
+  }
   await page.screenshot({
     path: `../outputs/conversation-workspace/scripted-review-${test.info().project.name}.png`,
   });
@@ -178,6 +194,13 @@ test("scripted assistant creates and publishes through conversation without a fo
     page.getByRole("region", { name: "Private assistant conversation" }),
   ).toContainText("Saved.");
   expect(rows).toHaveLength(1);
+  const saved = page.getByRole("region", { name: "Saved result" });
+  await expect(saved.getByRole("button", { name: "Edit", exact: true })).toHaveCount(0);
+  await expect(saved.locator("details")).not.toHaveAttribute("open");
+  await saved.getByText("View details", { exact: true }).click();
+  await expect(saved.locator("details")).toHaveAttribute("open", "");
+  await saved.getByText("View details", { exact: true }).click();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.screenshot({
     path: `../outputs/conversation-workspace/scripted-saved-${test.info().project.name}.png`,
   });
@@ -186,6 +209,8 @@ test("scripted assistant creates and publishes through conversation without a fo
     page.getByRole("region", { name: "Saved result" }),
   ).toContainText("₩30,000");
 });
+
+}
 
 test("guest unavailable assistant retains private messages without posting to the group", async ({
   page,

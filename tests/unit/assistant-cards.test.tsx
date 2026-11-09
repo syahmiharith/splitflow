@@ -22,4 +22,10 @@ describe("conversation money cards",()=>{
   render(<AssistantThread thread={thread} busy={false} error="loading" onConfirm={vi.fn()} onCancel={vi.fn()} onRetry={vi.fn()} onManual={vi.fn()}/>);
   expect(screen.getByRole("button",{name:"Confirm changes"})).toBeVisible();
  });
+ it("keeps pending proposals in earlier history read-only",()=>{
+  const thread=emptyThread("earlier",null);thread.pending=proposal;thread.messages=[{id:"1",role:"assistant",text:"",at:"",parts:[{type:"review",proposal,status:"pending"}]}];
+  render(<AssistantThread readOnly thread={thread} busy={false} error="" onConfirm={vi.fn()} onCancel={vi.fn()} onRetry={vi.fn()} onManual={vi.fn()}/>);
+  expect(screen.getByText("₩400,000 → ₩370,000")).toBeVisible();
+  expect(screen.queryByRole("button",{name:"Confirm changes"})).not.toBeInTheDocument();
+ });
 });

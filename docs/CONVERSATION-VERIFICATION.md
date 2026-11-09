@@ -51,7 +51,7 @@ Fresh validation: type checking and lint pass; 244 unit/API tests pass. The prod
 
 ## Compact review verification — 2026-11-10
 
-Local: 322 unit/API tests passed, 3 environment-conditional tests skipped; typecheck, lint and production build passed. Eight targeted Chromium/mobile browser tests passed, using scripted providers for deterministic regression coverage. SQL transaction tests on the pilot verified stable owner/activity resolution, legacy-thread selection, separate member identities, revoked access and browser-role denial; fixtures rolled back.
+Local: 323 unit/API tests passed, 3 environment-conditional tests skipped; typecheck, lint and production build passed. Eight targeted Chromium/mobile browser tests passed, using scripted providers for deterministic regression coverage. SQL transaction tests on the pilot verified stable owner/activity resolution, legacy-thread selection, separate member identities, revoked access and browser-role denial; fixtures rolled back.
 
 Live: the signed-in preview called the actual OpenAI provider to create a synthetic two-person plan (₩600,000; Food ₩400,000, Transport ₩200,000), then reviewed and saved a ₩30,000 allowance move (Food ₩370,000, Transport ₩230,000). No expenses or transfers were created. Reload recovered the same conversation and one saved adjustment card. Safari responsive inspection covered 320, 375, 768 and 1440 widths; pending and saved cards, collapsed sticky summary and expanded summary were inspected. This is responsive browser evidence, not physical-device testing.
 

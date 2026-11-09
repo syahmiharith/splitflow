@@ -1,9 +1,11 @@
+import { emptyFinance, type FinanceState } from "@/lib/finance/model";
+import { sampleFinanceStorage } from "@/lib/finance/client";
 import { pilotRequest } from "@/lib/pilot/session";
 import { loadWorkspace, commitSampleBatch } from "@/lib/activity/client";
 import { assistantRequest, type AssistantStore } from "./service";
 import { emptyThread, type AssistantRequest, type AssistantThread } from "./model";
-const storage = (email: string) =>
-  `splitflow-private-assistant:sample:${email}`;
+import { compactThread, historyPage, type HistoryOptions, type HistoryPage, type HistorySegment } from "./history";
+const storage = sampleFinanceStorage;
 function sampleStore(email: string): AssistantStore {
   const read = () =>
     JSON.parse(
@@ -11,6 +13,9 @@ function sampleStore(email: string): AssistantStore {
     ) as {
       threads: Record<string, AssistantThread>;
       operations: Record<string, AssistantThread>;
+      segments?: Record<string, HistorySegment[]>;
+      finance?: { revision: number; state: FinanceState };
+      notifications?: import("@/lib/notifications/commands").NotificationPreference[];
     };
   const save: AssistantStore["save"] = async (thread, expected, key) => {
     const state = read();
@@ -21,8 +26,14 @@ function sampleStore(email: string): AssistantStore {
     }
     if ((state.threads[thread.id]?.revision ?? 0) !== expected)
       throw Error("Conversation changed. Reload before retrying.");
+    const compacted = compactThread(thread);
+    if (compacted.archived.length) {
+      state.segments ??= {};
+      const segments = state.segments[thread.id] ??= [];
+      segments.push({ index: (segments.at(-1)?.index ?? 0) + 1, messages: compacted.archived });
+    }
     const next = {
-      ...thread,
+      ...compacted.thread,
       revision: expected + 1,
       updatedAt: new Date().toISOString(),
     };
@@ -32,6 +43,8 @@ function sampleStore(email: string): AssistantStore {
     return next;
   };
   return {
+    async finance() { return read().finance ?? { revision: 0, state: emptyFinance() }; },
+    async notifications() { return read().notifications ?? []; },
     async load(id) {
       return read().threads[id] ?? null;
     },
@@ -40,11 +53,34 @@ function sampleStore(email: string): AssistantStore {
       return result?.id === id ? result : null;
     },
     save,
+    async history(id, options) {
+      const state = read();
+      const thread = state.threads[id];
+      if (thread?.activityId && !(await loadWorkspace(true, email)).some(r => r.document.id === thread.activityId)) throw Error("Activity unavailable for this account.");
+      return historyPage(state.segments?.[id] ?? [], options);
+    },
     async rows() {
       return loadWorkspace(true, email);
     },
-    async commit(thread, expected, key) {
-      commitSampleBatch(email, thread.pending!.operations);
+    async commit(thread, expected, key, _results, finance) {
+      const state = read();
+      if (state.operations[key]) return state.operations[key];
+      if ((state.threads[thread.id]?.revision ?? 0) !== expected) throw Error("Conversation changed. Reload before retrying.");
+      if (finance && (state.finance?.revision ?? 0) !== finance.expected) throw Error("Personal finances changed. Request a fresh review.");
+      if (thread.pending?.notifications) {
+        state.notifications ??= [];
+        for (const command of thread.pending.notifications.commands) {
+          const prior: import("@/lib/notifications/commands").NotificationPreference | undefined = state.notifications.find(p => p.recordId === command.recordId && p.expenseId === command.expenseId);
+          if ((prior?.revision ?? 0) !== command.expected) throw Error("Notification preferences changed.");
+          state.notifications = state.notifications.filter((p: import("@/lib/notifications/commands").NotificationPreference) => p !== prior);
+          state.notifications.push({ ...command, revision: command.expected + 1 });
+        }
+      }
+      if (thread.pending!.operations.length) commitSampleBatch(email, thread.pending!.operations);
+      if (finance) {
+        state.finance = { revision: finance.expected + 1, state: finance.state };
+      }
+      localStorage.setItem(storage(email), JSON.stringify(state));
       return save({ ...thread, pending: null, draft: null }, expected, key);
     },
   };
@@ -90,7 +126,7 @@ export async function listAssistant(
       id: t.id,
       activityId: t.activityId,
       title:
-        t.messages.find((m) => m.role === "user")?.text.slice(0, 80) ??
+        t.title ?? t.messages.find((m) => m.role === "user")?.text.slice(0, 80) ??
         "Conversation",
     }));
 }
@@ -114,4 +150,13 @@ export async function resolveActivityConversation(guest: boolean, email: string,
   if (!thread) await sampleStore(email).save(chosen, 0, crypto.randomUUID());
   localStorage.setItem(key, chosen.id);
   return (await loadAssistant(true, email, chosen.id))!;
+}
+
+export async function loadAssistantHistory(guest: boolean, email: string, id: string, options: HistoryOptions = {}): Promise<HistoryPage> {
+  if (guest) return sampleStore(email).history!(id, options);
+  const params = new URLSearchParams({ id, history: "1" });
+  if (options.before !== undefined) params.set("before", String(options.before));
+  if (options.query) params.set("query", options.query);
+  if (options.limit) params.set("limit", String(options.limit));
+  return pilotRequest(`/api/workspace/assistant?${params}`);
 }

@@ -1,9 +1,11 @@
 import { z } from "zod";
+import { currencyMinorUnits } from "@/lib/finance/money";
 import { distributeRoundingRemainderFairly } from "@/lib/domain/money";
 
 const won = z.number().int().min(0).max(1_000_000_000);
 export const expenseSchema = z.object({
   title: z.string().trim().min(1).max(120),
+  currency: z.string().refine(value => { try { currencyMinorUnits(value); return true; } catch { return false; } }, "Unsupported currency").optional(),
   mode: z.enum(["paid", "planned"]),
   participants: z
     .array(
@@ -223,6 +225,8 @@ export function applyCommand(
   if (!next.agreement && accepted)
     next.agreement = { expense: structuredClone(accepted), revision: current.revision };
   if (command.type === "revise") {
+    if ((command.expense.currency ?? "KRW") !== (current.expense.currency ?? "KRW"))
+      throw new Error("A published expense keeps its currency. Create a separate expense for another currency.");
     if (actor !== current.organizer)
       throw new Error("Only the organizer can revise this split.");
     if (current.expense.mode === "paid" && command.expense.mode === "planned")

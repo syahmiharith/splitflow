@@ -224,7 +224,7 @@ test("private assistant survives another signed-in session and stays hidden from
     other = `assistant-other-${run}@example.test`;
   await signIn(page, email);
   await page
-    .getByLabel("Message your activity")
+    .getByLabel("Message SplitFlow")
     .fill("Private dinner request for 60000 won");
   await page.getByRole("button", { name: "Start conversation" }).click();
   const privateChat = page.getByRole("region", {

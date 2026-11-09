@@ -70,7 +70,7 @@ test("two independent people plan and preserve agreed amounts through disputed r
     if (hasTouch) expect(await page.evaluate(() => navigator.maxTouchPoints)).toBeGreaterThan(0);
     return {page,context};
   }
-  async function send(page:Page,text:string){await page.getByLabel("Message your activity").fill(text);await page.getByRole("button",{name:/^(Start conversation|Send message)$/}).click();await expect(page.getByRole("region",{name:"Review proposed changes"})).toBeVisible();}
+  async function send(page:Page,text:string){await page.getByLabel("Message SplitFlow").fill(text);await page.getByRole("button",{name:/^(Start conversation|Send message)$/}).click();await expect(page.getByRole("region",{name:"Review proposed changes"})).toBeVisible();}
   async function confirm(page:Page){await page.getByRole("button",{name:"Confirm changes",exact:true}).click();await expect(page.getByRole("region",{name:"Review proposed changes"})).toHaveCount(0);}
   const a=await person(alice), b=await person(bob);
   await send(a.page,"Add Minji as my friend");await confirm(a.page);

@@ -83,6 +83,6 @@ test("recurring date picker navigates by keyboard without moving actions out of 
   await page.keyboard.press("Escape");
   await expect(trigger).toBeFocused();
   await expect(panel).toBeVisible();
-  await expect(page.getByLabel("Message your activity")).toBeVisible();
+  await expect(page.getByLabel("Message SplitFlow")).toBeVisible();
   await expect(page.locator('input[type="date"], dialog')).toHaveCount(0);
 });

@@ -1,3 +1,7 @@
+import { validateFinanceLinks } from "@/lib/finance/shared-links";
+import { prepareNotificationCommands, type NotificationPreference } from "@/lib/notifications/commands";
+import { prepareFinanceCommands } from "./finance-tools";
+import { applyFinanceCommand, type FinanceState } from "@/lib/finance/model";
 import type { AssistantRequest, AssistantThread } from "./model";
 import { emptyThread, addTurn, isConfirmation } from "./model";
 import type { ToolActivity, Proposal } from "./model";
@@ -12,11 +16,15 @@ export interface AssistantStore {
     key: string,
   ): Promise<AssistantThread>;
   rows(): Promise<RecordRow[]>;
+  finance?(): Promise<{ revision: number; state: FinanceState }>;
+  notifications?(): Promise<NotificationPreference[]>;
+  history?(id: string, options?: import("./history").HistoryOptions): Promise<import("./history").HistoryPage>;
   commit(
     thread: AssistantThread,
     expected: number,
     key: string,
     results: RecordRow[],
+    finance?: { expected: number; state: FinanceState },
   ): Promise<AssistantThread>;
 }
 export async function assistantRequest(
@@ -62,6 +70,23 @@ export async function assistantRequest(
         if (part.type === "review" && part.status === "pending")
           part.status = status;
   }
+  if (raw.action === "prepare_finance") {
+    if (!store.finance || !raw.financeCommands?.length) throw Error("Choose transactions to review.");
+    const snapshot = await store.finance();
+    let state = snapshot.state;
+    for (const command of raw.financeCommands) { validateFinanceLinks(state, command, rows, email); state = applyFinanceCommand(state, command); }
+    const prepared = prepareFinanceCommands(snapshot, raw.financeCommands);
+    const next = structuredClone(current);
+    finishReview(next, "superseded");
+    const proposal: Proposal = { id: crypto.randomUUID(), operations: [], dependencies: [], previews: prepared.previews, finance: { expected: prepared.expected, commands: prepared.commands } };
+    next.title ??= prepared.previews.length === 1 ? prepared.previews[0].title : "Personal finances";
+    next.pending = proposal;
+    next.draft = proposal;
+    next.status = "idle";
+    addTurn(next, "assistant", "Review these personal finance changes.");
+    next.messages.at(-1)!.parts = [{ type: "review", proposal: structuredClone(proposal), status: "pending" }];
+    return store.save(next, current.revision, `${raw.key}:done`);
+  }
   const confirming =
     raw.action === "confirm" ||
     (raw.action === "send" &&
@@ -72,6 +97,7 @@ export async function assistantRequest(
     if (!current.pending || raw.proposalId !== current.pending.id)
       throw Error("Review the current proposal before confirming.");
     let prepared: ReturnType<typeof prepareBatch>;
+    let finance: { expected: number; state: FinanceState } | undefined;
     try {
       for (const dep of current.pending.dependencies) {
         const row = rows.find((r) => r.document.id === dep.id);
@@ -81,6 +107,23 @@ export async function assistantRequest(
           );
       }
       prepared = prepareBatch(rows, email, current.pending.operations);
+      if (current.pending.notifications) {
+        if (!store.notifications) throw Error("Notifications unavailable.");
+        const validated = prepareNotificationCommands(prepared.rows, email, current.pending.notifications.commands, await store.notifications());
+        if (validated.some((command, i) => command.expected !== current.pending!.notifications!.commands[i].expected)) throw Error("Notification preferences changed. Request a fresh review.");
+      }
+
+      if (current.pending.finance) {
+        if (!store.finance) throw Error("Personal finance is unavailable.");
+        const snapshot = await store.finance();
+        if (snapshot.revision !== current.pending.finance.expected) throw Error("Personal finances changed. Request a fresh review.");
+        let state = snapshot.state;
+        for (const command of current.pending.finance.commands) {
+          validateFinanceLinks(state, command, prepared.rows, email);
+          state = applyFinanceCommand(state, command);
+        }
+        finance = { expected: snapshot.revision, state };
+      }
     } catch (e) {
       const next = structuredClone(current);
       finishReview(next, "superseded");
@@ -125,6 +168,7 @@ export async function assistantRequest(
       current.revision,
       `${raw.key}:done`,
       prepared.results,
+      finance,
     );
   }
   if (raw.action === "attach") {
@@ -173,10 +217,6 @@ export async function assistantRequest(
     !current.messages.some((m) => m.role === "user")
   )
     throw Error("No message to retry.");
-  if (current.messages.length >= 160)
-    throw Error(
-      "Start a new conversation to continue. Existing records remain available.",
-    );
   current = structuredClone(current);
   if (raw.manualContext) current.manualContext = raw.manualContext;
   if (raw.action === "send") addTurn(current, "user", raw.message!);

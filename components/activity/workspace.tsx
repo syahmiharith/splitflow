@@ -1,4 +1,8 @@
 "use client";
+import { FinanceEntry } from "./finance-entry";
+import { FinanceImport } from "./finance-import";
+import { FinanceOverview } from "./finance-overview";
+import { ConversationHistory } from "./conversation-history";
 import * as Popover from "@radix-ui/react-popover";
 import { ConversationSearch } from "./conversation-search";
 import { ProfileMenu } from "@/components/controls/profile-menu";
@@ -56,6 +60,9 @@ import { splitState } from "@/lib/pilot/next-action";
 const inputClass = "mt-1 block w-full rounded-lg border border-app-border p-3";
 export default function ActivityWorkspace() {
   const search = useSearchParams();
+  const [financeView, setFinanceView] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
+  const [financeEntryOpen, setFinanceEntryOpen] = useState(false);
   const [ready, setReady] = useState(false),
     [guest, setGuest] = useState(true),
     [email, setEmail] = useState(samplePeople[0].email),
@@ -254,6 +261,7 @@ export default function ActivityWorkspace() {
     setModal("expense");
   }
   function select(id: string) {
+    setFinanceView(false);
     setContextOpen(false);
     setMoneyView(null);
     setSelected(id);
@@ -273,6 +281,7 @@ export default function ActivityWorkspace() {
       <>
         <button
           onClick={() => {
+            setFinanceView(false);
             assistant.fresh();
             select("");
             setModal(null);
@@ -288,6 +297,7 @@ export default function ActivityWorkspace() {
         </button>
         <button
           onClick={() => {
+            setFinanceView(false);
             setMoneyView("all");
             setModal(null);
             setList(false);
@@ -298,6 +308,7 @@ export default function ActivityWorkspace() {
           <Receipt size={18} />
           Your splits
         </button>
+        <button className="sf-nav-row" onClick={() => { setFinanceView(true); setMenu(false); }}>Your finances</button>
         {groups.length > 0 && (
           <>
             <p className="sf-nav-label">Groups</p>
@@ -776,7 +787,7 @@ export default function ActivityWorkspace() {
           }}
         >
           <label className="sr-only" htmlFor="activity-message">
-            Message your activity
+            Message SplitFlow
           </label>
           <div className="flex items-end gap-1">
             <Popover.Root open={manualMenuOpen} onOpenChange={setManualMenuOpen}>
@@ -791,6 +802,8 @@ export default function ActivityWorkspace() {
                   if (button && button.getAttribute("role") !== "combobox") setManualMenuOpen(false);
                 }}>
                   <p className="sf-menu-caption">Enter manually</p>
+                  <button type="button" onClick={() => setImportOpen(true)}>Import transactions</button>
+                  <button type="button" onClick={() => setFinanceEntryOpen(true)}>Personal finances</button>
                 {activity && !moneyView && (
                   <button
                     type="button"
@@ -1062,6 +1075,7 @@ export default function ActivityWorkspace() {
           )}
         </header>
         <main className="sf-main min-h-0 flex-1 overflow-y-auto">
+          {financeView ? <FinanceOverview guest={guest} email={email} onAsk={value => { setFinanceView(false); setMoneyView(null); setList(false); setText(value); requestAnimationFrame(() => composerRef.current?.focus()); }} /> : <>
           <div
             className={`sf-thread ${!activity && !assistant.thread?.messages.length && !inlineFlow && !list && !moneyView ? "sf-thread-home" : ""}`}
           >
@@ -1205,7 +1219,7 @@ export default function ActivityWorkspace() {
               !inlineFlow &&
               !assistant.thread?.messages.length && (
                 <section className="sf-home">
-                  <h1>What are we sharing costs for?</h1>
+                  <h1>What would you like to do?</h1>
                   {renderComposer()}
                 </section>
               )
@@ -1389,10 +1403,12 @@ export default function ActivityWorkspace() {
               </>
             )}
             {assistant.viewingEarlier && <p className="text-sm">Earlier conversation · <button className="min-h-11 underline" onClick={() => void assistant.resume().catch(e => setError(e.message))}>Return to current conversation</button></p>}
+            {!moneyView && assistant.thread?.historyCount ? <ConversationHistory key={assistant.thread.id} guest={guest} email={email} id={assistant.thread.id} /> : null}
             {!moneyView && (
               <AssistantThread
                 thread={assistant.thread}
                 busy={assistant.busy}
+                onAdjust={() => { setText("Change this review: "); composerRef.current?.focus(); }}
                 readOnly={assistant.viewingEarlier}
                 error={assistant.error}
                 onConfirm={() => {
@@ -1413,6 +1429,8 @@ export default function ActivityWorkspace() {
                 }}
               />
             )}
+            {financeEntryOpen && <FinanceEntry guest={guest} email={email} onClose={() => setFinanceEntryOpen(false)} onReview={commands => assistant.send("prepare_finance", undefined, undefined, commands)} />}
+            {importOpen && <FinanceImport guest={guest} email={email} onClose={() => setImportOpen(false)} onReview={commands => assistant.send("prepare_finance", undefined, undefined, commands)} />}
             {inlineFlow && (
               <ActivityPanel
                 key={modal}
@@ -1423,8 +1441,9 @@ export default function ActivityWorkspace() {
               </ActivityPanel>
             )}
           </div>
+          </>}
         </main>
-        {(!selected || Boolean(activity)) &&
+        {!financeView && (!selected || Boolean(activity)) &&
           (!moneyView || inlineFlow) &&
           (activity ||
             inlineFlow ||

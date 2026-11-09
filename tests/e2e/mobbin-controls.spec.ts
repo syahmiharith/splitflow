@@ -19,7 +19,7 @@ test("conversation search opens the existing activity and reports empty results"
 
 test("composer popover dismisses, returns focus and opens manual entry without losing text", async ({ page }) => {
   await page.goto("/");
-  const input = page.getByLabel("Message your activity");
+  const input = page.getByLabel("Message SplitFlow");
   await input.fill("Plan dinner with friends");
   const trigger = page.getByRole("button", { name: "Enter manually", exact: true });
   await trigger.click();

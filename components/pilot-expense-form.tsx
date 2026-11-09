@@ -1,4 +1,5 @@
 "use client";
+import { currencyMinorUnits, parseMoney, formatMoney } from "@/lib/finance/money";
 import { Select } from "@/components/controls/select";
 import { pilotRequest } from "@/lib/pilot/session";
 import { useEffect, useRef, useState } from "react";
@@ -137,6 +138,10 @@ export function ExpenseForm({
       setError(e instanceof Error ? e.message : "Check your expense.");
     }
   }
+  const currency = draft.currency ?? "KRW";
+  const factor = 10 ** currencyMinorUnits(currency);
+  const money = (amount: number) => formatMoney(amount, currency);
+  const inputAmount = (value: string) => { try { return parseMoney(value || "0", currency); } catch (error) { setError(error instanceof Error ? error.message : "Check the amount"); return 0; } };
   function updatePerson(
     index: number,
     field: "name" | "email" | "paid",
@@ -145,7 +150,7 @@ export function ExpenseForm({
     const previousEmail = draft.participants[index].email;
     const nextValue =
       field === "paid"
-        ? Number(value)
+        ? inputAmount(value)
         : field === "email"
           ? value.trim().toLowerCase()
           : value;
@@ -205,7 +210,7 @@ export function ExpenseForm({
             {expense.participants.length} people
           </p>
           <p className="mt-3 text-2xl font-semibold tabular-nums">
-            ₩{calculation.total.toLocaleString()}
+            {money(calculation.total)}
           </p>
         </div>
         <ul className="divide-y divide-app-border" aria-label="Reviewed shares">
@@ -220,14 +225,14 @@ export function ExpenseForm({
                   {expense.mode === "planned"
                     ? "Expected contribution"
                     : "Paid"}{" "}
-                  ₩{person.paid.toLocaleString()}
+                  {money(person.paid)}
                 </span>
               </span>
               <span className="shrink-0 text-right font-semibold tabular-nums">
                 {original
-                  ? `₩${calculateExpense(original).shares[person.email]?.toLocaleString() ?? "0"} → `
+                  ? `${money(calculateExpense(original).shares[person.email] ?? 0)} → `
                   : ""}
-                ₩{calculation.shares[person.email].toLocaleString()}
+                {money(calculation.shares[person.email])}
               </span>
             </li>
           ))}
@@ -239,7 +244,7 @@ export function ExpenseForm({
           <ul className="space-y-3 text-sm">
             {expense.items.map((item, index) => (
               <li key={index}>
-                {item.name} · ₩{item.amount.toLocaleString()}
+                {item.name} · {money(item.amount)}
                 <p className="text-app-muted">
                   {item.custom
                     ? "Custom shares"
@@ -383,6 +388,11 @@ export function ExpenseForm({
             className="block w-full rounded border p-3"
           />
         </label>
+        <label className="block">Currency
+          <Select value={currency} disabled={Boolean(original)} onChange={event => setDraft({ ...draft, currency: event.target.value, participants: draft.participants.map(p => ({...p, paid: 0})), items: draft.items.map(item => ({...item, amount: 0, custom: undefined})) })}>
+            {Intl.supportedValuesOf("currency").map(code => <option key={code} value={code}>{code}</option>)}
+          </Select>
+        </label>
         <label className="block">
           Expense type
           <Select
@@ -398,18 +408,18 @@ export function ExpenseForm({
         </label>
         {!advanced && (
           <label className="block">
-            Total (KRW)
+            Total ({currency})
             <input
               required
               type="number"
-              min="1"
-              step="1"
-              value={draft.items[0].amount || ""}
+              min={1 / factor}
+              step={1 / factor}
+              value={draft.items[0].amount / factor || ""}
               onChange={(e) =>
                 setDraft({
                   ...draft,
                   items: [
-                    { ...draft.items[0], amount: Number(e.target.value) },
+                    { ...draft.items[0], amount: inputAmount(e.target.value) },
                   ],
                 })
               }
@@ -468,12 +478,12 @@ export function ExpenseForm({
               </label>
               {advanced && (
                 <label>
-                  Paid or committed (KRW)
+                  Paid or committed ({currency})
                   <input
                     type="number"
                     min="0"
-                    step="1"
-                    value={p.paid}
+                    step={1 / factor}
+                    value={p.paid / factor}
                     onChange={(e) => updatePerson(i, "paid", e.target.value)}
                     className="block w-full border p-3"
                   />
@@ -534,19 +544,19 @@ export function ExpenseForm({
                   />
                 </label>
                 <label>
-                  Amount (KRW)
+                  Amount ({currency})
                   <input
                     required
                     type="number"
-                    min="1"
-                    step="1"
-                    value={item.amount || ""}
+                    min={1 / factor}
+                    step={1 / factor}
+                    value={item.amount / factor || ""}
                     onChange={(e) =>
                       setDraft({
                         ...draft,
                         items: draft.items.map((v, i) =>
                           i === index
-                            ? { ...v, amount: Number(e.target.value) }
+                            ? { ...v, amount: inputAmount(e.target.value) }
                             : v,
                         ),
                       })
@@ -671,8 +681,8 @@ export function ExpenseForm({
                       <input
                         type="number"
                         min="0"
-                        step="1"
-                        value={item.custom?.[email] ?? 0}
+                        step={1 / factor}
+                        value={(item.custom?.[email] ?? 0) / factor}
                         className="block border p-3"
                         onChange={(e) =>
                           setDraft({
@@ -683,7 +693,7 @@ export function ExpenseForm({
                                     ...v,
                                     custom: {
                                       ...v.custom,
-                                      [email]: Number(e.target.value),
+                                      [email]: inputAmount(e.target.value),
                                     },
                                   }
                                 : v,
@@ -739,7 +749,7 @@ export function ExpenseForm({
                   {original
                     ? `${calculateExpense(original).shares[p.email]} → `
                     : ""}
-                  ₩{amount.toLocaleString()} · Paid ₩{p.paid.toLocaleString()}
+                  {money(amount)} · Paid {money(p.paid)}
                 </li>
               );
             })}

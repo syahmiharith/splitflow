@@ -1,8 +1,8 @@
 "use client";
 import type { Split } from "@/lib/pilot/model";
 import type { Person } from "@/lib/activity/model";
-import { moneySummary } from "@/lib/activity/money-summary";
-import { money } from "./expense-card";
+import { moneySummary, moneySummaries } from "@/lib/activity/money-summary";
+import { formatMoney } from "@/lib/finance/money";
 export function MoneyStatus({
   splits,
   email,
@@ -10,7 +10,10 @@ export function MoneyStatus({
   splits: Split[];
   email: string;
 }) {
-  const s = moneySummary(splits, email);
+  const grouped = moneySummaries(splits, email);
+  if (grouped.length > 1) return <>{grouped.map(summary => <MoneyStatus key={summary.currency} splits={splits.filter(s => (s.expense.currency ?? "KRW") === summary.currency)} email={email} />)}</>;
+  const s = grouped[0];
+  const money = (value: number) => formatMoney(value, s.currency);
   return (
     <span className="sf-money-status">
       {s.owe > 0 && <span className="sf-owe">You owe {money(s.owe)}</span>}
@@ -43,7 +46,10 @@ export function MoneyOverview({
   group?: boolean;
   onOpenExpense: (id: string) => void;
 }) {
-  const s = moneySummary(splits, email);
+  const grouped = moneySummaries(splits, email);
+  if (grouped.length > 1) return <>{grouped.map(summary => <MoneyOverview key={summary.currency} splits={splits.filter(s => (s.expense.currency ?? "KRW") === summary.currency)} email={email} people={people} onOpenExpense={onOpenExpense} group={group} />)}</>;
+  const s = grouped[0];
+  const money = (value: number) => formatMoney(value, s.currency);
   const members = [
     ...new Map(
       [...splits.flatMap((s) => s.expense.participants), ...people].map((p) => [

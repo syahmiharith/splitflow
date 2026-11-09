@@ -8,6 +8,9 @@ import {
 
 /** Read-only summary. Never cancel obligations from different expenses. */
 export function moneySummary(splits: Split[], email: string) {
+  const currencies = [...new Set(splits.map(s => s.expense.currency ?? "KRW"))];
+  if (currencies.length > 1) throw Error("Select a currency before combining monetary amounts.");
+  const currency = currencies[0] ?? "KRW";
   let spent = 0,
     share = 0,
     paid = 0,
@@ -22,6 +25,7 @@ export function moneySummary(splits: Split[], email: string) {
     from: string;
     to: string;
     amount: number;
+    currency: string;
   }[] = [];
   for (const split of splits) {
     const calculation = calculateExpense(split.expense);
@@ -43,9 +47,15 @@ export function moneySummary(splits: Split[], email: string) {
       ...settlements(split).map((t) => ({
         ...t,
         splitId: split.id,
+        currency,
         title: split.expense.title,
       })),
     );
   }
-  return { spent, share, paid, owe, owed, planned, pendingClaims, disputedClaims, obligations };
+  return { currency, spent, share, paid, owe, owed, planned, pendingClaims, disputedClaims, obligations };
+}
+
+export function moneySummaries(splits: Split[], email: string) {
+  const currencies = [...new Set(splits.map(s => s.expense.currency ?? "KRW"))];
+  return (currencies.length ? currencies : ["KRW"]).map(currency => moneySummary(splits.filter(s => (s.expense.currency ?? "KRW") === currency), email));
 }

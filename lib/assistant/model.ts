@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { financeCommandSchema } from "@/lib/finance/model";
 import type { Operation, RecordRow } from "@/lib/activity/client";
 import type { Expense } from "@/lib/pilot/model";
 import type { SpendingPlan, SpendingPlanSummary } from "@/lib/activity/planning";
@@ -7,14 +8,16 @@ export type Preview = {
   plan?: { current: SpendingPlan; previous?: SpendingPlan; summary: SpendingPlanSummary; reason: string; classificationChanges?: string[] };
   lines: string[];
   // Server-derived display summary; historical previews may omit it.
-  summary?: { amount?: number; suffix?: string; text: string };
-  transfer?: { from: string; to: string; amount: number; status: "reported" | "confirmed" | "disputed"; claimStatus?: "pending" | "agreed" | "disputed"; reference?: string };
+  summary?: { currency?: string; amount?: number; suffix?: string; text: string };
+  transfer?: { currency?: string; from: string; to: string; amount: number; status: "reported" | "confirmed" | "disputed"; claimStatus?: "pending" | "agreed" | "disputed"; reference?: string };
   expense?: Expense;
   activityId?: string;
   expenseId?: string;
 };
 export type Proposal = {
   id: string;
+  notifications?: { commands: import("@/lib/notifications/commands").ReviewedNotification[] };
+  finance?: { expected: number; commands: import("@/lib/finance/model").FinanceCommand[] };
   operations: Operation[];
   dependencies: { id: string; revision: number }[];
   previews: Preview[];
@@ -55,17 +58,21 @@ export type AssistantThread = {
   updatedAt: string;
   lastResults?: RecordRow[];
   manualContext?: string;
+  /** Archived turns are loaded separately under this same conversation ID. */
+  historyCount?: number;
+  title?: string;
 };
 export const requestSchema = z.object({
   id: z.uuid(),
   key: z.uuid(),
   expected: z.number().int().min(0),
   activityId: z.uuid().nullable(),
-  action: z.enum(["send", "confirm", "cancel", "retry", "attach", "manual"]),
+  action: z.enum(["send", "confirm", "cancel", "retry", "attach", "manual", "prepare_finance"]),
   message: z.string().trim().min(1).max(4000).optional(),
   proposalId: z.uuid().optional(),
   targetActivityId: z.uuid().optional(),
   manualContext: z.string().max(20000).optional(),
+  financeCommands: z.array(financeCommandSchema).min(1).max(500).optional(),
 });
 export type AssistantRequest = z.infer<typeof requestSchema>;
 export function emptyThread(

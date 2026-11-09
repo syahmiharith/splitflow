@@ -1,3 +1,4 @@
+import { loadNotificationDeliveries } from "@/lib/notifications/server";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { actor, failure, requireWritable, database } from "@/lib/pilot/server";
@@ -31,7 +32,7 @@ export async function GET(request: NextRequest) {
           id: t.id,
           activityId: t.activityId,
           title:
-            t.messages.find((m) => m.role === "user")?.text.slice(0, 80) ??
+            t.title ?? t.messages.find((m) => m.role === "user")?.text.slice(0, 80) ??
             "Conversation",
         }));
       return NextResponse.json(result, {
@@ -42,6 +43,16 @@ export async function GET(request: NextRequest) {
     const store = serverStore(user);
     const thread = await store.load(id);
     await assertThreadAccess(store, thread);
+    if (request.nextUrl.searchParams.get("history") === "1") {
+      const before = request.nextUrl.searchParams.get("before");
+      const limit = request.nextUrl.searchParams.get("limit");
+      const options = {
+        before: before === null ? undefined : z.coerce.number().int().positive().parse(before),
+        limit: limit === null ? 1 : z.coerce.number().int().min(1).max(5).parse(limit),
+        query: z.string().max(200).parse(request.nextUrl.searchParams.get("query") ?? ""),
+      };
+      return NextResponse.json(await store.history!(id, options), { headers: { "Cache-Control": "no-store" } });
+    }
     return NextResponse.json(thread, {
       headers: { "Cache-Control": "no-store" },
     });
@@ -75,7 +86,10 @@ export async function POST(request: NextRequest) {
                 `activity_drafts?owner=eq.${user.id}&activity_id=eq.${t.activityId}&select=slot,document`,
               )
             : [];
-          return runAssistant(t, r, e, undefined, drafts, onTool);
+          return runAssistant(t, r, e, undefined, drafts, onTool, async (query, cursor) => {
+            const page = await store.history!(t.id, { query, before: cursor === null ? undefined : z.coerce.number().int().positive().parse(cursor), limit: 1 });
+            return { messages: page.segments.flatMap(segment => segment.messages), nextCursor: page.nextBefore === null ? null : String(page.nextBefore) };
+          }, await store.finance!(), await store.notifications!(), (recordId) => loadNotificationDeliveries(user.id, recordId));
         },
       ),
       { headers: { "Cache-Control": "no-store" } },

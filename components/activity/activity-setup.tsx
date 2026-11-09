@@ -554,7 +554,7 @@ export function ScheduleForm({
                       </span>
                     </span>
                     <span className="shrink-0 tabular-nums">
-                      {money(calculateExpense(option.expense).total)}
+                      {money(calculateExpense(option.expense).total, option.expense.currency)}
                     </span>
                   </label>
                 ))}
@@ -624,7 +624,7 @@ export function ScheduleForm({
                     {expense.title} · {expense.participants.length} people
                   </span>
                   <strong className="tabular-nums">
-                    {money(total!.total)}
+                    {money(total!.total, expense?.currency)}
                   </strong>
                 </div>
               )
@@ -736,7 +736,7 @@ export function ScheduleForm({
           <div>
             <p className="text-app-muted">{expense.title}</p>
             <p className="mt-2 text-3xl font-semibold tabular-nums">
-              {money(total.total)}
+              {money(total.total, expense?.currency)}
               <span className="ml-2 text-sm font-normal text-app-muted">
                 / month{variable ? " · estimate" : ""}
               </span>
@@ -759,15 +759,15 @@ export function ScheduleForm({
                   <p>{p.name}</p>
                   {p.paid > 0 && (
                     <p className="mt-1 text-xs text-app-muted">
-                      Expected to pay {money(p.paid)}
+                      Expected to pay {money(p.paid, expense?.currency)}
                     </p>
                   )}
                 </div>
                 <span className="text-right font-medium tabular-nums">
                   {activity.schedule
-                    ? `${money(calculateExpense(activity.schedule.expense).shares[p.email] ?? 0)} → `
+                    ? `${money(calculateExpense(activity.schedule.expense).shares[p.email] ?? 0, activity.schedule.expense.currency)} → `
                     : ""}
-                  {money(total.shares[p.email])}
+                  {money(total.shares[p.email], expense?.currency)}
                 </span>
               </li>
             ))}
@@ -778,7 +778,7 @@ export function ScheduleForm({
             </summary>
             {expense.items.map((item, i) => (
               <p key={i} className="py-2">
-                {item.name} · {money(item.amount)} ·{" "}
+                {item.name} · {money(item.amount, expense?.currency)} ·{" "}
                 {item.custom
                   ? "Custom amounts"
                   : item.units

@@ -27,12 +27,14 @@ export function setSpendingPlan(input: unknown, expenses: readonly Split[]): Spe
     throw Error("Assign each expense to only one spending category.");
   if (ids.some(id => !expenses.some(expense => expense.id === id)))
     throw Error("Choose expenses from this activity when assigning a category.");
+  if (ids.some(id => expenses.some(split => split.id === id && (split.expense.currency ?? "KRW") !== "KRW")))
+    throw Error("This activity allowance is in KRW. Classify only KRW expenses.");
   return plan;
 }
 
 export function summarizeSpendingPlan(plan: SpendingPlan, expenses: readonly Split[]) {
   const valid = setSpendingPlan(plan, expenses);
-  const paid = expenses.filter(split => split.expense.mode === "paid");
+  const paid = expenses.filter(split => split.expense.mode === "paid" && (split.expense.currency ?? "KRW") === "KRW");
   const reported = (splits: readonly Split[]) => splits.reduce(
     (sum, split) => sum + calculateExpense(split.expense).total, 0,
   );
@@ -45,7 +47,7 @@ export function summarizeSpendingPlan(plan: SpendingPlan, expenses: readonly Spl
     reportedCost,
     remainingAllowance: valid.limit - reportedCost,
     // Proposed spending is kept separate: it is not an incurred cost or available cash.
-    plannedCost: reported(expenses.filter(split => split.expense.mode === "planned")),
+    plannedCost: reported(expenses.filter(split => split.expense.mode === "planned" && (split.expense.currency ?? "KRW") === "KRW")),
     uncategorizedReportedCost: reported(paid.filter(split => !categorized.has(split.id))),
     categories: valid.categories.map(category => {
       const reportedCost = reported(paid.filter(split => category.expenseIds.includes(split.id)));

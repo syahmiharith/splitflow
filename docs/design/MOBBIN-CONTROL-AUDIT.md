@@ -61,3 +61,13 @@ Transfer cards use optional server-derived snapshot metadata (parties, amount, r
 Capability boundaries and evidence quality are documented separately in [Capability assessment](../CAPABILITY-ASSESSMENT.md).
 
 Verification for the money-content follow-up: 324 unit/API tests passed (3 skipped); typecheck, lint and production build passed. Sixteen desktop/mobile browser tests passed across money-view handoffs, category planning, claims, disputed revisions, reported/confirmed repayments, menus and search. Layout checks cover 320, 375, 768 and 1440 pixels. These orchestration tests use a scripted provider; they do not establish live-model parity. Repeated generic Saved messages are suppressed when the original review already displays its committed state.
+
+## Personal finance expansion — November 10
+
+Inspected through Mobbin images, not metadata:
+
+- [Wise transfer details, iOS](https://mobbin.com/screens/59943f29-80c7-4999-9b80-79294981aeee): prominent amount/state, Updates separate from Details. Adopt truthful reported/confirmed states; no claim of bank verification.
+- [YNAB account register, iOS](https://mobbin.com/screens/f094bf8d-058e-44b8-8968-f5e68743f543): compact payee/amount rows with dates and cleared indicators. Adapt into recorded-account inspection and conversation handoffs.
+- [YNAB CSV import, web](https://mobbin.com/screens/24c2981b-68e6-4b64-a27e-02a688acf1ce): account selection, preview before import and explicit options. Adapt column mapping and duplicate review into an optional inline workflow, ending in the shared proposal card.
+
+Behavioral references: [YNAB credit-card transfers](https://support.ynab.com/en_us/credit-card-payments-a-guide-r1_506Q1j), [Monarch recurring tracking](https://help.monarch.com/hc/en-us/articles/4890751141908-Tracking-Recurring-Expenses-and-Bills), [Wise requests](https://wise.com/help/articles/2WvlZST6DiDMUBhyl1N4zM/how-do-i-request-money). Expected bills remain separate from actual records; invitations do not assert debts; allocation changes do not move cash.

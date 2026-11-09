@@ -17,6 +17,7 @@ export function AssistantThread({
   onRetry,
   onManual,
   onOpen,
+  onAdjust,
   readOnly = false,
 }: {
   readOnly?: boolean;
@@ -28,6 +29,7 @@ export function AssistantThread({
   onRetry: () => void;
   onManual: (preview?: Preview) => void;
   onOpen?: (id: string) => void;
+  onAdjust?: () => void;
 }) {
   const end = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -67,10 +69,10 @@ export function AssistantThread({
               <button
                 disabled={busy || readOnly}
                 onClick={() =>
-                  onManual(proposal.previews.find((p) => p.expense))
+                  proposal.finance ? onAdjust?.() : onManual(proposal.previews.find((p) => p.expense))
                 }
               >
-                Edit
+                {proposal.finance ? "Adjust in conversation" : "Edit"}
               </button>
             </div>
           </>

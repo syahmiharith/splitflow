@@ -4,7 +4,7 @@ import { MoneyState } from "./money-state";
 import { ChevronRight, ArrowUpRight, ArrowDownLeft } from "lucide-react";
 import type { Activity } from "@/lib/activity/model";
 import { balances, calculateExpense, claimState } from "@/lib/pilot/model";
-import { moneySummary } from "@/lib/activity/money-summary";
+import { moneySummaries } from "@/lib/activity/money-summary";
 import { summarizeSpendingPlan } from "@/lib/activity/planning";
 import { money } from "./expense-card";
 import { MoneyStatus } from "./money-overview";
@@ -123,12 +123,12 @@ export function MoneyPage({
                     </span>
                     <span className="sf-ledger-amount">
                       <small>{s.expense.mode === "planned" ? "Planned share" : claimState(s) === "agreed" ? "Your share" : "Claimed share"}</small>
-                      <strong>{money(c.shares[email] ?? 0)}</strong>
-                      <small>{money(c.total)} total</small>
+                      <strong>{money(c.shares[email] ?? 0, s.expense.currency)}</strong>
+                      <small>{money(c.total, s.expense.currency)} total</small>
                     </span>
                     <span className="sf-ledger-row-state">
                       <MoneyState tone={claimState(s) === "agreed" ? "positive" : "attention"}>
-                        {s.expense.mode === "planned" ? "Proposed cost" : claimState(s) === "disputed" ? "Disputed claim" : claimState(s) !== "agreed" ? "Awaiting agreement" : b > 0 ? `You owe ${money(b)}` : b < 0 ? `You get ${money(-b)}` : "Settled"}
+                        {s.expense.mode === "planned" ? "Proposed cost" : claimState(s) === "disputed" ? "Disputed claim" : claimState(s) !== "agreed" ? "Awaiting agreement" : b > 0 ? `You owe ${money(b, s.expense.currency)}` : b < 0 ? `You get ${money(-b, s.expense.currency)}` : "Settled"}
                       </MoneyState>
                     </span>
                   </button>
@@ -143,10 +143,9 @@ export function MoneyPage({
                 Balances appear when a cost is recorded.
               </p>
             )}
-            {people.map((p) => {
-              const b = moneySummary(splits, p.email);
+            {people.flatMap((p) => moneySummaries(splits, p.email).map((b) => {
               return (
-                <div className="sf-ledger-row" key={p.email}>
+                <div className="sf-ledger-row" key={`${p.email}:${b.currency}`}>
                   <span className="sf-ledger-avatar" aria-hidden="true">
                     {p.name.slice(0, 1)}
                   </span>
@@ -158,10 +157,10 @@ export function MoneyPage({
                   </span>
                   <span className="sf-ledger-amount">
                     {b.owe > 0 && (
-                      <strong className="sf-owe">{money(b.owe)}<small>Owes</small></strong>
+                      <strong className="sf-owe">{money(b.owe, b.currency)}<small>Owes</small></strong>
                     )}
                     {b.owed > 0 && (
-                      <strong className="sf-owed">{money(b.owed)}<small>Gets back</small></strong>
+                      <strong className="sf-owed">{money(b.owed, b.currency)}<small>Gets back</small></strong>
                     )}
                     {!b.owe && !b.owed && <small>{b.pendingClaims || b.disputedClaims ? "No agreed amount outstanding" : "Settled"}</small>}
                     {b.pendingClaims > 0 && <small>{b.pendingClaims} awaiting agreement</small>}
@@ -169,9 +168,9 @@ export function MoneyPage({
                   </span>
                 </div>
               );
-            })}
+            }))}
             <h2 className="sf-ledger-subheading">Who repays whom</h2>
-            {moneySummary(splits, email).obligations.map((t, i) => (
+            {moneySummaries(splits, email).flatMap(s => s.obligations).map((t, i) => (
               <button
                 className="sf-ledger-row sf-repayment-link"
                 key={i}
@@ -189,7 +188,7 @@ export function MoneyPage({
                   </strong>
                   <small>{t.title}</small>
                 </span>
-                <span className="sf-ledger-amount"><strong>{money(t.amount)}</strong><small className="sf-row-action">{t.from === email ? "Report payment" : "View repayment"}</small></span>
+                <span className="sf-ledger-amount"><strong>{money(t.amount, t.currency)}</strong><small className="sf-row-action">{t.from === email ? "Report payment" : "View repayment"}</small></span>
                 <ChevronRight className="sf-row-chevron" size={18} aria-hidden="true" />
               </button>
             ))}
@@ -249,7 +248,7 @@ export function MoneyPage({
                     <small>{activity.title} · due day {schedule.dueDay} · from {schedule.start}</small>
                     <small>{schedule.paused ? "Paused" : `${accepted}/${schedule.expense.participants.length} accepted terms`}</small>
                   </span>
-                  <span className="sf-ledger-amount"><strong>{money(total)}</strong><small>{schedule.variable ? "Estimated monthly" : "Monthly terms"}</small></span>
+                  <span className="sf-ledger-amount"><strong>{money(total, schedule.expense.currency)}</strong><small>{schedule.variable ? "Estimated monthly" : "Monthly terms"}</small></span>
                   <ChevronRight className="sf-row-chevron" size={18} aria-hidden="true" />
                 </button>;
               })}
@@ -287,7 +286,7 @@ export function MoneyPage({
                   </small>
                 </span>
                 <span className="sf-ledger-amount">
-                  <strong>{money(p.amount)}</strong>
+                  <strong>{money(p.amount, s.expense.currency)}</strong>
                   <MoneyState tone={p.status === "confirmed" ? "positive" : "attention"}>{p.status === "reported" ? "Awaiting receipt" : p.status === "confirmed" ? "Confirmed" : "Disputed"}</MoneyState>
                   {p.status !== "confirmed" && <small className="sf-row-action">{p.to === email ? p.status === "disputed" ? "Review dispute" : "Review receipt" : "View report"}</small>}
                 </span>

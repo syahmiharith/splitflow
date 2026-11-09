@@ -94,6 +94,7 @@ export function useAssistant(
     action: AssistantRequest["action"],
     message?: string,
     manualContext?: string,
+    financeCommands?: import("@/lib/finance/model").FinanceCommand[],
   ) {
     if (guard.current) throw Error("Wait for the current reply.");
     if (!thread) {
@@ -124,6 +125,7 @@ export function useAssistant(
           action,
           message,
           manualContext,
+          financeCommands,
           proposalId: thread.pending?.id,
         };
     localStorage.setItem(pendingKey, JSON.stringify(request));

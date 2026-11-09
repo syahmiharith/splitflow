@@ -1,4 +1,5 @@
 "use client";
+import { formatMoney, parseMoney, currencyMinorUnits } from "@/lib/finance/money";
 import { Select } from "@/components/controls/select";
 import { useState, useEffect } from "react";
 import {
@@ -13,12 +14,7 @@ import {
 } from "@/lib/pilot/model";
 import type { z } from "zod";
 import { nextAction } from "@/lib/pilot/next-action";
-export const money = (value: number) =>
-  new Intl.NumberFormat("ko-KR", {
-    style: "currency",
-    currency: "KRW",
-    maximumFractionDigits: 0,
-  }).format(value);
+export const money = (value: number, currency = "KRW") => formatMoney(value, currency);
 export function ExpenseCard({
   draftCommand,
   split,
@@ -34,6 +30,7 @@ export function ExpenseCard({
   onCommand: (command: z.infer<typeof commandSchema>) => Promise<void>;
   onEdit: () => void;
 }) {
+  const money = (value: number) => formatMoney(value, split.expense.currency ?? "KRW");
   const [action, setAction] = useState<"correction" | "payment" | null>(null);
   useEffect(() => {
     if (draftCommand?.type === "report") setAction("payment");
@@ -278,7 +275,7 @@ export function ExpenseCard({
             void act({
               type: "report",
               to: String(data.get("to")),
-              amount: Number(data.get("amount")),
+              amount: parseMoney(String(data.get("amount")), split.expense.currency ?? "KRW"),
               reference: String(data.get("reference")),
             })
               .then(() => setAction(null))
@@ -313,17 +310,17 @@ export function ExpenseCard({
             </Select>
           </label>
           <label>
-            Amount (KRW)
+            Amount ({split.expense.currency ?? "KRW"})
             <input
               name="amount"
               type="number"
-              min={1}
-              step={1}
+              min={1 / 10 ** currencyMinorUnits(split.expense.currency ?? "KRW")}
+              step={1 / 10 ** currencyMinorUnits(split.expense.currency ?? "KRW")}
               required
               defaultValue={
-                typeof draftCommand?.amount === "number"
+                (typeof draftCommand?.amount === "number"
                   ? draftCommand.amount
-                  : (targets[0]?.amount ?? remaining[email])
+                  : (targets[0]?.amount ?? remaining[email])) / 10 ** currencyMinorUnits(split.expense.currency ?? "KRW")
               }
               className="mt-1 block w-full rounded-lg border p-3"
             />

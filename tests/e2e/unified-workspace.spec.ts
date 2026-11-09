@@ -108,7 +108,7 @@ test("quick activity publishes an expense and keeps it in the conversation", asy
   await expect(
     page.getByRole("heading", { name: "Court booking", exact: true }),
   ).toHaveCount(2);
-  await expect(page.getByLabel("Message your activity")).toBeVisible();
+  await expect(page.getByLabel("Message SplitFlow")).toBeVisible();
   await page.reload();
   await page.locator(".sf-activity-context > summary").click();
   await expect(
@@ -215,7 +215,7 @@ test("a signed-in empty account does not receive sample activities", async ({
   await page.route("**/api/workspace", (route) => route.fulfill({ json: [] }));
   await page.goto("/");
   await expect(
-    page.getByRole("heading", { name: "What are we sharing costs for?" }),
+    page.getByRole("heading", { name: "What would you like to do?" }),
   ).toBeVisible();
   await expect(
     page.getByRole("button", { name: "Weekend together", exact: true }),
@@ -374,9 +374,9 @@ test("cost editing stays inline with private requests and the persistent compose
   await expect(page.getByLabel("Message destination")).toHaveCount(0);
   await expect(page.getByText("SplitFlow · private", { exact: true })).toBeVisible();
   await page
-    .getByLabel("Message your activity")
+    .getByLabel("Message SplitFlow")
     .fill("Keep the dinner and taxi together");
-  await page.getByLabel("Message your activity").press("Enter");
+  await page.getByLabel("Message SplitFlow").press("Enter");
   await expect(
     page.getByRole("region", { name: "Private assistant conversation" }).getByText("Keep the dinner and taxi together", { exact: true }),
   ).toBeVisible();
@@ -388,12 +388,12 @@ test("cost editing stays inline with private requests and the persistent compose
   await expect(
     page.getByRole("heading", { name: "Dinner", exact: true }),
   ).toBeAttached();
-  await expect(page.getByLabel("Message your activity")).toBeVisible();
+  await expect(page.getByLabel("Message SplitFlow")).toBeVisible();
   await editor.getByLabel("Total (KRW)", { exact: true }).fill("15000");
   await page
-    .getByLabel("Message your activity")
+    .getByLabel("Message SplitFlow")
     .fill("The taxi receipt is ready");
-  await page.getByLabel("Message your activity").press("Enter");
+  await page.getByLabel("Message SplitFlow").press("Enter");
   await expect(editor.getByLabel("Total (KRW)", { exact: true })).toHaveValue(
     "15000",
   );
@@ -416,7 +416,7 @@ test("a conversation starts from the composer and keeps the opening message", as
   page,
 }) => {
   await page.goto("/");
-  await page.getByLabel("Message your activity").fill("Saturday tennis");
+  await page.getByLabel("Message SplitFlow").fill("Saturday tennis");
   await page.getByRole("button", { name: "Start conversation" }).click();
   await expect(
     page.getByRole("region", { name: "Private assistant conversation" }),
@@ -441,7 +441,7 @@ test("a conversation starts from the composer and keeps the opening message", as
       .getByRole("region", { name: "Private assistant conversation" })
       .getByText("Saturday tennis", { exact: true }),
   ).toBeVisible();
-  await expect(page.getByLabel("Message your activity")).toHaveValue("");
+  await expect(page.getByLabel("Message SplitFlow")).toHaveValue("");
   await expect(page.getByRole("dialog")).toHaveCount(0);
 });
 
@@ -465,7 +465,7 @@ test("shared group creation hands off to an inline invitation panel", async ({
   ).toHaveAttribute("aria-selected", "true");
   await expect(groups.getByLabel("Group invitation link")).toBeVisible();
   await expect(page.getByRole("dialog")).toHaveCount(0);
-  await expect(page.getByLabel("Message your activity")).toBeVisible();
+  await expect(page.getByLabel("Message SplitFlow")).toBeVisible();
 });
 
 test("group management stays disclosed and preserves the conversation", async ({
@@ -510,7 +510,7 @@ test("group management stays disclosed and preserves the conversation", async ({
   await panel.getByLabel("Invite email").fill("sam@example.test");
   await panel.getByRole("button", { name: "Invite or renew invitation" }).click();
   await expect(panel.getByText("Sam · Invited", { exact: true })).toBeVisible();
-  await expect(page.getByLabel("Message your activity")).toBeVisible();
+  await expect(page.getByLabel("Message SplitFlow")).toBeVisible();
   await expect(page.getByRole("dialog")).toHaveCount(0);
   await page.reload();
   await expect(
@@ -526,7 +526,7 @@ test("money overview reads compactly and hands actions back to the conversation"
   await page.getByRole("button", { name: "Expenses & balances" }).click();
   const overview = page.getByRole("region", { name: "Money overview" });
   await expect(overview).toBeVisible();
-  await expect(page.getByLabel("Message your activity")).toHaveCount(0);
+  await expect(page.getByLabel("Message SplitFlow")).toHaveCount(0);
   await expect(
     overview.getByRole("button").filter({ hasText: "Dinner" }),
   ).toContainText("₩60,000");
@@ -543,7 +543,7 @@ test("money overview reads compactly and hands actions back to the conversation"
   await expect(
     page.getByRole("article", { name: "Dinner expense" }),
   ).toBeFocused();
-  await expect(page.getByLabel("Message your activity")).toBeVisible();
+  await expect(page.getByLabel("Message SplitFlow")).toBeVisible();
   await page.getByRole("button", { name: "Expenses & balances" }).click();
   await overview
     .getByRole("button", { name: "Repayments", exact: true })

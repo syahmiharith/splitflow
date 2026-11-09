@@ -450,10 +450,11 @@ describe("action-capable assistant", () => {
       other,
     );
     expect(report.previews[0].summary).toEqual({
+      currency: "KRW",
       amount: 40000,
       text: "To Alex · Awaiting recipient confirmation",
     });
-    expect(report.previews[0].transfer).toEqual({ from: "Minji", to: "Alex", amount: 40000, status: "reported", claimStatus: "agreed", reference: "bank" });
+    expect(report.previews[0].transfer).toEqual({ currency: "KRW", from: "Minji", to: "Alex", amount: 40000, status: "reported", claimStatus: "agreed", reference: "bank" });
     rows = prepareBatch(rows, other, report.operations).rows;
     active = rows[0].document as typeof active;
     expect(balances(active.expenses[0])[other]).toBe(30000);
@@ -477,6 +478,7 @@ describe("action-capable assistant", () => {
     expect(() => prepareActions(receipt, rows, other)).toThrow();
     const p = prepareActions(receipt, rows, email);
     expect(p.previews[0].summary).toEqual({
+      currency: "KRW",
       amount: 40000,
       text: "Minji → Alex · Receipt confirmed",
     });
@@ -509,6 +511,7 @@ describe("action-capable assistant", () => {
       email,
     );
     expect(schedule.previews[0].summary).toEqual({
+      currency: "KRW",
       amount: 60000,
       suffix: " / month",
       text: "Active · due day 1 · starts 2026-11-08",
@@ -550,6 +553,9 @@ describe("action-capable assistant", () => {
   it("does not expose a commit tool and rejects unknown action shapes", () => {
     expect(assistantTools.map((t) => t.name)).toEqual([
       "read_workspace",
+      "read_history",
+      "read_finance",
+      "read_notifications",
       "prepare_actions",
     ]);
     expect(() =>
@@ -735,7 +741,7 @@ it("exports every action branch in the OpenAI strict schema subset", () => {
     Object.values(schema).forEach(check);
   }
   assistantTools.forEach(tool => check(tool.parameters));
-  const wire = JSON.stringify(assistantTools[1].parameters);
+  const wire = JSON.stringify(assistantTools.find(tool => tool.name === "prepare_actions")!.parameters);
   for (const action of ["rename", "invite", "join", "leave", "remove", "plan"])
     expect(wire).toContain(`"const":"${action}"`);
 });

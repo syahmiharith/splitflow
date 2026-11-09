@@ -146,7 +146,7 @@ test(`scripted assistant ${method} preserves the conversational draft`, async ({
     }
   });
   await page.goto("/");
-  await page.getByLabel("Message your activity").fill("Hi");
+  await page.getByLabel("Message SplitFlow").fill("Hi");
   await page.getByRole("button", { name: "Start conversation" }).click();
   await expect(
     page.getByText("Hi! What would you like to split?", { exact: true }),
@@ -155,7 +155,7 @@ test(`scripted assistant ${method} preserves the conversational draft`, async ({
     page.getByRole("region", { name: "Review proposed changes" }),
   ).toHaveCount(0);
   await page
-    .getByLabel("Message your activity")
+    .getByLabel("Message SplitFlow")
     .fill("Dinner with Minji was 60000 won. I paid.");
   await page.getByRole("button", { name: "Start conversation" }).click();
   const review = page.getByRole("region", { name: "Review proposed changes" });
@@ -185,7 +185,7 @@ test(`scripted assistant ${method} preserves the conversational draft`, async ({
   await page.screenshot({
     path: `../outputs/conversation-workspace/scripted-review-${test.info().project.name}.png`,
   });
-  await page.getByLabel("Message your activity").fill("confirm");
+  await page.getByLabel("Message SplitFlow").fill("confirm");
   await page.getByRole("button", { name: "Start conversation" }).click();
   await expect(
     page.getByRole("region", { name: "Previous review" }),
@@ -195,8 +195,8 @@ test(`scripted assistant ${method} preserves the conversational draft`, async ({
     page.getByRole("region", { name: "Previous review" }),
   ).toBeVisible();
   await expect(
-    page.getByRole("region", { name: "Private assistant conversation" }),
-  ).toContainText("Saved.");
+    page.getByRole("region", { name: "Previous review" }),
+  ).toContainText("Saved");
   expect(rows.filter(r => r.kind === "activity")).toHaveLength(1);
   const saved = page.getByRole("region", { name: "Previous review" });
   await expect(saved.getByRole("button", { name: "Edit", exact: true })).toHaveCount(0);
@@ -229,7 +229,7 @@ test("guest unavailable assistant retains private messages without posting to th
   await expect(page.locator(".sf-activity-context")).not.toHaveAttribute("open", "");
   await expect(page.locator(".sf-message-own").filter({hasText:"Added Dinner"})).toHaveCount(0);
   await page
-    .getByLabel("Message your activity")
+    .getByLabel("Message SplitFlow")
     .fill("Privately review my dinner share");
   await page.getByRole("button", { name: "Send message" }).click();
   const privateChat = page.getByRole("region", {

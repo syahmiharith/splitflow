@@ -4,7 +4,7 @@ import { ArrowRight } from "lucide-react";
 import { SpendingPlanCard } from "./spending-plan-card";
 import type { Preview } from "@/lib/assistant/model";
 import { calculateExpense } from "@/lib/pilot/model";
-import { money } from "./expense-card";
+import { formatMoney } from "@/lib/finance/money";
 
 /** A readable transaction snapshot. Editing remains an explicit separate action. */
 export function ActionResult({
@@ -18,6 +18,7 @@ export function ActionResult({
 }) {
   if (preview.plan) return <SpendingPlanCard {...preview.plan} review={review} detailLines={preview.lines} />;
   const expense = preview.expense;
+  const money = (amount: number) => formatMoney(amount, expense?.currency ?? preview.transfer?.currency ?? preview.summary?.currency ?? "KRW");
   const changes = preview.lines.filter(line => {
     const amounts = line.match(/₩[\d,]+/g);
     if (line.includes("→") && amounts && amounts.length >= 2) return amounts[0] !== amounts[1];

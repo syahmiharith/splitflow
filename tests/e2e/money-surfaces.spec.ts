@@ -6,7 +6,7 @@ test("group money, personal shares and balances remain compact with conversation
   const group = page.locator(".sf-group-money-row");
   await expect(group).toContainText("Friends & housemates");
   await expect(group).toContainText("You’re owed ₩40,000");
-  await expect(page.getByLabel("Message your activity")).toBeVisible();
+  await expect(page.getByLabel("Message SplitFlow")).toBeVisible();
   if (test.info().project.name === "mobile") await page.getByRole("button", { name: "Open navigation" }).click();
   await page.getByRole("button", { name: "Your splits", exact: true }).filter({ visible: true }).click();
   const overview = page.getByRole("region", { name: "Money overview" });
@@ -22,6 +22,6 @@ test("group money, personal shares and balances remain compact with conversation
   await expect(overview).toContainText("Gets back");
   await expect(overview.getByRole("button").filter({hasText:"Minji → Alex"})).toContainText("₩20,000");
   await overview.getByRole("button").filter({hasText:"Minji → Alex"}).click();
-  await expect(page.getByLabel("Message your activity")).toBeVisible();
+  await expect(page.getByLabel("Message SplitFlow")).toBeVisible();
   await expect(page.getByRole("article",{name:"Dinner expense"})).toBeFocused();
 });

@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { calculateExpense, itemShare } from "@/lib/pilot/model";
 import type { Activity } from "@/lib/activity/model";
-import { money } from "./expense-card";
+import { formatMoney } from "@/lib/finance/money";
 export function RecurringTerms({
   activity,
   email,
@@ -19,6 +19,7 @@ export function RecurringTerms({
   onRecordActual?: () => void;
 }) {
   const schedule = activity.schedule!;
+  const money = (amount: number) => formatMoney(amount, schedule.expense.currency ?? "KRW");
   const [reviewed, setReviewed] = useState(schedule.version);
   const calculated = calculateExpense(schedule.expense),
     accepted = schedule.accepted.includes(email),

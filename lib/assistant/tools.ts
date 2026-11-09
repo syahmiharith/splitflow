@@ -108,6 +108,13 @@ function strictSchema(value: unknown): unknown {
   if (!value || typeof value !== "object") return value;
   const obj = { ...(value as Record<string, unknown>) };
   delete obj.$schema;
+  delete obj.default;
+  // Zod emits oneOf for discriminated commands. Their literal type tags are
+  // disjoint, so anyOf preserves their meaning in OpenAI's strict subset.
+  if (obj.oneOf) {
+    obj.anyOf = obj.oneOf;
+    delete obj.oneOf;
+  }
   if (obj.type === "object" && obj.properties) {
     const required = (obj.required ?? []) as string[];
     const props = obj.properties as Record<string, unknown>;

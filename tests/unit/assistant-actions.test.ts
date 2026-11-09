@@ -716,3 +716,22 @@ it("persists actual tool activity, reviewed snapshots and committed receipts in 
     expect(JSON.stringify(warn.mock.calls)).not.toMatch(/private|example/);
   } finally { warn.mockRestore();vi.unstubAllGlobals();vi.unstubAllEnvs(); }
 });
+
+it("exports every action branch in the OpenAI strict schema subset", () => {
+  function check(value: unknown) {
+    if (Array.isArray(value)) { value.forEach(check); return; }
+    if (!value || typeof value !== "object") return;
+    const schema = value as Record<string, unknown>;
+    expect(schema).not.toHaveProperty("oneOf");
+    expect(schema).not.toHaveProperty("default");
+    if (schema.type === "object") {
+      expect(schema.additionalProperties).toBe(false);
+      expect(schema.required).toEqual(Object.keys(schema.properties as object));
+    }
+    Object.values(schema).forEach(check);
+  }
+  assistantTools.forEach(tool => check(tool.parameters));
+  const wire = JSON.stringify(assistantTools[1].parameters);
+  for (const action of ["rename", "invite", "join", "leave", "remove", "plan"])
+    expect(wire).toContain(`"const":"${action}"`);
+});

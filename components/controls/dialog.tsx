@@ -37,7 +37,9 @@ export function Dialog({
           }}
           onCloseAutoFocus={(e) => {
             e.preventDefault();
-            returnFocus.current?.focus();
+            // A newly opened dialog owns focus when replacing the navigation drawer.
+            if (!document.activeElement?.closest('[role="dialog"]'))
+              returnFocus.current?.focus();
           }}
           onEscapeKeyDown={(e) => {
             if (busy) e.preventDefault();

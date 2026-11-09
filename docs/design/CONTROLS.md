@@ -17,3 +17,7 @@ Custom selects preserve controlled values, empty optional selections, disabled c
 Browser constraint validation remains enforced, but errors render next to the field and are linked through aria-describedby instead of opening browser-native bubbles. Existing server errors stay inline.
 
 Validation: typecheck, lint, production build, 275 unit/API tests and 52 desktop/mobile browser checks passed (18 environment-specific browser checks skipped). Focused checks cover nested drawer selection, type-ahead, focus return, calendar keyboard navigation and inline validation. Sixteen responsive states (four controls at 320/375/768/1440px) have no horizontal overflow or uncaught browser errors. The Select and Popover versions are aligned with the existing Dialog primitive to share a single focus-scope stack.
+
+## Current audit
+
+See [Mobbin control audit](MOBBIN-CONTROL-AUDIT.md) for the November 10 reference inventory, retained patterns and conversation search, manual menu, friend filtering and sharing refinements.

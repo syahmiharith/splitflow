@@ -1,4 +1,5 @@
 "use client";
+import { Check, Copy } from "lucide-react";
 import { useState } from "react";
 import type { Activity } from "@/lib/activity/model";
 export function ActivityShare({ activity }: { activity: Activity }) {
@@ -10,7 +11,8 @@ export function ActivityShare({ activity }: { activity: Activity }) {
         Invite the people in this activity. They sign in with the email shown
         below.
       </p>
-      <label className="block font-medium">
+      <div className="sf-share-link-row">
+      <label className="min-w-0 flex-1 font-medium">
         Activity link
         <input
           readOnly
@@ -20,6 +22,7 @@ export function ActivityShare({ activity }: { activity: Activity }) {
         />
       </label>
       <button
+        aria-label="Copy invitation link"
         type="button"
         onClick={() =>
           void navigator.clipboard
@@ -27,10 +30,12 @@ export function ActivityShare({ activity }: { activity: Activity }) {
             .then(() => setMessage("Link copied."))
             .catch(() => setMessage("Copy the link from the field above."))
         }
-        className="min-h-11 rounded-lg bg-slate-900 px-4 text-white"
+        className="sf-copy-link"
       >
-        Copy invitation link
+        {message === "Link copied." ? <Check size={17} aria-hidden="true" /> : <Copy size={17} aria-hidden="true" />}
+        <span>{message === "Link copied." ? "Copied" : "Copy link"}</span>
       </button>
+      </div>
       {message && <p role="status" className={message === "Link copied." ? "sf-action-feedback" : "text-app-muted"}>{message}</p>}
       <details>
         <summary className="min-h-11 cursor-pointer py-3">
@@ -38,9 +43,9 @@ export function ActivityShare({ activity }: { activity: Activity }) {
         </summary>
         <ul className="divide-y">
           {activity.people.map((p) => (
-            <li key={p.email} className="py-3">
-              <p>{p.name}</p>
-              <p className="break-all text-xs text-app-muted">{p.email}</p>
+            <li key={p.email} className="sf-share-person">
+              <span className="sf-ledger-avatar" aria-hidden="true">{p.name.slice(0,1).toUpperCase()}</span>
+              <span className="min-w-0"><strong className="font-medium">{p.name}</strong><small className="block break-all text-app-muted">{p.email}</small></span>
             </li>
           ))}
         </ul>

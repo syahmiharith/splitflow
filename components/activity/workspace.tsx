@@ -1,4 +1,6 @@
 "use client";
+import * as Popover from "@radix-ui/react-popover";
+import { ConversationSearch } from "./conversation-search";
 import { ProfileMenu } from "@/components/controls/profile-menu";
 import { Select } from "@/components/controls/select";
 import { pilotRequest } from "@/lib/pilot/session";
@@ -83,6 +85,8 @@ export default function ActivityWorkspace() {
       : null;
   });
   const [contextOpen, setContextOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [manualMenuOpen, setManualMenuOpen] = useState(false);
   const [summaryOpen, setSummaryOpen] = useState(false);
   const summaryKey = `splitflow-summary:${guest ? "sample" : "real"}:${email}:${selected}`;
   useEffect(() => { setSummaryOpen(localStorage.getItem(summaryKey) === "open"); }, [summaryKey]);
@@ -279,6 +283,9 @@ export default function ActivityWorkspace() {
           <SquarePen size={18} />
           New conversation
         </button>
+        <button className="sf-nav-row" onClick={() => { setMenu(false); setSearchOpen(true); }}>
+          <Search size={18} />Search conversations
+        </button>
         <button
           onClick={() => {
             setMoneyView("all");
@@ -288,7 +295,7 @@ export default function ActivityWorkspace() {
           }}
           className="sf-nav-row"
         >
-          <Search size={18} />
+          <Receipt size={18} />
           Your splits
         </button>
         {groups.length > 0 && (
@@ -769,20 +776,18 @@ export default function ActivityWorkspace() {
             Message your activity
           </label>
           <div className="flex items-end gap-1">
-            <details
-              className="static"
-              onClick={(e) => {
-                if ((e.target as HTMLElement).closest("button"))
-                  e.currentTarget.removeAttribute("open");
-              }}
-            >
-              <summary
-                aria-label="Enter manually"
-                className="grid h-11 w-11 cursor-pointer list-none place-items-center rounded-full hover:bg-slate-100"
-              >
-                <Plus size={19} />
-              </summary>
-              <div className="sf-popup absolute bottom-full left-0 z-20 mb-2 w-64 max-w-full">
+            <Popover.Root open={manualMenuOpen} onOpenChange={setManualMenuOpen}>
+              <Popover.Trigger asChild>
+                <button type="button" aria-label="Enter manually" className="grid h-11 w-11 shrink-0 place-items-center rounded-full hover:bg-slate-100">
+                  <Plus size={19} />
+                </button>
+              </Popover.Trigger>
+              <Popover.Portal>
+                <Popover.Content side="top" align="start" sideOffset={10} collisionPadding={12} aria-label="Enter manually" className="sf-popup sf-composer-menu" onClick={e => {
+                  const button = (e.target as HTMLElement).closest("button");
+                  if (button && button.getAttribute("role") !== "combobox") setManualMenuOpen(false);
+                }}>
+                  <p className="sf-menu-caption">Enter manually</p>
                 {activity && !moneyView && (
                   <button
                     type="button"
@@ -881,9 +886,10 @@ export default function ActivityWorkspace() {
                   >
                     Repeat cost
                   </button>
-                )}{" "}
-              </div>
-            </details>
+                )}
+              </Popover.Content>
+              </Popover.Portal>
+            </Popover.Root>
             <textarea
               ref={composerRef}
               disabled={Boolean(selected && !activity)}
@@ -1424,6 +1430,9 @@ export default function ActivityWorkspace() {
           !assistant.viewingEarlier &&
           renderComposer()}
       </div>
+      {searchOpen && <ConversationSearch activities={activities} threads={assistant.recents} email={email} onClose={() => setSearchOpen(false)} onActivity={id => { select(id); setModal(null); }} onThread={t => {
+        void assistant.open(t).then(() => { select(""); setModal(null); }).catch(e => setError(e.message));
+      }} />}
       {menu && (
         <ActivityDialog title="Navigation" onClose={() => setMenu(false)}>
           <div className="flex flex-col">{nav()}</div>

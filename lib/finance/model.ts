@@ -69,6 +69,20 @@ export function categoryAvailable(state: FinanceState, categoryId: string, throu
     ...state.transactions.filter(t => !t.voided && t.date <= today() && t.date.slice(0, 7) <= throughMonth).flatMap(t => t.splits.filter(s => s.categoryId === categoryId).map(s => t.kind === "refund" ? s.amount : -s.amount)),
   ]);
 }
+/** Future assignments reserve current cash; later releases cannot free an earlier month's allocation. */
+function reservedCategoryFunds(state: FinanceState, categoryId: string): number {
+  const currentMonth = today().slice(0, 7);
+  let balance = categoryAvailable(state, categoryId, currentMonth);
+  let reserved = Math.max(0, balance);
+  const future = new Map<string, number[]>();
+  for (const allocation of state.allocations.filter(a => a.categoryId === categoryId && a.month > currentMonth))
+    future.set(allocation.month, [...(future.get(allocation.month) ?? []), allocation.amount]);
+  for (const month of [...future.keys()].sort()) {
+    balance = sumMoney([balance, ...future.get(month)!]);
+    reserved = Math.max(reserved, balance);
+  }
+  return reserved;
+}
 export function financeSummary(state: FinanceState, throughMonth = today().slice(0, 7)) {
   return [...new Set(state.accounts.map(a => a.currency))].map(currency => {
     const accounts = state.accounts.filter(a => a.currency === currency);
@@ -77,7 +91,7 @@ export function financeSummary(state: FinanceState, throughMonth = today().slice
     const cardPaymentAllocation = sumMoney(accounts.filter(a => a.kind === "credit").map(a => state.cardPayments[a.id] ?? 0));
     const categories = state.categories.filter(c => c.currency === currency).map(c => ({ ...c, available: categoryAvailable(state, c.id, throughMonth) }));
     // Overspending remains visible and consumes available cash; never silently cover it.
-    const assigned = sumMoney(categories.map(c => Math.max(0, c.available)));
+    const assigned = sumMoney(categories.map(c => reservedCategoryFunds(state, c.id)));
     const receivable = sumMoney(state.transactions.filter(t => !t.voided && t.date <= today() && accounts.some(a => a.id === t.accountId)).map(t => t.kind === "expense" ? t.reimbursableAmount ?? 0 : t.kind === "reimbursement" && t.cleared ? -t.amount : 0));
     return { currency, cash, creditLiability, cardPaymentAllocation, receivable, readyToAssign: sumMoney([cash, -assigned, -cardPaymentAllocation]), categories };
   });
@@ -131,6 +145,30 @@ export function isOccurrence(schedule: z.infer<typeof scheduleSchema>, value: st
   if (schedule.frequency === "yearly" && day.getUTCMonth() !== start.getUTCMonth()) return false;
   const last = new Date(Date.UTC(day.getUTCFullYear(), day.getUTCMonth() + 1, 0)).getUTCDate();
   return day.getUTCDate() === Math.min(start.getUTCDate(), last);
+}
+/** Earliest expected occurrence still requiring action; overdue periods never disappear silently. */
+export function nextOccurrence(schedule: FinanceState["schedules"][number], asOf = today()): { date: string; status: "overdue" | "due" | "upcoming" } | null {
+  date.parse(asOf);
+  if (schedule.paused) return null;
+  const start = new Date(`${schedule.start}T00:00:00Z`);
+  // At most N handled dates can precede the next unhandled date.
+  for (let index = 0; index <= Object.keys(schedule.occurrences).length; index++) {
+    let candidate: Date;
+    if (schedule.frequency === "weekly") candidate = new Date(start.getTime() + index * 7 * 86400000);
+    else {
+      const monthIndex = start.getUTCFullYear() * 12 + start.getUTCMonth() + index * (schedule.frequency === "yearly" ? 12 : 1);
+      const year = Math.floor(monthIndex / 12), month = monthIndex % 12;
+      if (year > 9999) return null;
+      const lastDay = new Date(`${String(year).padStart(4, "0")}-${String(month + 1).padStart(2, "0")}-01T00:00:00Z`);
+      lastDay.setUTCMonth(lastDay.getUTCMonth() + 1, 0);
+      candidate = new Date(`${String(year).padStart(4, "0")}-${String(month + 1).padStart(2, "0")}-${String(Math.min(start.getUTCDate(), lastDay.getUTCDate())).padStart(2, "0")}T00:00:00Z`);
+    }
+    if (Number.isNaN(candidate.getTime()) || candidate.getUTCFullYear() > 9999) return null;
+    const value = candidate.toISOString().slice(0, 10);
+    if (schedule.occurrences[value]) continue;
+    return { date: value, status: value < asOf ? "overdue" : value === asOf ? "due" : "upcoming" };
+  }
+  return null;
 }
 export function applyFinanceCommand(current: FinanceState, raw: unknown): FinanceState {
   const command = financeCommandSchema.parse(raw), state = structuredClone(current);
@@ -219,14 +257,14 @@ export function applyFinanceCommand(current: FinanceState, raw: unknown): Financ
       const change = command.mode === "setMonthly" ? sumMoney([command.amount, -monthlyAllocation]) : command.amount;
       if (change < 0 && categoryAvailable(state, c.id, command.month) + change < 0) throw Error("Cannot remove more than the category has available.");
       const available = financeSummary(state, command.month).find(s => s.currency === c.currency)?.readyToAssign ?? 0;
-      if (change > available) throw Error("Record funds or release another allocation first.");
+      if (change > 0 && change > available) throw Error("Record funds or release another allocation first.");
       if (change) state.allocations.push({ categoryId: c.id, month: command.month, amount: change }); break;
     }
     case "allocateCardPayment": {
       const a = account(state, command.accountId);
       if (a.kind !== "credit") throw Error("Choose a credit-card account.");
       const available = financeSummary(state).find(s => s.currency === a.currency)!.readyToAssign;
-      if (command.amount > available || (state.cardPayments[a.id] ?? 0) + command.amount < 0) throw Error("Payment allocation exceeds available funds.");
+      if ((command.amount > 0 && command.amount > available) || (state.cardPayments[a.id] ?? 0) + command.amount < 0) throw Error("Payment allocation exceeds available funds.");
       state.cardPayments[a.id] = sumMoney([state.cardPayments[a.id] ?? 0, command.amount]); break;
     }
     case "goal": {

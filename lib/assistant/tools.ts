@@ -164,7 +164,7 @@ export const assistantTools = [
   {
     type: "function",
     name: "read_finance",
-    description: "Read the current user personal accounts, transactions, budgets, goals and schedules. Integer amounts are minor units of each currency; never combine currencies. Summary includes all matching accounts.",
+    description: "Read the current user personal accounts, transactions, budgets, goals and schedules. Integer amounts are minor units of each currency; never combine currencies. Summary includes all matching accounts. For export use kind export with recordId set to an authorized account; return its overview handoff link, never claim a download started.",
     strict: true, parameters: financeReadParameters,
   },
   {

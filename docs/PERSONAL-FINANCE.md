@@ -14,7 +14,11 @@ The assistant reads relevant paginated workspace and ledger records. Historical 
 
 Personal `allocate` commands preserve signed-delta behavior for existing records. For a requested monthly allocation target, `mode: "setMonthly"` supplies the desired total allocated in that month; the server derives the delta. The target is distinct from the remaining category balance after spending and rollover. Reviews show deterministic before/after amounts and transaction category allocations.
 
+Future category allocations reserve existing cash across all month views. A later release does not make funds available while an earlier month still reserves them. Overspending stays visible, and negative allocation changes may repair an overallocated plan without requiring new income.
+
 Accounts, Plan & goals and Upcoming are inspection spaces. Contextual actions return to the composer. Manual account/transaction entry and CSV mapping prepare the same inline proposals as the assistant. Import previews reject malformed rows, exclude exact repeated imports and require review of possible matches. Imports are atomic and limited to 500 selected rows per review. CSV mappings are remembered locally per account and signed-in identity.
+
+Conversational export uses `read_finance` with `kind: "export"` and an authorized account ID. It returns a same-origin account-register handoff; the existing **Export CSV** control starts the actual download. The assistant never claims that returning a link downloaded a file. Only this specific overview route is rendered as a link in assistant text; arbitrary model HTML and external URLs remain plain text. Historical-month summaries label cash, card reserves, liabilities and receivables as current, return category amounts through the requested month, and omit a misleading historical ready-to-assign total. Schedule retrieval includes the same deterministic next unhandled occurrence shown in Upcoming, explicitly labeled expected rather than recorded.
 
 Conversation history archives older turns under the same owner/thread identity after 160 turns, normally retaining 40 active turns and keeping related review/result cards together. Earlier turns load on demand; no historical conversation is rewritten into invented user messages.
 
@@ -27,6 +31,8 @@ Outbound activation is ON HOLD at the user's November 10 request. NOTIFICATIONS_
 ## Verification evidence
 
 See tests/unit/assistant-history.test.ts, assistant-retrieval.test.ts, assistant-finance.test.ts and the finance/notification tests. SQL tests under tests/sql are transaction-wrapped and roll back fixtures. Live OpenAI and deployed UI evidence must be recorded separately from scripted tests.
+
+Latest local follow-up: typecheck, lint and production build passed; 399 unit/API tests passed with three conditional local-Supabase tests skipped. Fourteen desktop/mobile browser regressions passed on the production build, including actual CSV download, unauthorized account handoff, Upcoming period handoff, confirmation/reload, import deduplication and responsive finance views. These browser fixtures use isolated sample data or scripted providers.
 
 ## Applied pilot database validation — November 10
 

@@ -60,7 +60,7 @@ import { splitState } from "@/lib/pilot/next-action";
 const inputClass = "mt-1 block w-full rounded-lg border border-app-border p-3";
 export default function ActivityWorkspace() {
   const search = useSearchParams();
-  const [financeView, setFinanceView] = useState(false);
+  const [financeView, setFinanceView] = useState(() => Boolean(search.get("finance")));
   const [importOpen, setImportOpen] = useState(false);
   const [financeEntryOpen, setFinanceEntryOpen] = useState(false);
   const [ready, setReady] = useState(false),
@@ -1075,7 +1075,7 @@ export default function ActivityWorkspace() {
           )}
         </header>
         <main className="sf-main min-h-0 flex-1 overflow-y-auto">
-          {financeView ? <FinanceOverview guest={guest} email={email} onAsk={value => { setFinanceView(false); setMoneyView(null); setList(false); setText(value); requestAnimationFrame(() => composerRef.current?.focus()); }} /> : <>
+          {financeView ? <FinanceOverview guest={guest} email={email} initialAccountId={search.get("finance") ?? undefined} onAsk={value => { setFinanceView(false); setMoneyView(null); setList(false); setText(value); requestAnimationFrame(() => composerRef.current?.focus()); }} /> : <>
           <div
             className={`sf-thread ${!activity && !assistant.thread?.messages.length && !inlineFlow && !list && !moneyView ? "sf-thread-home" : ""}`}
           >

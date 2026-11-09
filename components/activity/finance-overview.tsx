@@ -2,18 +2,20 @@
 import { useEffect, useState } from "react";
 import { exportTransactions } from "@/lib/finance/csv";
 import { loadFinance } from "@/lib/finance/client";
-import { accountBalance, financeSummary, type FinanceState } from "@/lib/finance/model";
+import { accountBalance, financeSummary, nextOccurrence, type FinanceState } from "@/lib/finance/model";
 import { formatMoney } from "@/lib/finance/money";
-export function FinanceOverview({guest,email,onAsk}:{guest:boolean;email:string;onAsk:(text:string)=>void}) {
+export function FinanceOverview({guest,email,onAsk,initialAccountId=""}:{guest:boolean;email:string;onAsk:(text:string)=>void;initialAccountId?:string}) {
  const [state,setState]=useState<FinanceState>();
  const [error,setError]=useState("");
  const [view,setView]=useState<"accounts"|"plan"|"upcoming">("accounts");
- const [accountId,setAccountId]=useState("");
+ const [accountId,setAccountId]=useState(initialAccountId);
+ useEffect(()=>{setAccountId(initialAccountId);},[initialAccountId]);
  useEffect(()=>{let active=true;void loadFinance(guest,email).then(r=>{if(active)setState(r.state);}).catch(e=>{if(active)setError(e.message);});return()=>{active=false;};},[guest,email]);
  if(error)return <p role="alert">{error}</p>;
  if(!state)return <p role="status">Loading your finances…</p>;
  const summary=financeSummary(state,new Date().toLocaleDateString("en-CA",{timeZone:"Asia/Seoul"}).slice(0,7));
  const selected=state.accounts.find(a=>a.id===accountId);
+ const upcoming=state.schedules.map(schedule=>({schedule,next:nextOccurrence(schedule)})).sort((a,b)=>(a.next?.date??"9999").localeCompare(b.next?.date??"9999")||a.schedule.name.localeCompare(b.schedule.name));
  function download(){ if(!state||!selected)return;const url=URL.createObjectURL(new Blob([exportTransactions(state,selected.id)],{type:"text/csv;charset=utf-8"}));const a=document.createElement("a");a.href=url;a.download="splitflow-transactions.csv";a.click();URL.revokeObjectURL(url); }
  return <section className="mx-auto w-full max-w-3xl px-4 py-6" aria-label="Personal finances">
   <div className="flex items-center justify-between gap-3"><h1 className="text-xl font-semibold">Your finances</h1><button className="sf-assistant-confirm" onClick={()=>onAsk("Help me manage my personal finances.")}>Ask SplitFlow</button></div>
@@ -26,6 +28,6 @@ export function FinanceOverview({guest,email,onAsk}:{guest:boolean;email:string;
    </section>}
   </>}
   {view==="plan"&&<>{summary.map(s=><section key={s.currency} className="mb-6"><h2 className="font-semibold">{s.currency} · {formatMoney(s.readyToAssign,s.currency)} available to assign</h2>{s.categories.map(c=><button key={c.id} className="flex min-h-12 w-full justify-between gap-3 border-b border-slate-200 py-3 text-left" onClick={()=>onAsk(`Review and adjust category ${c.id} (${c.name}) in ${c.currency}.`)}><span>{c.name}</span><span className={c.available<0?"text-red-700 tabular-nums":"tabular-nums"}>{formatMoney(c.available,c.currency)}</span></button>)}</section>)}{state.goals.map(g=><p key={g.id} className="py-2">{g.name} · target {formatMoney(g.target,state.categories.find(c=>c.id===g.categoryId)!.currency)} by {g.targetDate}</p>)}<button className="min-h-11 underline" onClick={()=>onAsk("Help me allocate my available money to categories and savings goals.")}>Plan with SplitFlow</button></>}
-  {view==="upcoming"&&<>{!state.schedules.length&&<p>No scheduled costs or income yet.</p>}{state.schedules.map(s=><button key={s.id} className="flex min-h-14 w-full justify-between gap-3 border-b border-slate-200 py-3 text-left" onClick={()=>onAsk(`Review schedule ${s.id} (${s.name}) and its next occurrence.`)}><span>{s.name}<small className="block text-slate-600">{s.frequency} · {s.paused?"Paused":"Expected, not recorded"}</small></span><span>{formatMoney(s.amount,state.accounts.find(a=>a.id===s.accountId)!.currency)}</span></button>)}<button className="min-h-11 underline" onClick={()=>onAsk("Help me schedule a recurring bill or expected income.")}>Add a schedule</button></>}
+  {view==="upcoming"&&<>{!state.schedules.length&&<p>No scheduled costs or income yet.</p>}{upcoming.map(({schedule:s,next})=><button key={s.id} className="flex min-h-14 w-full justify-between gap-3 border-b border-slate-200 py-3 text-left" onClick={()=>onAsk(next ? `Review schedule ${s.id} (${s.name}), expected occurrence ${next.date}, and help me record or skip it.` : `Review schedule ${s.id} (${s.name}) and help me resume or change it.`)}><span className="min-w-0 break-words">{s.name}<small className={`block ${next?.status==="overdue"?"text-amber-800":"text-slate-600"}`}>{next ? `${next.status==="overdue"?"Overdue":next.status==="due"?"Due today":"Next"} · ${next.date}` : s.paused?"Paused":"No further occurrences"}</small><small className="block text-slate-600">{s.frequency} · {s.kind==="income"?"Expected income":"Expected cost"} · not recorded</small></span><span className="shrink-0 tabular-nums">{formatMoney(s.amount,state.accounts.find(a=>a.id===s.accountId)!.currency)}</span></button>)}<button className="min-h-11 underline" onClick={()=>onAsk("Help me schedule a recurring bill or expected income.")}>Add a schedule</button></>}
  </section>;
 }

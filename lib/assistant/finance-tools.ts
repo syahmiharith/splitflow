@@ -1,19 +1,30 @@
 import { z } from "zod";
-import { accountBalance, applyFinanceCommand, categoryAvailable, financeSummary, type FinanceCommand, type FinanceState } from "@/lib/finance/model";
+import { accountBalance, applyFinanceCommand, categoryAvailable, financeSummary, today, nextOccurrence, type FinanceCommand, type FinanceState } from "@/lib/finance/model";
 import { formatMoney, sumMoney } from "@/lib/finance/money";
 import type { Preview } from "./model";
 export type FinanceSnapshot = { revision: number; state: FinanceState };
 export const financeReadParameters = {
   type: "object", properties: {
-    kind: {type:"string",enum:["summary","accounts","transactions","categories","goals","schedules","reconciliations"]},
+    kind: {type:"string",enum:["summary","accounts","transactions","categories","goals","schedules","reconciliations","export"]},
     query: {type:["string","null"]}, recordId:{type:["string","null"]}, cursor:{type:["string","null"]}, currency:{type:["string","null"]}, month:{type:["string","null"]},
   }, required:["kind","query","recordId","cursor","currency","month"],additionalProperties:false,
 };
-const readSchema=z.object({kind:z.enum(["summary","accounts","transactions","categories","goals","schedules","reconciliations"]),query:z.string().max(300).nullable().optional(),recordId:z.string().max(100).nullable().optional(),cursor:z.string().max(2000).nullable().optional(),currency:z.string().length(3).nullable().optional(),month:z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/).nullable().optional()}).strict();
+const readSchema=z.object({kind:z.enum(["summary","accounts","transactions","categories","goals","schedules","reconciliations","export"]),query:z.string().max(300).nullable().optional(),recordId:z.string().max(100).nullable().optional(),cursor:z.string().max(2000).nullable().optional(),currency:z.string().length(3).nullable().optional(),month:z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/).nullable().optional()}).strict();
 export function readFinance(raw:unknown,snapshot:FinanceSnapshot) {
   const args=readSchema.parse(raw), state=snapshot.state;
   if(args.kind==="summary" && (args.query || args.recordId || args.cursor)) throw Error("Summary supports currency and month filters only. Use a record search for specific entries.");
-  if(args.kind==="summary") return {revision:snapshot.revision,complete:true,currencies:financeSummary(state,args.month??undefined).filter(s=>!args.currency||s.currency===args.currency)};
+  if(args.kind==="export") {
+    const account=state.accounts.find(a=>a.id===args.recordId);
+    if(!account)throw Error("Choose an account from your personal records before exporting.");
+    if(args.query||args.cursor||args.month||args.currency&&args.currency!==account.currency)throw Error("Account export contains the full recorded account history. Filtered exports are not available.");
+    return {revision:snapshot.revision,account:{id:account.id,name:account.name,currency:account.currency},handoff:{href:`/?finance=${encodeURIComponent(account.id)}`,label:`Open ${account.name} for CSV export`,nextAction:"Open this account and select Export CSV."},downloadStarted:false,instruction:"Show the handoff link. A download starts only when the user selects Export CSV; do not claim a file was downloaded or attached."};
+  }
+  if(args.kind==="summary") {
+    const currentDate=today(), month=args.month??currentDate.slice(0,7);
+    const summaries=financeSummary(state,month).filter(s=>!args.currency||s.currency===args.currency);
+    if(month!==currentDate.slice(0,7))return {revision:snapshot.revision,complete:true,balanceAsOf:currentDate,categoryThroughMonth:month,historicalCashSupported:false,instruction:"Account cash, liabilities, reserves and receivables are CURRENT, not historical. Only category values reflect the requested month. No historical ready-to-assign total is supplied.",currencies:summaries.map(s=>({currency:s.currency,currentCash:s.cash,currentCreditLiability:s.creditLiability,currentCardPaymentAllocation:s.cardPaymentAllocation,currentReceivable:s.receivable,categories:s.categories}))};
+    return {revision:snapshot.revision,complete:true,balanceAsOf:currentDate,categoryThroughMonth:month,currencies:summaries};
+  }
   const data:Record<string,unknown>[] = state[args.kind].map(row=>({...row}));
   const filtered=data.filter(row=>{
     const currency=row.currency??state.accounts.find(a=>a.id===row.accountId)?.currency??state.categories.find(c=>c.id===row.categoryId)?.currency;
@@ -24,7 +35,7 @@ export function readFinance(raw:unknown,snapshot:FinanceSnapshot) {
   const stamp=`${snapshot.revision}:${signature}`;
   const offset=args.cursor?Number(args.cursor.split(":")[0]):0;
   if(args.cursor&&(!Number.isSafeInteger(offset)||offset<0||offset>filtered.length||args.cursor.slice(args.cursor.indexOf(":")+1)!==stamp)) throw Error("Finance records changed or cursor is invalid. Restart the search.");
-  const page=filtered.slice(offset,offset+20).map(row=>args.kind==="accounts"?{...row,balance:accountBalance(state,String(row.id)),clearedBalance:accountBalance(state,String(row.id),true)}:args.kind==="categories"?{...row,available:categoryAvailable(state,String(row.id),args.month??undefined)}:row);
+  const page=filtered.slice(offset,offset+20).map(row=>args.kind==="schedules"?{...row,nextOccurrence:nextOccurrence(row as FinanceState["schedules"][number]),statusMeaning:"Expected occurrence only; not a recorded expense or payment"}:args.kind==="accounts"?{...row,balanceAsOf:today(),balance:accountBalance(state,String(row.id)),clearedBalance:accountBalance(state,String(row.id),true)}:args.kind==="categories"?{...row,available:categoryAvailable(state,String(row.id),args.month??undefined)}:row);
   const nextCursor=offset+page.length<filtered.length?`${offset+page.length}:${stamp}`:null;
   return {revision:snapshot.revision,records:page,matchedCount:filtered.length,nextCursor,complete:!nextCursor&&offset===0};
 }

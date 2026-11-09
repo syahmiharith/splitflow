@@ -1,4 +1,5 @@
 "use client";
+import { AssistantMessageText } from "./assistant-message-text";
 import { ActionResult } from "./action-result";
 import { useEffect, useRef } from "react";
 import { Check, ChevronRight, LoaderCircle } from "lucide-react";
@@ -164,7 +165,7 @@ export function AssistantThread({
             {m.role === "user" ? "You" : "SplitFlow"}:{" "}
           </span>
           {m.parts?.filter((p) => p.type === "tool").map(part)}
-          {m.text && !(m.text === "Ready for your review." && m.parts?.some(p => p.type === "review")) && <p className="whitespace-pre-wrap">{m.text}</p>}
+          {m.text && !(m.text === "Ready for your review." && m.parts?.some(p => p.type === "review")) && <p className="whitespace-pre-wrap">{m.role === "assistant" ? <AssistantMessageText text={m.text} /> : m.text}</p>}
           {m.parts?.filter((p) => p.type !== "tool").map(part)}
         </div>
       ))}

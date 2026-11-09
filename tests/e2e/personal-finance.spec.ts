@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
+import { applyFinanceCommand, emptyFinance } from "../../lib/finance/model";
 
 async function select(page:Page,label:string,option:string){
   await page.locator("label").filter({hasText:label}).filter({has:page.getByRole("combobox")}).first().getByRole("combobox").click();
@@ -67,4 +68,28 @@ test("CSV mapping creates an inline review, imports once and reopens recorded tr
   await select(page,"Account","CSV account · USD");
   await page.getByRole("button",{name:"Review import",exact:true}).click();
   await expect(page.getByRole("region",{name:"Import transactions"}).getByRole("alert")).toContainText("No new transactions");
+});
+
+test("account export handoff opens only its register and downloads an actual CSV",async({page})=>{
+ await page.goto("/");
+ await account(page,"Export wallet","USD","50.00");
+ const id=await page.evaluate(()=>JSON.parse(localStorage.getItem("splitflow-private-assistant:sample:alex@example.test")!).finance.state.accounts.find((a:{name:string})=>a.name==="Export wallet").id);
+ await page.goto(`/?finance=${encodeURIComponent(id)}`);
+ const view=page.getByRole("region",{name:"Personal finances"});
+ await expect(view.getByRole("heading",{name:"Export wallet",exact:true})).toBeVisible();
+ const pending=page.waitForEvent("download");await view.getByRole("button",{name:"Export CSV",exact:true}).click();const download=await pending;
+ expect(download.suggestedFilename()).toBe("splitflow-transactions.csv");
+ const stream=await download.createReadStream();let content="";for await(const chunk of stream!)content+=chunk.toString();
+ expect(content).toContain("id,date,payee,amount_minor,currency,cleared,voided");
+ await page.goto("/?finance=not-an-owned-account");
+ await expect(page.getByRole("button",{name:"Export CSV",exact:true})).toHaveCount(0);
+});
+
+test("upcoming costs show deterministic dates and hand the exact occurrence to conversation",async({page})=>{
+ const state=applyFinanceCommand(applyFinanceCommand(emptyFinance(),{type:"account",account:{id:"schedule-bank",name:"Schedule bank",kind:"bank",currency:"USD",openingBalance:10000}}),{type:"schedule",schedule:{id:"future-rent",name:"Future rent",accountId:"schedule-bank",amount:1000,kind:"expense",start:"2099-01-31",frequency:"monthly",paused:false}});
+ await page.addInitScript(value=>localStorage.setItem("splitflow-private-assistant:sample:alex@example.test",JSON.stringify({threads:{},operations:{},finance:{revision:1,state:value}})),state);
+ await page.goto("/?finance=schedule-bank");
+ const view=page.getByRole("region",{name:"Personal finances"});await view.getByRole("button",{name:"Upcoming",exact:true}).click();
+ const schedule=view.getByRole("button").filter({hasText:"Future rent"});await expect(schedule).toContainText("Next · 2099-01-31");await expect(schedule).toContainText("Expected cost · not recorded");
+ await schedule.click();await expect(page.getByLabel("Message SplitFlow")).toHaveValue("Review schedule future-rent (Future rent), expected occurrence 2099-01-31, and help me record or skip it.");
 });

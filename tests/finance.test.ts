@@ -96,6 +96,39 @@ describe("personal finance", () => {
     expect(categoryAvailable(s, "food", "2026-11")).toBe(30000);
     expect(() => apply(s, { type: "allocate", mode: "setMonthly", categoryId: "food", month: "2026-11", amount: 200000 })).toThrow(/funds/);
   });
+  it("reserves future allocations in every period's available cash without changing period displays", () => {
+    const currentMonth = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Seoul" }).slice(0, 7);
+    let s = apply(fixture(), { type: "allocate", categoryId: "food", month: "2098-11", amount: 80000 });
+    expect(financeSummary(s, currentMonth)[0]).toMatchObject({ readyToAssign: 20000, categories: [expect.objectContaining({ available: 0 })] });
+    expect(financeSummary(s, "2098-11")[0]).toMatchObject({ readyToAssign: 20000, categories: [expect.objectContaining({ available: 80000 })] });
+    expect(() => apply(s, { type: "allocate", categoryId: "food", month: currentMonth, amount: 30000 })).toThrow(/funds/);
+    s = apply(s, { type: "allocate", categoryId: "food", month: currentMonth, amount: 20000 });
+    expect(financeSummary(s, currentMonth)[0].readyToAssign).toBe(0);
+    expect(categoryAvailable(s, "food", currentMonth)).toBe(20000);
+  });
+  it("does not free funds early when a later month releases an earlier allocation", () => {
+    const currentMonth = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Seoul" }).slice(0, 7);
+    let s = apply(fixture(), { type: "allocate", categoryId: "food", month: currentMonth, amount: 100000 });
+    s = apply(s, { type: "allocate", categoryId: "food", month: "2098-11", amount: -100000 });
+    expect(financeSummary(s, currentMonth)[0].readyToAssign).toBe(0);
+    expect(financeSummary(s, "2098-11")[0].readyToAssign).toBe(0);
+    expect(categoryAvailable(s, "food", "2098-11")).toBe(0);
+    expect(() => apply(s, { type: "allocateCardPayment", accountId: "card", amount: 1000 })).toThrow(/funds/);
+  });
+  it("does not mix currencies when reserving future allocations", () => {
+    let s = apply(fixture(), { type: "allocate", categoryId: "food", month: "2098-11", amount: 100000 });
+    s = apply(s, { type: "account", account: { id: "won", name: "Won", kind: "cash", currency: "KRW", openingBalance: 50000 } });
+    const totals = financeSummary(s);
+    expect(totals.find(t => t.currency === "USD")!.readyToAssign).toBe(0);
+    expect(totals.find(t => t.currency === "KRW")!.readyToAssign).toBe(50000);
+  });
+  it("allows partial releases to repair an already negative available balance", () => {
+    let s = apply(fixture(), { type: "allocate", categoryId: "food", month: "2098-11", amount: 100000 });
+    s = apply(s, { type: "transaction", transaction: { id: "unplanned", accountId: "bank", date: "2026-11-10", amount: -10000, kind: "expense", payee: "Unplanned" } });
+    expect(financeSummary(s)[0].readyToAssign).toBe(-10000);
+    s = apply(s, { type: "allocate", categoryId: "food", month: "2098-11", amount: -5000 });
+    expect(financeSummary(s)[0].readyToAssign).toBe(-5000);
+  });
   it("corrects both transfer legs and its fee atomically", () => {
     let s = apply(fixture(), { type: "account", account: { id: "other", name: "Other", kind: "bank", currency: "USD", openingBalance: 0 } });
     s = apply(s, { type: "transfer", id: "transfer", from: "bank", to: "other", date: "2026-11-10", sourceAmount: 1000, destinationAmount: 1000, fee: 100 });

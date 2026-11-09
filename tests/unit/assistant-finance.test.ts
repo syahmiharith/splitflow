@@ -78,3 +78,17 @@ it("collapses large imports into one review while retaining all transaction deta
   const result=prepareFinanceCommands({revision:1,state},Array.from({length:30},(_,i)=>({type:"transaction" as const,transaction:{id:`t${i}`,importKey:`i${i}`,accountId:"bank",amount:-100,date:"2026-11-10",kind:"expense" as const,payee:`Meal ${i}`,cleared:true,splits:[]}})));
   expect(result.commands).toHaveLength(30);expect(result.previews).toHaveLength(1);expect(result.previews[0].title).toBe("Import 30 transactions");expect(result.previews[0].lines).toHaveLength(31);expect(result.previews[0].summary?.text).toContain("$30.00 out");
 });
+
+it("returns an authorized export handoff without claiming a download",()=>{
+ const state=applyFinanceCommand(emptyFinance(),{type:"account",account:{id:"wallet",name:"Wallet",kind:"bank",currency:"USD",openingBalance:10000}});
+ expect(readFinance({kind:"export",recordId:"wallet"},{revision:1,state})).toMatchObject({handoff:{href:"/?finance=wallet",nextAction:"Open this account and select Export CSV."},downloadStarted:false});
+ expect(()=>readFinance({kind:"export",recordId:"another-user-account"},{revision:1,state})).toThrow("Choose an account");
+ expect(()=>readFinance({kind:"export",recordId:"wallet",month:"2026-10"},{revision:1,state})).toThrow("Filtered exports");
+});
+it("labels current balances explicitly when returning historical category allocations",()=>{
+ const state=applyFinanceCommand(emptyFinance(),{type:"account",account:{id:"wallet",name:"Wallet",kind:"bank",currency:"USD",openingBalance:10000}});
+ const result=readFinance({kind:"summary",month:"2000-01"},{revision:1,state});
+ expect(result).toMatchObject({historicalCashSupported:false,categoryThroughMonth:"2000-01",currencies:[{currency:"USD",currentCash:10000}]});
+ if(!("currencies" in result)||!result.currencies)throw Error("summary");
+ expect(result.currencies[0]).not.toHaveProperty("cash");expect(result.currencies[0]).not.toHaveProperty("readyToAssign");
+});

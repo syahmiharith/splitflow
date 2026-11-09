@@ -4,6 +4,8 @@ import type { RecordRow } from "@/lib/activity/client";
 import { assistantTools, prepareActions, readableWorkspace } from "./tools";
 export type ProviderResponse = {
   status?: string;
+  model?: string;
+  usage?: { output_tokens?: number; output_tokens_details?: { reasoning_tokens?: number } };
   incomplete_details?: { reason?: string };
   output: (
     | {
@@ -60,6 +62,9 @@ export const openAIProvider: Provider = async (input, signal) => {
   if (result.status === "incomplete" || !result.output?.some(item => item.type === "function_call" || (item.type === "message" && item.content?.some(part => part.text?.trim())))) {
     console.warn("splitflow_provider_failure", {
       code: "incomplete_response",
+      model: result.model?.replace(/[^a-zA-Z0-9.-]/g, "").slice(0,80),
+      outputTokens: result.usage?.output_tokens,
+      reasoningTokens: result.usage?.output_tokens_details?.reasoning_tokens,
       status: result.status === "incomplete" ? "incomplete" : "empty",
       reason: result.incomplete_details?.reason === "max_output_tokens" ? "max_output_tokens" : "other",
     });

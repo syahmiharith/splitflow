@@ -7,3 +7,7 @@ Assistant reviews name the affected record, or the number of changes in a batch.
 Shared numerals are tabular, secondary text uses darker contrast, long headings wrap, and spacing between related conversation sections is tighter. Existing checkmarked menus, calendar, full-row account menu and inline manual workflows remain in the same conversation. Accent is limited to selected money-view navigation and success feedback.
 
 Validation covers the existing unit/API suite, production build and desktop/mobile browser journeys; responsive inspection covers 320, 375, 768 and 1440 pixels. This work does not establish live OpenAI execution or real-user adoption evidence.
+
+Money-view scope text is conditional: multi-activity views show their activity count, and archived inclusion appears only when applicable. Single-activity views omit that redundant helper. Repayment obligations use bordered full-row buttons, explicit Report payment or View repayment text, a chevron, hover/active/focus states, and keyboard activation that returns to the expense conversation. Reporting and receipt confirmation still happen there.
+
+Placeholders use opaque #626262 text on light input surfaces. Nested menu geometry uses a 12px surface radius, 4px inset and 8px item radius. Calendar cells use the same subtraction rule with a 4px optical minimum for discrete controls. These refinements reuse the inspected ChatGPT menus and Linear calendar references documented in CONTROLS.md.

@@ -541,10 +541,10 @@ test("money overview reads compactly and hands actions back to the conversation"
   await expect(overview).toBeVisible();
   await overview.getByRole("button", { name: "Balances", exact: true }).click();
   await expect(overview).toContainText("Who repays whom");
-  await overview
-    .getByRole("button")
-    .filter({ hasText: "Minji → Alex" })
-    .click();
+  const repayment = overview.getByRole("button").filter({ hasText: "Minji → Alex" });
+  await expect(repayment).toContainText("View repayment");
+  await repayment.focus();
+  await page.keyboard.press("Enter");
   await expect(
     page.getByRole("article", { name: "Dinner expense" }),
   ).toBeFocused();

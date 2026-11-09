@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import { ChevronRight } from "lucide-react";
 import type { Activity } from "@/lib/activity/model";
 import { balances, calculateExpense } from "@/lib/pilot/model";
 import { moneySummary } from "@/lib/activity/money-summary";
@@ -40,14 +41,13 @@ export function MoneyPage({
     <section className="sf-ledger" aria-label="Money overview">
       <header className="sf-ledger-heading">
         <div>
-          <p className="text-xs text-app-muted">Money overview</p>
           <h1>{title}</h1>
         </div>
         {onManage && <button onClick={onManage}>Manage group →</button>}
       </header>
       <div className="sf-ledger-position">
         <MoneyStatus splits={splits} email={email} />
-        <p>Accessible activities · includes archived records</p>
+        {activities.length > 1 && <p>Across {activities.length} activities{activities.some(a => a.archivedBy.includes(email)) ? " · includes archived activities" : ""}</p>}
       </div>
       <nav aria-label="Money views" className="sf-ledger-tabs">
         {["Expenses", "Balances", "Repayments"].map((t) => (
@@ -183,7 +183,7 @@ export function MoneyPage({
             <h2 className="sf-ledger-subheading">Who repays whom</h2>
             {moneySummary(splits, email).obligations.map((t, i) => (
               <button
-                className="sf-ledger-row"
+                className="sf-ledger-row sf-repayment-link"
                 key={i}
                 onClick={() =>
                   onOpen(
@@ -197,14 +197,14 @@ export function MoneyPage({
                     {people.find((p) => p.email === t.from)?.name} →{" "}
                     {people.find((p) => p.email === t.to)?.name}
                   </strong>
-                  <small>{t.title} · Open conversation to repay</small>
+                  <small>{t.title}</small>
                 </span>
-                <span className="sf-ledger-amount">{money(t.amount)} →</span>
+                <span className="sf-ledger-amount"><strong>{money(t.amount)}</strong><small className="sf-row-action">{t.from === email ? "Report payment" : "View repayment"}</small></span>
+                <ChevronRight className="sf-row-chevron" size={18} aria-hidden="true" />
               </button>
             ))}
             <p className="sf-ledger-footnote">
-              Only confirmed receipts reduce balances. Separate expenses retain
-              their obligations.
+              Payments stay outstanding until the recipient confirms receipt.
             </p>
           </>
         )}
@@ -218,7 +218,7 @@ export function MoneyPage({
             )}
             {transfers.map(({ activity: a, split: s, payment: p }) => (
               <button
-                className="sf-ledger-row"
+                className="sf-ledger-row sf-repayment-link"
                 key={p.id}
                 onClick={() => onOpen(a.id, s.id)}
               >
@@ -246,14 +246,13 @@ export function MoneyPage({
                         : "Disputed"}
                   </small>
                 </span>
+                <ChevronRight className="sf-row-chevron" size={18} aria-hidden="true" />
               </button>
             ))}
           </>
         )}
       </div>
-      <p className="sf-ledger-footnote">
-        Select a row to continue in its conversation.
-      </p>
+      {tab === "Expenses" && entries.length > 0 && <p className="sf-ledger-footnote">Open an expense to review or update it in conversation.</p>}
     </section>
   );
 }

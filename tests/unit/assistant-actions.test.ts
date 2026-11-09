@@ -623,3 +623,61 @@ it("sends strict tools through Responses without provider storage", async () => 
     vi.unstubAllEnvs();
   }
 });
+
+it("persists actual tool activity, reviewed snapshots and committed receipts in order", async () => {
+  const { store } = memory();
+  const id = crypto.randomUUID();
+  const review = await assistantRequest(
+    req(id),
+    email,
+    store,
+    (t, r, e, onTool) =>
+      runAssistant(
+        t,
+        r,
+        e,
+        provider([
+          {
+            type: "create_activity",
+            ref: "dinner",
+            input: { title: "Dinner", kind: "quick", people, groupId: null },
+          },
+          {
+            type: "change_activity",
+            target: "dinner",
+            command: { type: "expense", expense },
+          },
+        ]),
+        [],
+        onTool,
+      ),
+  );
+  const parts = review.messages.at(-1)!.parts!;
+  expect(parts.map((p) => p.type)).toEqual(["tool", "review"]);
+  expect(parts[0]).toMatchObject({
+    status: "complete",
+    label: "Preparing changes",
+  });
+  expect((await store.load(id))!.messages.at(-1)!.parts).toEqual(parts);
+  const saved = await assistantRequest(
+    {
+      ...req(id, review.revision),
+      action: "confirm",
+      proposalId: review.pending!.id,
+    },
+    email,
+    store,
+  );
+  expect(
+    saved.messages.at(-3)!.parts?.find((p) => p.type === "review"),
+  ).toMatchObject({ status: "saved" });
+  expect(saved.messages.at(-1)!.parts?.[0]).toMatchObject({
+    type: "result",
+    proposalId: review.pending!.id,
+  });
+  expect(saved.messages.at(-1)!.parts?.[0]).toHaveProperty(
+    "records.1.revision",
+    2,
+  );
+  expect(saved.pending).toBeNull();
+});

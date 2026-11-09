@@ -1,6 +1,6 @@
 import type { AssistantRequest, AssistantThread } from "./model";
 import { emptyThread, addTurn, isConfirmation } from "./model";
-import type { Proposal } from "./model";
+import type { ToolActivity, Proposal } from "./model";
 import { prepareBatch } from "@/lib/activity/operations";
 import type { RecordRow } from "@/lib/activity/client";
 export interface AssistantStore {
@@ -27,6 +27,7 @@ export async function assistantRequest(
     thread: AssistantThread,
     rows: RecordRow[],
     email: string,
+    onTool: (event: ToolActivity) => Promise<void>,
   ) => Promise<{ text: string; proposal: Proposal | null }>,
 ) {
   const previous = await store.result(raw.id, `${raw.key}:done`);
@@ -52,6 +53,15 @@ export async function assistantRequest(
     Date.now() - Date.parse(current.updatedAt) < 60000
   )
     throw Error("A reply is still running. Wait before retrying.");
+  function finishReview(
+    t: AssistantThread,
+    status: "saved" | "discarded" | "superseded",
+  ) {
+    for (const message of t.messages)
+      for (const part of message.parts ?? [])
+        if (part.type === "review" && part.status === "pending")
+          part.status = status;
+  }
   const confirming =
     raw.action === "confirm" ||
     (raw.action === "send" &&
@@ -73,6 +83,7 @@ export async function assistantRequest(
       prepared = prepareBatch(rows, email, current.pending.operations);
     } catch (e) {
       const next = structuredClone(current);
+      finishReview(next, "superseded");
       next.pending = null;
       next.status = "idle";
       addTurn(
@@ -87,8 +98,22 @@ export async function assistantRequest(
     addTurn(
       next,
       "assistant",
-      "Saved. The reviewed changes are now in your workspace.",
+      "Saved.",
     );
+    finishReview(next, "saved");
+    next.messages.at(-1)!.parts = [
+      {
+        type: "result",
+        proposalId: current.pending.id,
+        previews: structuredClone(current.pending.previews),
+        records: prepared.results.map((r) => ({
+          id: r.document.id,
+          kind: r.kind,
+          revision: r.document.revision,
+          title: r.kind === "activity" ? r.document.title : r.document.name,
+        })),
+      },
+    ];
     next.lastResults = prepared.results;
     next.status = "idle";
     if (!next.activityId)
@@ -119,6 +144,7 @@ export async function assistantRequest(
   }
   if (raw.action === "manual") {
     const next = structuredClone(current);
+    finishReview(next, "superseded");
     next.pending = null;
     next.status = "idle";
     addTurn(
@@ -130,6 +156,7 @@ export async function assistantRequest(
   }
   if (raw.action === "cancel") {
     const next = structuredClone(current);
+    finishReview(next, "discarded");
     next.pending = null;
     next.draft = null;
     next.status = "idle";
@@ -153,25 +180,53 @@ export async function assistantRequest(
   current = structuredClone(current);
   if (raw.manualContext) current.manualContext = raw.manualContext;
   if (raw.action === "send") addTurn(current, "user", raw.message!);
+  finishReview(current, "superseded");
+  for (const message of current.messages)
+    for (const part of message.parts ?? [])
+      if (part.type === "tool" && part.status === "running")
+        part.status = "failed";
   current.pending = null;
+  addTurn(current, "assistant", "");
+  current.messages.at(-1)!.parts = [];
   current.status = "processing";
   current.updatedAt = new Date().toISOString();
   current = await store.save(current, current.revision, `${raw.key}:started`);
-  const next = structuredClone(current);
+  let next = structuredClone(current);
+  let toolIndex = 0;
+  const onTool = async (event: ToolActivity) => {
+    const parts = next.messages.at(-1)!.parts!;
+    const existing = parts.find((p) => p.type === "tool" && p.id === event.id);
+    if (existing) Object.assign(existing, event);
+    else parts.push({ type: "tool", ...event });
+    next.updatedAt = new Date().toISOString();
+    next = await store.save(
+      next,
+      next.revision,
+      `${raw.key}:tool:${toolIndex++}`,
+    );
+  };
   try {
     if (!run) throw Error("Assistant unavailable");
-    const result = await run(next, rows, email);
+    const result = await run(next, rows, email, onTool);
     next.pending = result.proposal;
     if (result.proposal) next.draft = result.proposal;
     next.status = "idle";
-    addTurn(next, "assistant", result.text);
+    next.messages.at(-1)!.text = result.text;
+    if (result.proposal)
+      next.messages
+        .at(-1)!
+        .parts!.push({
+          type: "review",
+          proposal: structuredClone(result.proposal),
+          status: "pending",
+        });
   } catch {
     next.status = "unavailable";
-    addTurn(
-      next,
-      "assistant",
-      "Assistant unavailable. Your message and private draft are saved. Retry or use Enter manually.",
-    );
+    next.messages.at(-1)!.text =
+      "Assistant unavailable. Your message and private draft are saved. Retry or use Enter manually.";
+    for (const part of next.messages.at(-1)!.parts ?? [])
+      if (part.type === "tool" && part.status === "running")
+        part.status = "failed";
   }
-  return store.save(next, current.revision, `${raw.key}:done`);
+  return store.save(next, next.revision, `${raw.key}:done`);
 }

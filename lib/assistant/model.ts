@@ -14,11 +14,30 @@ export type Proposal = {
   dependencies: { id: string; revision: number }[];
   previews: Preview[];
 };
+export type ToolActivity = {
+  id: string;
+  label: string;
+  status: "running" | "complete" | "failed";
+};
+export type TurnPart =
+  | ({ type: "tool" } & ToolActivity)
+  | {
+      type: "review";
+      proposal: Proposal;
+      status: "pending" | "saved" | "discarded" | "superseded";
+    }
+  | {
+      type: "result";
+      proposalId: string;
+      previews: Preview[];
+      records: { id: string; kind: string; revision: number; title: string }[];
+    };
 export type Turn = {
   id: string;
   role: "user" | "assistant";
   text: string;
   at: string;
+  parts?: TurnPart[];
 };
 export type AssistantThread = {
   id: string;

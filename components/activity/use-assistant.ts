@@ -129,8 +129,19 @@ export function useAssistant(
       optimistic.status = "processing";
       setThread(optimistic);
     }
+    let polling = true;
+    const timer = setInterval(() => {
+      if (!guest)
+        void loadAssistant(guest, email, thread.id)
+          .then((value) => {
+            if (polling && value && identity.current === started)
+              setThread(value);
+          })
+          .catch(() => {});
+    }, 1200);
     try {
       const next = await sendAssistant(guest, email, request);
+      polling = false;
       localStorage.removeItem(pendingKey);
       if (next.activityId)
         localStorage.setItem(scope + next.activityId, next.id);
@@ -158,6 +169,8 @@ export function useAssistant(
       }
       throw e;
     } finally {
+      polling = false;
+      clearInterval(timer);
       guard.current = false;
       setBusy(false);
     }

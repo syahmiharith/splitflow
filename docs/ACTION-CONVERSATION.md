@@ -23,3 +23,15 @@ OpenAI setup is on hold. No credential was created or changed. Tests inject scri
 Coverage includes the Responses request envelope, multi-step reviewed creation, integer allocations, stale proposals, failed/duplicate submissions, group permissions, recipient-only confirmation, overpayment, recurring acceptance and pause, unknown tools, owner-scoped storage and actual local Postgres transaction rollback. Browser fixtures exercise message-only review/confirmation, reload recovery, private versus group discussion and manual fallback. Local Supabase tests use synthetic verified users; no real invitations or payments are sent.
 
 Deployment uses an additive migration and the existing preview branch. Keep the PR draft. Rollback the application deployment first if necessary; retain the additive private tables so reviewed conversations are not lost. API error handling does not log user messages, email addresses or raw provider payloads.
+
+## Persistent inline timeline
+
+Assistant turns now carry optional typed parts: tool activity, proposal review and saved result. A user message and an empty response turn are persisted before inference. Registered tool execution reports safe labels and running/complete/failed state; raw arguments, prompts and reasoning never enter the rendered timeline. Signed-in clients poll their private thread during a request to display persisted progress. Plain greetings can return text without tools or cards.
+
+Each review snapshot belongs to the response that prepared it. Editing supersedes it, cancellation discards it, and confirmation marks it saved in the same transaction that appends the execution receipt. Previous reviews collapse but remain inspectable. The result card retains deterministic participant amounts and record revision references; later revisions do not rewrite that snapshot. Lost-response replay returns the original receipt. Interrupted running tools are marked interrupted on retry.
+
+Existing activity records are collapsed attached context. Manual workflows and money-overview handoffs can explicitly expand them. Generated activity events carry an event kind; historical untyped messages are attributed as activity updates rather than being represented as private user prompts. Actual assistant threads appear under Recent conversations; activities have their own sidebar section. No synthetic request history is invented for existing sample expenses.
+
+Persistence uses the existing private JSON documents and transaction RPCs. New fields are optional for backward compatibility; no table migration or financial-history rewrite is needed. An application rollback may ignore the typed parts but must retain the stored documents. Private prompts, reviews and tool activity are never published to group discussion.
+
+The visual treatment adapts the ChatGPT inline shopping card and generated-result references in docs/design/FINISH-PASS.md and OpenAI's ChatKit widget/action documentation, using the existing React components and Responses backend rather than adding ChatKit or another service. Tests inject scripted providers explicitly; their screenshots are not proof of live OpenAI execution.

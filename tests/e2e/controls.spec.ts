@@ -51,6 +51,7 @@ test("recurring date picker navigates by keyboard without moving actions out of 
     .getByRole("button", { name: "Household rent", exact: true })
     .filter({ visible: true })
     .click();
+  await page.locator(".sf-activity-context > summary").click();
   await page
     .getByRole("button", { name: "Edit recurring terms", exact: true })
     .click();

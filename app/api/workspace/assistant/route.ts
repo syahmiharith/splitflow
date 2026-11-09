@@ -54,14 +54,19 @@ export async function POST(request: NextRequest) {
     const store = serverStore(user);
     await assertThreadAccess(store, await store.load(input.id));
     return NextResponse.json(
-      await assistantRequest(input, user.email, store, async (t, r, e) => {
-        const drafts = t.activityId
-          ? await database(
-              `activity_drafts?owner=eq.${user.id}&activity_id=eq.${t.activityId}&select=slot,document`,
-            )
-          : [];
-        return runAssistant(t, r, e, undefined, drafts);
-      }),
+      await assistantRequest(
+        input,
+        user.email,
+        store,
+        async (t, r, e, onTool) => {
+          const drafts = t.activityId
+            ? await database(
+                `activity_drafts?owner=eq.${user.id}&activity_id=eq.${t.activityId}&select=slot,document`,
+              )
+            : [];
+          return runAssistant(t, r, e, undefined, drafts, onTool);
+        },
+      ),
       { headers: { "Cache-Control": "no-store" } },
     );
   } catch (e) {

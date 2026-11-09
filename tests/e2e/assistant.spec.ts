@@ -62,34 +62,50 @@ test("scripted assistant creates and publishes through conversation without a fo
       },
     ],
   };
-  const provider: Provider = async () => ({
-    output: [
-      {
-        type: "function_call",
-        name: "prepare_actions",
-        call_id: "scripted-test",
-        arguments: JSON.stringify({
-          actions: [
-            {
-              type: "create_activity",
-              ref: "dinner",
-              input: {
-                title: "Dinner with Minji",
-                kind: "quick",
-                people,
-                groupId: null,
+  const provider: Provider = async (input) => {
+    if (!JSON.stringify(input).includes("Dinner with Minji was"))
+      return {
+        output: [
+          {
+            type: "message",
+            content: [
+              {
+                type: "output_text",
+                text: "Hi! What would you like to split?",
               },
-            },
-            {
-              type: "change_activity",
-              target: "dinner",
-              command: { type: "expense", expense },
-            },
-          ],
-        }),
-      },
-    ],
-  });
+            ],
+          },
+        ],
+      };
+    return {
+      output: [
+        {
+          type: "function_call",
+          name: "prepare_actions",
+          call_id: "scripted-test",
+          arguments: JSON.stringify({
+            actions: [
+              {
+                type: "create_activity",
+                ref: "dinner",
+                input: {
+                  title: "Dinner with Minji",
+                  kind: "quick",
+                  people,
+                  groupId: null,
+                },
+              },
+              {
+                type: "change_activity",
+                target: "dinner",
+                command: { type: "expense", expense },
+              },
+            ],
+          }),
+        },
+      ],
+    };
+  };
   await page.addInitScript(() =>
     localStorage.setItem(
       "splitflow-pilot-session",
@@ -117,7 +133,7 @@ test("scripted assistant creates and publishes through conversation without a fo
         r.postDataJSON(),
         email,
         store,
-        (t, r, e) => runAssistant(t, r, e, provider),
+        (t, r, e, onTool) => runAssistant(t, r, e, provider, [], onTool),
       );
       return route.fulfill({ json: result });
     } catch (e) {
@@ -125,6 +141,14 @@ test("scripted assistant creates and publishes through conversation without a fo
     }
   });
   await page.goto("/");
+  await page.getByLabel("Message your activity").fill("Hi");
+  await page.getByRole("button", { name: "Start conversation" }).click();
+  await expect(
+    page.getByText("Hi! What would you like to split?", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("region", { name: "Review proposed changes" }),
+  ).toHaveCount(0);
   await page
     .getByLabel("Message your activity")
     .fill("Dinner with Minji was 60000 won. I paid.");
@@ -133,22 +157,34 @@ test("scripted assistant creates and publishes through conversation without a fo
   await expect(review).toContainText("₩30,000");
   await expect(page.getByLabel("Total (KRW)", { exact: true })).toHaveCount(0);
   expect(rows).toHaveLength(0);
+  await expect(
+    page.getByText("Preparing changes", { exact: true }),
+  ).toBeVisible();
   await page.reload();
   await expect(review).toBeVisible();
+  await page.screenshot({
+    path: `../outputs/conversation-workspace/scripted-review-${test.info().project.name}.png`,
+  });
   await page.getByLabel("Message your activity").fill("confirm");
   await page.getByRole("button", { name: "Start conversation" }).click();
   await expect(
-    page.getByRole("article", { name: "Dinner expense" }),
-  ).toBeVisible();
+    page.getByRole("region", { name: "Saved result" }),
+  ).toContainText("₩30,000");
   await expect(review).toHaveCount(0);
+  await expect(
+    page.getByRole("region", { name: "Previous review" }),
+  ).toBeVisible();
   await expect(
     page.getByRole("region", { name: "Private assistant conversation" }),
   ).toContainText("Saved.");
   expect(rows).toHaveLength(1);
+  await page.screenshot({
+    path: `../outputs/conversation-workspace/scripted-saved-${test.info().project.name}.png`,
+  });
   await page.reload();
   await expect(
-    page.getByRole("article", { name: "Dinner expense" }),
-  ).toBeVisible();
+    page.getByRole("region", { name: "Saved result" }),
+  ).toContainText("₩30,000");
 });
 
 test("guest unavailable assistant retains private messages without posting to the group", async ({
@@ -161,6 +197,8 @@ test("guest unavailable assistant retains private messages without posting to th
     .getByRole("button", { name: "Weekend together", exact: true })
     .filter({ visible: true })
     .click();
+  await expect(page.locator(".sf-activity-context")).not.toHaveAttribute("open", "");
+  await expect(page.locator(".sf-message-own").filter({hasText:"Added Dinner"})).toHaveCount(0);
   await page
     .getByLabel("Message your activity")
     .fill("Privately review my dinner share");
@@ -170,14 +208,24 @@ test("guest unavailable assistant retains private messages without posting to th
   });
   await expect(privateChat).toContainText("Assistant unavailable");
   await expect(
-    page.getByRole("region", { name: "Conversation", exact: true }),
+    page.getByRole("region", {
+      name: "Conversation",
+      exact: true,
+      includeHidden: true,
+    }),
   ).not.toContainText("Privately review");
   await page.getByLabel("Message destination").click();
-  await page.getByRole("option", { name: "Message group", exact: true }).click();
+  await page
+    .getByRole("option", { name: "Message group", exact: true })
+    .click();
   await page.getByLabel("Message your activity").fill("Hello everyone");
   await page.getByRole("button", { name: "Send message" }).click();
   await expect(
-    page.getByRole("region", { name: "Conversation", exact: true }),
+    page.getByRole("region", {
+      name: "Conversation",
+      exact: true,
+      includeHidden: true,
+    }),
   ).toContainText("Hello everyone");
   await expect(privateChat).not.toContainText("Hello everyone");
 });

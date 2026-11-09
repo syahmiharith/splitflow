@@ -78,6 +78,7 @@ export default function ActivityWorkspace() {
       ? value
       : null;
   });
+  const [contextOpen, setContextOpen] = useState(false);
   const [repeatSource, setRepeatSource] = useState<Activity>();
   useEffect(() => {
     if (!moneyView) return;
@@ -192,6 +193,7 @@ export default function ActivityWorkspace() {
       localStorage.removeItem(pendingKey);
       setPending(undefined);
       await refresh();
+      setContextOpen(true);
       return saved;
     } catch (e) {
       setError(
@@ -240,6 +242,7 @@ export default function ActivityWorkspace() {
     setModal("expense");
   }
   function select(id: string) {
+    setContextOpen(false);
     setMoneyView(null);
     setSelected(id);
     setList(false);
@@ -315,7 +318,7 @@ export default function ActivityWorkspace() {
         )}
         {assistant.recents.length > 0 && (
           <>
-            <p className="sf-nav-label">Private conversations</p>
+            <p className="sf-nav-label">Recent conversations</p>
             {assistant.recents.slice(0, 8).map((t) => (
               <button
                 key={t.id}
@@ -335,7 +338,7 @@ export default function ActivityWorkspace() {
             ))}
           </>
         )}
-        <p className="sf-nav-label">Recent conversations</p>
+        <p className="sf-nav-label">Activities</p>
         {activities
           .filter((a) => !a.archivedBy.includes(email))
           .slice()
@@ -350,37 +353,48 @@ export default function ActivityWorkspace() {
             </button>
           ))}
         <div className="sf-account">
-          <ProfileMenu name={guest ? samplePeople.find(p => p.email === email)?.name ?? "Sample" : email} subtitle={guest ? "Guest sample workspace" : "Personal account"} people={guest ? samplePeople : undefined} email={email} onSelect={setEmail}>
-              {guest ? (
-                <>
-                  <button onClick={() => setModal("signin")}>
-                    Sign in for real activities
-                  </button>
-                  <button
-                    onClick={() => {
-                      resetSample();
-                      select("");
-                      void refresh();
-                    }}
-                  >
-                    Reset sample records
-                  </button>
-                </>
-              ) : (
-                <>
-                  <a href="/?legacy=1">Previous saved records</a>
-                  <button
-                    onClick={() => {
-                      clearSession();
-                      setGuest(true);
-                      setEmail(samplePeople[0].email);
-                      select("");
-                    }}
-                  >
-                    Sign out
-                  </button>
-                </>
-              )}
+          <ProfileMenu
+            name={
+              guest
+                ? (samplePeople.find((p) => p.email === email)?.name ??
+                  "Sample")
+                : email
+            }
+            subtitle={guest ? "Guest sample workspace" : "Personal account"}
+            people={guest ? samplePeople : undefined}
+            email={email}
+            onSelect={setEmail}
+          >
+            {guest ? (
+              <>
+                <button onClick={() => setModal("signin")}>
+                  Sign in for real activities
+                </button>
+                <button
+                  onClick={() => {
+                    resetSample();
+                    select("");
+                    void refresh();
+                  }}
+                >
+                  Reset sample records
+                </button>
+              </>
+            ) : (
+              <>
+                <a href="/?legacy=1">Previous saved records</a>
+                <button
+                  onClick={() => {
+                    clearSession();
+                    setGuest(true);
+                    setEmail(samplePeople[0].email);
+                    select("");
+                  }}
+                >
+                  Sign out
+                </button>
+              </>
+            )}
           </ProfileMenu>
         </div>
       </>
@@ -587,6 +601,7 @@ export default function ActivityWorkspace() {
               setRepeatSource(undefined);
               setManualSeed(undefined);
               select(value!.id);
+              setContextOpen(true);
               if (
                 !activity &&
                 assistant.thread?.messages.length &&
@@ -911,7 +926,11 @@ export default function ActivityWorkspace() {
             </button>
           </div>
         </form>
-        {composerMode === "group" && <p className="sf-composer-note">Visible to everyone in this activity</p>}
+        {composerMode === "group" && (
+          <p className="sf-composer-note">
+            Visible to everyone in this activity
+          </p>
+        )}
       </div>
     );
   }
@@ -1109,6 +1128,7 @@ export default function ActivityWorkspace() {
                 }
                 onOpen={(id, expense) => {
                   select(id);
+                  setContextOpen(true);
                   setModal(null);
                   requestAnimationFrame(() => {
                     const node = document.getElementById(`expense-${expense}`);
@@ -1224,141 +1244,145 @@ export default function ActivityWorkspace() {
                     </button>
                   </div>
                 </section>
-                {!activity.expenses.length &&
-                  !activity.schedule &&
-                  (activity.kind !== "recurring" ||
-                    activity.owner === email) && (
-                    <section aria-label="Next step" className="py-4 text-sm">
-                      <h2 className="font-medium">
-                        {activity.kind === "recurring"
-                          ? "Set the recurring terms"
-                          : "Add the first cost"}
-                      </h2>
-                      <p className="mt-2 text-app-muted">
-                        {activity.kind === "recurring"
-                          ? "Choose the amount and monthly dates. Each person reviews their share before it starts."
-                          : "Your people are ready. Enter the amount, review the shares, then publish here."}
-                      </p>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          activity.kind === "recurring"
-                            ? setModal("schedule")
-                            : openExpense()
-                        }
-                        className="mt-3 min-h-11 rounded-lg bg-slate-900 px-4 text-white"
-                      >
-                        {activity.kind === "recurring"
-                          ? "Set up schedule"
-                          : "Add first cost"}
-                      </button>
-                    </section>
-                  )}
-                {activity.schedule && (
-                  <RecurringTerms
-                    key={activity.id}
-                    activity={activity}
-                    email={email}
-                    busy={busy || Boolean(pending)}
-                    onCommand={command}
-                    onEdit={
-                      activity.owner === email
-                        ? () => setModal("schedule")
-                        : undefined
-                    }
-                    onRecordActual={
-                      activity.owner === email
-                        ? () => {
-                            setEditing(undefined);
-                            setPreset({
-                              ...structuredClone(activity.schedule!.expense),
-                              mode: "paid",
-                            });
-                            setModal("expense");
-                          }
-                        : undefined
-                    }
-                  />
-                )}
-                <section aria-label="Conversation" className="space-y-3">
-                  <div aria-label="Activity expenses" className="space-y-3">
-                    {[
-                      ...activity.messages.map((m) => ({
-                        kind: "message" as const,
-                        at: m.at,
-                        id: m.id,
-                        message: m,
-                      })),
-                      ...activity.expenses.map((s) => ({
-                        kind: "expense" as const,
-                        at: s.audit[0]?.at ?? "",
-                        id: s.id,
-                        split: s,
-                      })),
-                    ]
-                      .sort((a, b) => a.at.localeCompare(b.at))
-                      .map((entry) =>
-                        entry.kind === "expense" ? (
-                          <ExpenseCard
-                            key={entry.id}
-                            draftCommand={
-                              manualPayment?.id === entry.id
-                                ? manualPayment.command
-                                : undefined
-                            }
-                            split={entry.split}
-                            email={email}
-                            busy={busy || Boolean(pending)}
-                            onEdit={() => openExpense(entry.split)}
-                            onCommand={async (cmd) => {
-                              await command({
-                                type: "expenseCommand",
-                                id: entry.split.id,
-                                expected: entry.split.revision,
-                                command: cmd,
-                              });
-                            }}
-                          />
-                        ) : (
-                          <div
-                            key={entry.id}
-                            className={
-                              entry.message.actor === email
-                                ? "sf-message-own"
-                                : "sf-message-other"
-                            }
-                          >
-                            <p
-                              className={
-                                entry.message.actor === email
-                                  ? "sr-only"
-                                  : "mb-2 text-xs text-app-muted"
-                              }
-                            >
-                              {activity.people.find(
-                                (p) => p.email === entry.message.actor,
-                              )?.name ?? entry.message.actor}
-                            </p>
-                            <p className="whitespace-pre-wrap break-words leading-6">
-                              {entry.message.text}
-                            </p>
-                          </div>
-                        ),
-                      )}
-                  </div>
-                </section>
-                <details className="text-sm">
-                  <summary className="min-h-11 cursor-pointer py-3">
-                    Activity history
+                <details
+                  className="sf-activity-context"
+                  open={contextOpen}
+                  onToggle={(e) => setContextOpen(e.currentTarget.open)}
+                >
+                  <summary>
+                    Activity context · {activity.expenses.length} expenses
+                    {activity.schedule ? " · recurring terms" : ""}
                   </summary>
-                  {activity.expenses.flatMap((s) =>
-                    s.audit.map((event, i) => (
-                      <p key={`${s.id}:${i}`} className="border-t py-2">
-                        {s.expense.title} · {event.action} ·{" "}
-                        {new Date(event.at).toLocaleString()}
-                      </p>
-                    )),
+                  <p className="sf-context-note">
+                    Existing workspace records. Updates and discussion are shown
+                    here; this is not an assistant response.
+                  </p>
+                  {!activity.expenses.length &&
+                    !activity.schedule &&
+                    (activity.kind !== "recurring" ||
+                      activity.owner === email) && (
+                      <section aria-label="Next step" className="py-4 text-sm">
+                        <h2 className="font-medium">
+                          {activity.kind === "recurring"
+                            ? "Set the recurring terms"
+                            : "Add the first cost"}
+                        </h2>
+                        <p className="mt-2 text-app-muted">
+                          {activity.kind === "recurring"
+                            ? "Choose the amount and monthly dates. Each person reviews their share before it starts."
+                            : "Your people are ready. Enter the amount, review the shares, then publish here."}
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            activity.kind === "recurring"
+                              ? setModal("schedule")
+                              : openExpense()
+                          }
+                          className="mt-3 min-h-11 rounded-lg bg-slate-900 px-4 text-white"
+                        >
+                          {activity.kind === "recurring"
+                            ? "Set up schedule"
+                            : "Add first cost"}
+                        </button>
+                      </section>
+                    )}
+                  {activity.schedule && (
+                    <RecurringTerms
+                      key={activity.id}
+                      activity={activity}
+                      email={email}
+                      busy={busy || Boolean(pending)}
+                      onCommand={command}
+                      onEdit={
+                        activity.owner === email
+                          ? () => setModal("schedule")
+                          : undefined
+                      }
+                      onRecordActual={
+                        activity.owner === email
+                          ? () => {
+                              setEditing(undefined);
+                              setPreset({
+                                ...structuredClone(activity.schedule!.expense),
+                                mode: "paid",
+                              });
+                              setModal("expense");
+                            }
+                          : undefined
+                      }
+                    />
                   )}
+                  <section aria-label="Conversation" className="space-y-3">
+                    <div aria-label="Activity expenses" className="space-y-3">
+                      {[
+                        ...activity.messages.map((m) => ({
+                          kind: "message" as const,
+                          at: m.at,
+                          id: m.id,
+                          message: m,
+                        })),
+                        ...activity.expenses.map((s) => ({
+                          kind: "expense" as const,
+                          at: s.audit[0]?.at ?? "",
+                          id: s.id,
+                          split: s,
+                        })),
+                      ]
+                        .sort((a, b) => a.at.localeCompare(b.at))
+                        .map((entry) =>
+                          entry.kind === "expense" ? (
+                            <ExpenseCard
+                              key={entry.id}
+                              draftCommand={
+                                manualPayment?.id === entry.id
+                                  ? manualPayment.command
+                                  : undefined
+                              }
+                              split={entry.split}
+                              email={email}
+                              busy={busy || Boolean(pending)}
+                              onEdit={() => openExpense(entry.split)}
+                              onCommand={async (cmd) => {
+                                await command({
+                                  type: "expenseCommand",
+                                  id: entry.split.id,
+                                  expected: entry.split.revision,
+                                  command: cmd,
+                                });
+                              }}
+                            />
+                          ) : (
+                            <div key={entry.id} className={"sf-context-event"}>
+                              <p className={"mb-1 text-xs text-app-muted"}>
+                                {entry.message.kind === "message"
+                                  ? "Message from "
+                                  : "Activity update · "}
+                                {activity.people.find(
+                                  (p) => p.email === entry.message.actor,
+                                )?.name ?? entry.message.actor}
+                              </p>
+                              <p className="whitespace-pre-wrap break-words leading-6">
+                                {entry.message.text}
+                              </p>
+                            </div>
+                          ),
+                        )}
+                    </div>
+                  </section>
+                  <details className="text-sm">
+                    <summary className="min-h-11 cursor-pointer py-3">
+                      Activity history
+                    </summary>
+                    {activity.expenses.flatMap((s) =>
+                      s.audit.map((event, i) => (
+                        <p key={`${s.id}:${i}`} className="border-t py-2">
+                          {s.expense.title} · {event.action} ·{" "}
+                          {new Date(event.at).toLocaleString()}
+                        </p>
+                      )),
+                    )}
+                  </details>
                 </details>
               </>
             )}
@@ -1375,6 +1399,10 @@ export default function ActivityWorkspace() {
                 }}
                 onRetry={() => {
                   void assistant.send("retry").catch(() => {});
+                }}
+                onOpen={(id) => {
+                  select(id);
+                  setContextOpen(true);
                 }}
                 onManual={(preview) => {
                   void enterManually(preview).catch((e) => setError(e.message));

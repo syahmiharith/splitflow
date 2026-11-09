@@ -14,6 +14,7 @@ async function openActivity(page: Page, name: string) {
     .filter({ visible: true })
     .first()
     .click();
+  await page.locator(".sf-activity-context > summary").click();
 }
 async function composerAction(page: Page, name: string) {
   await page.getByLabel("Enter manually").click();
@@ -46,10 +47,7 @@ test("guest activity uses the same conversation for costs and recipient confirma
   ).toContainText("You’re owed ₩40,000");
   if (test.info().project.name === "mobile")
     await page.getByRole("button", { name: "Open navigation" }).click();
-  await page
-    .getByLabel("Sample person")
-    .filter({ visible: true })
-    .click();
+  await page.getByLabel("Sample person").filter({ visible: true }).click();
   await page.getByRole("option", { name: "Minji", exact: true }).click();
   if (test.info().project.name === "mobile")
     await page.getByRole("button", { name: "Close Navigation" }).click();
@@ -69,10 +67,7 @@ test("guest activity uses the same conversation for costs and recipient confirma
   ).toBeVisible();
   if (test.info().project.name === "mobile")
     await page.getByRole("button", { name: "Open navigation" }).click();
-  await page
-    .getByLabel("Sample person")
-    .filter({ visible: true })
-    .click();
+  await page.getByLabel("Sample person").filter({ visible: true }).click();
   await page.getByRole("option", { name: "Alex", exact: true }).click();
   if (test.info().project.name === "mobile")
     await page.getByRole("button", { name: "Close Navigation" }).click();
@@ -84,6 +79,7 @@ test("guest activity uses the same conversation for costs and recipient confirma
     page.getByRole("region", { name: "Activity money" }),
   ).toContainText("You’re owed ₩20,000");
   await page.reload();
+  await page.locator(".sf-activity-context > summary").click();
   await expect(page.getByText(/₩20,000 · confirmed/)).toBeVisible();
 });
 
@@ -114,6 +110,7 @@ test("quick activity publishes an expense and keeps it in the conversation", asy
   ).toHaveCount(2);
   await expect(page.getByLabel("Message your activity")).toBeVisible();
   await page.reload();
+  await page.locator(".sf-activity-context > summary").click();
   await expect(
     page.getByRole("heading", { name: "Court booking", exact: true }),
   ).toHaveCount(2);
@@ -154,10 +151,7 @@ test("recurring terms require acceptance before a period appears", async ({
   ).toHaveCount(0);
   if (test.info().project.name === "mobile")
     await page.getByRole("button", { name: "Open navigation" }).click();
-  await page
-    .getByLabel("Sample person")
-    .filter({ visible: true })
-    .click();
+  await page.getByLabel("Sample person").filter({ visible: true }).click();
   await page.getByRole("option", { name: "Minji", exact: true }).click();
   if (test.info().project.name === "mobile")
     await page.getByRole("button", { name: "Close Navigation" }).click();
@@ -285,7 +279,9 @@ test("an interrupted activity submission replays its original key after reload",
   });
   await page.goto(`/?activity=${id}`);
   await page.getByLabel("Message destination").click();
-  await page.getByRole("option", { name: "Message group", exact: true }).click();
+  await page
+    .getByRole("option", { name: "Message group", exact: true })
+    .click();
   await page
     .getByLabel("Message your activity")
     .fill("Remember the shared tickets");
@@ -313,6 +309,7 @@ test("group picker opens a conversation and starts an activity with selected mem
   let groups = page.getByRole("region", { name: "Shared groups" });
   await groups.getByRole("button", { name: /Friends & housemates/ }).click();
   await groups.getByRole("button", { name: /Weekend together/ }).click();
+  await page.locator(".sf-activity-context > summary").click();
   await expect(
     page.getByRole("heading", { name: "Dinner", exact: true }),
   ).toBeVisible();
@@ -375,6 +372,7 @@ test("recurring edit keeps terms in context and shows who still needs to accept"
     terms.getByText("Schedule paused", { exact: true }),
   ).toBeVisible();
   await page.reload();
+  await page.locator(".sf-activity-context > summary").click();
   await expect(
     page.getByRole("region", { name: "Recurring terms" }),
   ).toContainText("Schedule paused");
@@ -386,7 +384,9 @@ test("cost editing stays inline with discussion and the persistent composer", as
   await page.goto("/");
   await openActivity(page, "Weekend together");
   await page.getByLabel("Message destination").click();
-  await page.getByRole("option", { name: "Message group", exact: true }).click();
+  await page
+    .getByRole("option", { name: "Message group", exact: true })
+    .click();
   await page
     .getByLabel("Message your activity")
     .fill("Keep the dinner and taxi together");
@@ -541,7 +541,9 @@ test("money overview reads compactly and hands actions back to the conversation"
   await expect(overview).toBeVisible();
   await overview.getByRole("button", { name: "Balances", exact: true }).click();
   await expect(overview).toContainText("Who repays whom");
-  const repayment = overview.getByRole("button").filter({ hasText: "Minji → Alex" });
+  const repayment = overview
+    .getByRole("button")
+    .filter({ hasText: "Minji → Alex" });
   await expect(repayment).toContainText("View repayment");
   await repayment.focus();
   await page.keyboard.press("Enter");

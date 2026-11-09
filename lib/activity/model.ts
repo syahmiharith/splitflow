@@ -99,7 +99,7 @@ export type Activity = {
   people: Person[];
   groupId?: string;
   expenses: (Split & { period?: string; dueDate?: string })[];
-  messages: { id: string; actor: string; text: string; at: string }[];
+  messages: { id: string; actor: string; text: string; at: string; kind?: "message" | "event" }[];
   schedule?: Schedule;
   archivedBy: string[];
 };
@@ -297,6 +297,7 @@ export function changeActivity(
       id: crypto.randomUUID(),
       actor,
       text,
+      kind: cmd.type === "message" ? "message" : "event",
       at: new Date().toISOString(),
     });
   next.revision++;
@@ -376,6 +377,7 @@ export function publishDuePeriods(current: Activity, today: string): Activity {
     next.messages.push({
       id: crypto.randomUUID(),
       actor: next.owner,
+      kind: "event",
       text: `Scheduled ${period.period}: ${schedule.expense.title}. Due ${period.dueDate}.`,
       at: new Date().toISOString(),
     });

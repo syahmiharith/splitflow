@@ -636,6 +636,7 @@ it("sends strict tools through Responses without provider storage", async () => 
       new AbortController().signal,
     );
     const body = JSON.parse(fetcher.mock.calls[0][1].body);
+    expect(body.reasoning).toEqual({ effort: "low" });
     expect(body.store).toBe(false);
     expect(body.parallel_tool_calls).toBe(false);
     expect(body.tools.every((t: { strict: boolean }) => t.strict)).toBe(true);

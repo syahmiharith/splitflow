@@ -34,6 +34,7 @@ export const openAIProvider: Provider = async (input, signal) => {
     body: JSON.stringify({
       model: getConfiguredModel("default"),
       store: false,
+      reasoning: { effort: "low" },
       input,
       tools: assistantTools,
       parallel_tool_calls: false,

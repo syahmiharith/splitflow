@@ -72,3 +72,9 @@ Deployment requires migration `20261109140000_mutual_friendships.sql` before rel
 Recorded expenses cannot be converted back into plans. Planned expenses may become recorded costs, but that requires fresh acceptance. Legacy planned records still expose confirmed transfer credits; a display mode must never erase payment history. Later objections preserve the last agreed expense snapshot and each person's dated response. The conversational response preview states the reviewed share, current claim status, prior accepted shares where present, and remaining balances after confirmed transfers.
 
 Switching an uncommitted activity-and-plan proposal to manual entry retains its plan. The user explicitly creates the activity, then reviews and saves the retained plan; neither step silently commits the other.
+
+## Stable activity conversation destination
+
+`POST /api/workspace/assistant` accepts `{ action: "resolve", activityId }` to resolve/create the caller's canonical private conversation. The actor comes from authentication; the server-only `resolve_activity_conversation` RPC checks current membership and serializes creation per owner/activity. Migration `20261110090000_activity_conversations.sql` adds the mapping without rewriting existing threads. Latest legacy thread wins (updated timestamp descending, ID ascending). Other threads remain accessible through Earlier conversations. Guest mappings use isolated account-scoped local storage.
+
+Deploy the additive migration before the UI. To roll back the UI, deploy the preceding commit; the mapping table can remain and no financial records need restoration. Do not drop threads or mappings to roll back presentation.

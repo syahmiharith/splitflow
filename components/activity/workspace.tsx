@@ -43,7 +43,7 @@ import { NewActivityForm, ScheduleForm } from "./activity-setup";
 import { GroupEditor } from "@/components/group-editor";
 import { ActivityDialog, ActivityPanel } from "./dialog";
 import { SpendingPlanEditor } from "./spending-plan-editor";
-import type { SpendingPlan } from "@/lib/activity/planning";
+import { summarizeSpendingPlan, type SpendingPlan } from "@/lib/activity/planning";
 import { FriendsPanel } from "./friends-panel";
 import { isFriendship } from "@/lib/activity/friendships";
 import { ActivitySignIn } from "./sign-in";
@@ -83,6 +83,9 @@ export default function ActivityWorkspace() {
       : null;
   });
   const [contextOpen, setContextOpen] = useState(false);
+  const [summaryOpen, setSummaryOpen] = useState(false);
+  const summaryKey = `splitflow-summary:${guest ? "sample" : "real"}:${email}:${selected}`;
+  useEffect(() => { setSummaryOpen(localStorage.getItem(summaryKey) === "open"); }, [summaryKey]);
   const [repeatSource, setRepeatSource] = useState<Activity>();
   useEffect(() => {
     if (!moneyView) return;
@@ -321,10 +324,10 @@ export default function ActivityWorkspace() {
             ))}
           </>
         )}
-        {assistant.recents.length > 0 && (
+        {assistant.recents.some(t => !t.activityId) && (
           <>
-            <p className="sf-nav-label">Recent conversations</p>
-            {assistant.recents.slice(0, 8).map((t) => (
+            <p className="sf-nav-label">Conversations</p>
+            {assistant.recents.filter(t => !t.activityId).map((t) => (
               <button
                 key={t.id}
                 className="sf-nav-row truncate"
@@ -343,7 +346,7 @@ export default function ActivityWorkspace() {
             ))}
           </>
         )}
-        <p className="sf-nav-label">Activities</p>
+        {!assistant.recents.some(t => !t.activityId) && <p className="sf-nav-label">Conversations</p>}
         {activities
           .filter((a) => !a.archivedBy.includes(email))
           .slice()
@@ -1216,22 +1219,27 @@ export default function ActivityWorkspace() {
                       </p>
                     </div>
                   </div>
-                  <div
-                    className="sf-conversation-money"
-                    role="region"
-                    aria-label="Activity money"
-                  >
-                    <MoneyStatus splits={activity.expenses} email={email} />
-                    <button
-                      onClick={() => {
-                        setMoneyView("activity");
-                        setModal(null);
-                      }}
-                    >
-                      Expenses & balances →
-                    </button>
-                  </div>
                 </section>
+                  <button className="sf-summary-toggle" aria-expanded={summaryOpen} aria-controls="live-activity-summary" onClick={() => {
+                    const open = !summaryOpen; setSummaryOpen(open); localStorage.setItem(summaryKey, open ? "open" : "closed");
+                  }}>
+                    <span>Summary</span><span className="truncate text-app-muted">{activity.plan ? `₩${activity.plan.limit.toLocaleString("en-US")} allowance` : `${activity.expenses.length} expenses`}</span><ChevronDown size={16} />
+                  </button>
+                  {summaryOpen && <div id="live-activity-summary" className="sf-live-summary">
+                    {activity.plan && <dl className="sf-summary-totals">
+                      <div><dt>Allowance</dt><dd>₩{activity.plan.limit.toLocaleString("en-US")}</dd></div>
+                      <div><dt>Reported costs</dt><dd>₩{summarizeSpendingPlan(activity.plan, activity.expenses).reportedCost.toLocaleString("en-US")}</dd></div>
+                      <div><dt>Remaining allowance</dt><dd>₩{summarizeSpendingPlan(activity.plan, activity.expenses).remainingAllowance.toLocaleString("en-US")}</dd></div>
+                    </dl>}
+                    <MoneyStatus splits={activity.expenses} email={email} />
+                    {activity.expenses.flatMap(s => s.repayments).filter(p => p.status === "reported").length > 0 && <p>Transfers awaiting recipient confirmation: {activity.expenses.flatMap(s => s.repayments).filter(p => p.status === "reported").length}</p>}
+                    {activity.expenses.map(s => splitState(s, email)).find(s => s.stage === "needs_action") && <p>{activity.expenses.map(s => splitState(s, email)).find(s => s.stage === "needs_action")!.message}</p>}
+                    <button className="min-h-11" onClick={() => { setMoneyView("activity"); setModal(null); }}>Expenses & balances →</button>
+                  </div>}
+                {assistant.recents.some(t => t.activityId === activity.id && t.id !== assistant.thread?.id) && <details className="text-sm">
+                  <summary className="min-h-11 py-3">Earlier conversations</summary>
+                  {assistant.recents.filter(t => t.activityId === activity.id && t.id !== assistant.thread?.id).map(t => <button className="sf-nav-row" key={t.id} onClick={() => void assistant.open(t).catch(e => setError(e.message))}>{t.title}</button>)}
+                </details>}
                 <details
                   className="sf-activity-context"
                   open={contextOpen}

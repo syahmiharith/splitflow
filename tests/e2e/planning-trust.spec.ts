@@ -60,6 +60,7 @@ test("two independent people plan and preserve agreed amounts through disputed r
       const request=route.request(),url=new URL(request.url());
       if(request.method()==="GET") return route.fulfill({json:url.searchParams.has("list")?[]:await store.load(url.searchParams.get("id")!)});
       const input=request.postDataJSON();
+      if (input.action === "resolve") return route.fulfill({json:[...threads.entries()].filter(([key]) => key.startsWith(email)).map(([,t]) => t).find(t => t.activityId === input.activityId)});
       const provider:Provider=async()=>({output:[{type:"function_call",name:"prepare_actions",call_id:"scripted",arguments:JSON.stringify({actions:actions(input.message,email)})}]});
       try{return route.fulfill({json:await assistantRequest(input,email,store,(t,r,e,tool)=>runAssistant(t,r,e,provider,[],tool))});}
       catch(e){return route.fulfill({status:400,json:{error:String(e)}});}

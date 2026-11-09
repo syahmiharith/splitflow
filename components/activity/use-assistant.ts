@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   loadAssistant,
+  resolveActivityConversation,
   sendAssistant,
   listAssistant,
   type ThreadSummary,
@@ -30,6 +31,7 @@ export function useAssistant(
     identity = useRef(key);
   identity.current = `${key}:${thread?.id ?? ""}`;
   const load = useCallback(async () => {
+    if (activityId) return resolveActivityConversation(guest, email, activityId);
     const id =
       localStorage.getItem(key) ??
       (await listAssistant(guest, email)).find(

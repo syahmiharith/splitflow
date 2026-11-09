@@ -1,7 +1,7 @@
 import { pilotRequest } from "@/lib/pilot/session";
 import { loadWorkspace, commitSampleBatch } from "@/lib/activity/client";
 import { assistantRequest, type AssistantStore } from "./service";
-import type { AssistantRequest, AssistantThread } from "./model";
+import { emptyThread, type AssistantRequest, type AssistantThread } from "./model";
 const storage = (email: string) =>
   `splitflow-private-assistant:sample:${email}`;
 function sampleStore(email: string): AssistantStore {
@@ -94,4 +94,25 @@ export async function listAssistant(
         t.messages.find((m) => m.role === "user")?.text.slice(0, 80) ??
         "Conversation",
     }));
+}
+
+/** Resolve the same owner-scoped destination across devices. */
+export async function resolveActivityConversation(guest: boolean, email: string, activityId: string): Promise<AssistantThread> {
+  if (!guest) return pilotRequest("/api/workspace/assistant", {
+    method: "POST", body: JSON.stringify({ action: "resolve", activityId }),
+  });
+  const rows = await loadWorkspace(true, email);
+  if (!rows.some(r => r.kind === "activity" && r.document.id === activityId)) throw Error("Activity unavailable for this account.");
+  const key = `splitflow-conversation-map:sample:${email}:${activityId}`;
+  const existing = localStorage.getItem(key);
+  if (existing) {
+    const thread = await loadAssistant(true, email, existing);
+    if (thread) return thread;
+  }
+  const latest = (await listAssistant(true, email)).find(t => t.activityId === activityId);
+  const thread = latest ? await loadAssistant(true, email, latest.id) : null;
+  const chosen = thread ?? emptyThread(crypto.randomUUID(), activityId);
+  if (!thread) await sampleStore(email).save(chosen, 0, crypto.randomUUID());
+  localStorage.setItem(key, chosen.id);
+  return (await loadAssistant(true, email, chosen.id))!;
 }

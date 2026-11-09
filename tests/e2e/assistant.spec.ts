@@ -132,6 +132,8 @@ test(`scripted assistant ${method} preserves the conversational draft`, async ({
         json: await store.load(new URL(r.url()).searchParams.get("id")!),
       });
     try {
+      const input = r.postDataJSON();
+      if (input.action === "resolve") return route.fulfill({json:[...threads.values()].find(t => t.activityId === input.activityId)});
       const result = await assistantRequest(
         r.postDataJSON(),
         email,
@@ -186,7 +188,7 @@ test(`scripted assistant ${method} preserves the conversational draft`, async ({
   await page.getByLabel("Message your activity").fill("confirm");
   await page.getByRole("button", { name: "Start conversation" }).click();
   await expect(
-    page.getByRole("region", { name: "Saved result" }),
+    page.getByRole("region", { name: "Previous review" }),
   ).toContainText("₩30,000");
   await expect(review).toHaveCount(0);
   await expect(
@@ -196,19 +198,19 @@ test(`scripted assistant ${method} preserves the conversational draft`, async ({
     page.getByRole("region", { name: "Private assistant conversation" }),
   ).toContainText("Saved.");
   expect(rows.filter(r => r.kind === "activity")).toHaveLength(1);
-  const saved = page.getByRole("region", { name: "Saved result" });
+  const saved = page.getByRole("region", { name: "Previous review" });
   await expect(saved.getByRole("button", { name: "Edit", exact: true })).toHaveCount(0);
   await expect(saved.locator("details")).not.toHaveAttribute("open");
-  await saved.getByText("View details", { exact: true }).click();
+  await saved.getByText("See calculation", { exact: true }).click();
   await expect(saved.locator("details")).toHaveAttribute("open", "");
-  await saved.getByText("View details", { exact: true }).click();
+  await saved.getByText("See calculation", { exact: true }).click();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.screenshot({
     path: `../outputs/conversation-workspace/scripted-saved-${test.info().project.name}.png`,
   });
   await page.reload();
   await expect(
-    page.getByRole("region", { name: "Saved result" }),
+    page.getByRole("region", { name: "Previous review" }),
   ).toContainText("₩30,000");
 });
 

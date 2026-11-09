@@ -50,7 +50,15 @@ export async function POST(request: NextRequest) {
   try {
     requireWritable();
     const user = await actor(request);
-    const input = requestSchema.parse(await request.json());
+    const body = await request.json();
+    if (body.action === "resolve") {
+      const activityId = z.uuid().parse(body.activityId);
+      const thread = await database("rpc/resolve_activity_conversation", {
+        method: "POST", body: JSON.stringify({ p_owner: user.id, p_activity: activityId }),
+      });
+      return NextResponse.json(thread, { headers: { "Cache-Control": "no-store" } });
+    }
+    const input = requestSchema.parse(body);
     const store = serverStore(user);
     await assertThreadAccess(store, await store.load(input.id));
     return NextResponse.json(

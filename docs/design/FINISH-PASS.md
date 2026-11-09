@@ -44,3 +44,14 @@ Inspected YNAB iOS references on Mobbin:
 - [Spending breakdown](https://mobbin.com/screens/f9387a42-18ab-4c36-a7f5-425845680ff8): ranked readable rows and meaningful amounts rather than a grid of oversized cards.
 
 SplitFlow adapts these into optional activity spending limits, named category allowances, explicit expense classification and old/new allowance reviews inside the private assistant conversation. Its read-only Planning view shows reported costs against allowances and recurring terms; all edit actions return to the activity conversation. The compact plan card distinguishes allowance from cash and reported costs from verified facts. It does not copy YNAB's brand, bank-account model, funding semantics or manager access to personal plans. Manual editing is secondary and uses the same deterministic parser with an explicit review before saving.
+
+## Compact conversation receipts and live context (2026-11-10)
+
+- Cleo chat: https://mobbin.com/screens/4eae3178-b951-4116-8b5f-c67928c84041 — brief contextual responses, without its promotional imagery or lending features.
+- Splitwise group balances: https://mobbin.com/screens/973e57e7-b7d4-4be1-bfc6-d24711597608 — compact person/amount rows and explicit owes/gets-back language.
+- YNAB: https://support.ynab.com/moving-money-in-your-plan-ryyCKbBJi — visible category-to-category adjustments and retained history, not a claim about bank cash.
+- Telegram: https://telegram.org/blog/pinned-messages-locations-playlists — persistent chat context adapted into a toggleable live activity summary.
+
+Pending and historical reviews share money-card components. Confirmation changes the original card to Saved; matching execution results do not repeat it. Planning adjustments show changed allowances, with complete historical review lines behind Details. The summary above the conversation reads current authorized records; historical cards retain their original values.
+
+Activities and private unattached threads share Conversations navigation. Each member has a separate canonical activity conversation; earlier threads stay accessible and are never merged. Summary expansion is a device-local preference scoped to account and activity.

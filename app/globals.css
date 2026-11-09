@@ -422,3 +422,12 @@ input::placeholder,textarea::placeholder { color:#626262; opacity:1; }
 .sf-chat-card details summary { min-height:44px; padding:12px 0; cursor:pointer; color:var(--sf-muted); }
 
 @media(max-width:420px) { .sf-chat-card-actions .sf-assistant-confirm { flex-basis:100%; justify-content:center; } }
+
+/* Live context stays outside the immutable conversation snapshots. */
+.sf-summary-toggle { display:flex; align-items:center; gap:12px; width:100%; min-height:44px; font-size:13px; text-align:left; background:var(--app-surface,white); }
+.sf-summary-toggle > :nth-child(2) { margin-left:auto; }
+.sf-live-summary { border-top:1px solid #dfe3e8; padding:12px 0; font-size:13px; display:grid; gap:8px; }
+.sf-summary-totals { display:grid; gap:6px; }
+.sf-summary-totals > div { display:flex; justify-content:space-between; gap:12px; }
+.sf-summary-totals dd { font-variant-numeric:tabular-nums; font-weight:500; }
+@media (max-width:767px) { .sf-summary-toggle[aria-expanded="false"] { position:sticky; top:0; z-index:2; } }

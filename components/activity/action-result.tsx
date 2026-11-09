@@ -8,15 +8,19 @@ import { money } from "./expense-card";
 export function ActionResult({
   preview,
   review = false,
+  saved = false,
 }: {
   preview: Preview;
   review?: boolean;
+  saved?: boolean;
 }) {
-  if (preview.plan) return <>
-    <SpendingPlanCard {...preview.plan} review={review} />
-    {review && <details className="sf-chat-card-section"><summary>Category assignments and changes</summary><ul>{preview.lines.map((line,i) => <li key={i}>{line}</li>)}</ul></details>}
-  </>;
+  if (preview.plan) return <SpendingPlanCard {...preview.plan} review={review} detailLines={preview.lines} />;
   const expense = preview.expense;
+  const changes = preview.lines.filter(line => {
+    const amounts = line.match(/₩[\d,]+/g);
+    if (line.includes("→") && amounts && amounts.length >= 2) return amounts[0] !== amounts[1];
+    return /^(Remove access:|Add access:)/.test(line);
+  });
   const detail = (
     <ul>
       {preview.lines.filter(Boolean).map((line, i) => <li key={i}>{line}</li>)}
@@ -33,9 +37,10 @@ export function ActionResult({
             {money(preview.summary.amount)}<span>{preview.summary.suffix}</span>
           </p>
         )}
-        {review ? detail : (
+        {review && !saved ? detail : (
           <>
             <p className="sf-result-meta">{preview.summary?.text ?? preview.lines[0]}</p>
+            {saved && changes.map((line, i) => <p key={i} className="sf-result-item">{line}</p>)}
             {!preview.summary && preview.lines.filter(line =>
               /Awaiting recipient confirmation| · (confirmed|disputed)$|^Response:|^Starts /.test(line),
             ).map((line, i) => <p key={i}>{line}</p>)}

@@ -34,46 +34,19 @@ export function AssistantThread({
   if (!thread?.messages.length && !error) return null;
   function review(proposal: Proposal, status: string) {
     const active = status === "pending" && thread?.pending?.id === proposal.id;
-    if (!active)
-      return (
-        <details
-          className="sf-chat-card sf-previous-review"
-          role="region"
-          aria-label="Previous review"
-        >
-          <summary>
-            {status === "saved"
-              ? "Confirmed review"
-              : status === "discarded"
-                ? "Discarded review"
-                : "Superseded review"}{" "}
-            · {Array.from(new Set(proposal.previews.map((p) => p.title))).join(", ")}
-          </summary>
-          {proposal.previews.map((p, i) => (
-            <div className="sf-chat-card-section" key={i}>
-              <h3>{p.title}</h3>
-              <ul>
-                {p.lines.map((line, j) => (
-                  <li key={j}>{line}</li>
-                ))}
-              </ul>
-            </div>
-          ))}
-        </details>
-      );
     return (
       <section
         className="sf-chat-card"
         aria-label={active ? "Review proposed changes" : "Previous review"}
       >
         <div className="sf-chat-card-heading">
-          <span>Ready to confirm</span>
+          <span>{active ? "Ready to confirm" : status === "saved" ? "Saved" : status === "discarded" ? "Discarded" : "Superseded"}</span>
         </div>
         {proposal.previews.map((p, i) =>
           !p.expense && p.lines[0]?.startsWith("Create ") && p.activityId &&
           proposal.previews.some(other => other.expense && other.activityId === p.activityId) ? (
             <p key={i} className="sf-chat-card-context">New activity · {p.title}</p>
-          ) : <ActionResult key={i} preview={p} review />,
+          ) : <ActionResult key={i} preview={p} review saved={!active} />,
         )}
         {active && (
           <>
@@ -123,6 +96,7 @@ export function AssistantThread({
       );
     if (p.type === "review")
       return <div key={i}>{review(p.proposal, p.status)}</div>;
+    if (thread?.messages.some(m => m.parts?.some(part => part.type === "review" && part.proposal.id === p.proposalId && part.status === "saved"))) return null;
     return (
       <section
         key={i}

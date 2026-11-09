@@ -18,7 +18,10 @@ export type Provider = (
   signal: AbortSignal,
 ) => Promise<ProviderResponse>;
 export const openAIProvider: Provider = async (input, signal) => {
-  if (!process.env.OPENAI_API_KEY) throw Error("Assistant unavailable");
+  if (!process.env.OPENAI_API_KEY) {
+    console.warn("splitflow_provider_failure", { code: "missing_api_key" });
+    throw Error("Assistant unavailable");
+  }
   const response = await fetch("https://api.openai.com/v1/responses", {
     method: "POST",
     signal,
@@ -35,7 +38,19 @@ export const openAIProvider: Provider = async (input, signal) => {
       max_output_tokens: 6000,
     }),
   });
-  if (!response.ok) throw Error("Assistant unavailable");
+  if (!response.ok) {
+    // Provider messages may echo submitted content. Log only bounded diagnostic identifiers.
+    const body = await response.json().catch(() => ({}));
+    const identifier = (value: unknown) => typeof value === "string" && /^[a-zA-Z0-9_.[\]-]{1,160}$/.test(value) ? value : undefined;
+    console.warn("splitflow_provider_failure", {
+      status: response.status,
+      code: identifier(body?.error?.code),
+      type: identifier(body?.error?.type),
+      param: identifier(body?.error?.param),
+      requestId: identifier(response.headers.get("x-request-id")),
+    });
+    throw Error("Assistant unavailable");
+  }
   const text = await response.text();
   if (text.length > 180000) throw Error("Assistant response too large.");
   return JSON.parse(text);

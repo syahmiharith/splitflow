@@ -705,3 +705,14 @@ it("persists actual tool activity, reviewed snapshots and committed receipts in 
   );
   expect(saved.pending).toBeNull();
 });
+
+ it("logs bounded provider identifiers without prompts, credentials or provider messages", async () => {
+  vi.stubEnv("OPENAI_API_KEY", "private-test-key");
+  const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+  vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({error:{code:"insufficient_quota",type:"billing_error",param:"person@example.test",message:"private description"}}), {status:429,headers:{"x-request-id":"req_test"}})));
+  try {
+    await expect(openAIProvider([{role:"user",content:"private description"}],new AbortController().signal)).rejects.toThrow("Assistant unavailable");
+    expect(warn).toHaveBeenCalledWith("splitflow_provider_failure",{status:429,code:"insufficient_quota",type:"billing_error",param:undefined,requestId:"req_test"});
+    expect(JSON.stringify(warn.mock.calls)).not.toMatch(/private|example/);
+  } finally { warn.mockRestore();vi.unstubAllGlobals();vi.unstubAllEnvs(); }
+});

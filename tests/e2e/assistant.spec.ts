@@ -3,6 +3,7 @@ import {
   assistantRequest,
   type AssistantStore,
 } from "../../lib/assistant/service";
+import { createGroup, changeGroup } from "../../lib/activity/model";
 import { prepareBatch } from "../../lib/activity/operations";
 import { runAssistant, type Provider } from "../../lib/assistant/provider";
 import type { AssistantThread } from "../../lib/assistant/model";
@@ -14,7 +15,8 @@ test(`scripted assistant ${method} preserves the conversational draft`, async ({
 }) => {
   const email = "alex@example.test",
     other = "minji@example.test";
-  let rows: RecordRow[] = [];
+  const friend = changeGroup(createGroup(email, {name:"Friendship",friendship:true,people:[{name:"Alex",email},{name:"Minji",email:other}]}), other, {type:"join"});
+  let rows: RecordRow[] = [{kind:"group",document:friend}];
   const threads = new Map<string, AssistantThread>(),
     operations = new Map<string, AssistantThread>();
   const store: AssistantStore = {
@@ -157,7 +159,7 @@ test(`scripted assistant ${method} preserves the conversational draft`, async ({
   const review = page.getByRole("region", { name: "Review proposed changes" });
   await expect(review).toContainText("₩30,000");
   await expect(page.getByLabel("Total (KRW)", { exact: true })).toHaveCount(0);
-  expect(rows).toHaveLength(0);
+  expect(rows.filter(r => r.kind === "activity")).toHaveLength(0);
   await expect(
     page.getByText("Preparing changes", { exact: true }),
   ).toBeVisible();
@@ -166,7 +168,7 @@ test(`scripted assistant ${method} preserves the conversational draft`, async ({
   if (method === "edit") {
     await review.getByRole("button", { name: "Edit", exact: true }).click();
     await expect(page.getByLabel("Activity name", { exact: true })).toHaveValue("Dinner with Minji");
-    expect(rows).toHaveLength(0);
+    expect(rows.filter(r => r.kind === "activity")).toHaveLength(0);
     await expect(review).toHaveCount(0);
     return;
   }
@@ -193,7 +195,7 @@ test(`scripted assistant ${method} preserves the conversational draft`, async ({
   await expect(
     page.getByRole("region", { name: "Private assistant conversation" }),
   ).toContainText("Saved.");
-  expect(rows).toHaveLength(1);
+  expect(rows.filter(r => r.kind === "activity")).toHaveLength(1);
   const saved = page.getByRole("region", { name: "Saved result" });
   await expect(saved.getByRole("button", { name: "Edit", exact: true })).toHaveCount(0);
   await expect(saved.locator("details")).not.toHaveAttribute("open");
@@ -239,18 +241,7 @@ test("guest unavailable assistant retains private messages without posting to th
       includeHidden: true,
     }),
   ).not.toContainText("Privately review");
-  await page.getByLabel("Message destination").click();
-  await page
-    .getByRole("option", { name: "Message group", exact: true })
-    .click();
-  await page.getByLabel("Message your activity").fill("Hello everyone");
-  await page.getByRole("button", { name: "Send message" }).click();
-  await expect(
-    page.getByRole("region", {
-      name: "Conversation",
-      exact: true,
-      includeHidden: true,
-    }),
-  ).toContainText("Hello everyone");
-  await expect(privateChat).not.toContainText("Hello everyone");
+  await expect(page.getByLabel("Message destination")).toHaveCount(0);
+  await expect(page.getByRole("option", {name:"Message group"})).toHaveCount(0);
+
 });

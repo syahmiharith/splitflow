@@ -3,6 +3,8 @@ import { Select } from "@/components/controls/select";
 import { useState, useEffect } from "react";
 import {
   balances,
+  claimState,
+  agreedExpense,
   calculateExpense,
   itemShare,
   settlements,
@@ -50,7 +52,9 @@ export function ExpenseCard({
   }
   const included = split.expense.participants.some((p) => p.email === email),
     calculated = calculateExpense(split.expense),
-    remaining = balances(split);
+    remaining = balances(split),
+    state = claimState(split);
+  const agreement = agreedExpense(split);
   const targets = settlements(split).filter((p) => p.from === email);
   return (
     <article
@@ -76,7 +80,7 @@ export function ExpenseCard({
               .filter((p) => p.paid > 0)
               .map(
                 (p) =>
-                  `${p.name} ${split.expense.mode === "planned" ? "expects to pay" : "paid"} ${money(p.paid)}`,
+                  `${p.name} ${split.expense.mode === "planned" ? "expects to pay" : "reported paying"} ${money(p.paid)}`,
               )
               .join(" · ")}
           </p>
@@ -88,11 +92,13 @@ export function ExpenseCard({
         </div>
         {included && (
           <div className="text-right">
-            <p className="text-xs text-app-muted">Your share</p>
+            <p className="text-xs text-app-muted">{state === "agreed" ? "Agreed share" : "Claimed share"}</p>
             <strong>{money(calculated.shares[email])}</strong>
           </div>
         )}
       </div>
+      {state !== "agreed" && <p className="mt-3 text-sm">{state === "disputed" ? "Disputed claim — neither statement establishes what happened." : "Awaiting agreement — this claim is not an agreed debt."}</p>}
+      {state !== "agreed" && agreement && <p className="mt-2 text-sm text-app-muted">Previously agreed share: {money(calculateExpense(agreement).shares[email] ?? 0)}. Confirmed payments remain recorded.</p>}
       {included && split.expense.mode === "paid" && (
         <p
           className={`mt-3 font-medium ${remaining[email] > 0 ? "sf-owe" : remaining[email] < 0 ? "sf-owed" : ""}`}
@@ -101,7 +107,7 @@ export function ExpenseCard({
             ? `You owe ${money(remaining[email])}`
             : remaining[email] < 0
               ? `You’re owed ${money(-remaining[email])}`
-              : "Settled"}
+              : state === "agreed" ? "Settled" : "No agreed amount outstanding"}
         </p>
       )}
       {targets.length > 0 && split.expense.mode === "paid" && (
@@ -152,7 +158,7 @@ export function ExpenseCard({
               <span>
                 {p.name}
                 {p.paid
-                  ? ` · ${split.expense.mode === "planned" ? "expects to pay" : "paid"} ${money(p.paid)}`
+                  ? ` · ${split.expense.mode === "planned" ? "expects to pay" : "reported paying"} ${money(p.paid)}`
                   : ""}
               </span>
               <span>{money(calculated.shares[p.email])}</span>
@@ -173,7 +179,6 @@ export function ExpenseCard({
           </button>
         )}
         {included &&
-          split.expense.mode === "planned" &&
           split.responses[email]?.status !== "accepted" && (
             <>
               <button
@@ -195,12 +200,12 @@ export function ExpenseCard({
                   void act({
                     type: "respond",
                     status: "declined",
-                    reason: "",
+                    reason: "I do not agree with this claim.",
                   }).catch(() => {})
                 }
                 className="min-h-11 px-3"
               >
-                Decline
+                Dispute claim
               </button>
             </>
           )}
@@ -352,6 +357,13 @@ export function ExpenseCard({
             {r.reason || "Declined participation"}
           </p>
         ))}
+      {Boolean(split.responseHistory?.length) && <details className="mt-3 text-sm">
+        <summary className="min-h-11 cursor-pointer py-3">Agreement and dispute history</summary>
+        {split.responseHistory?.map((response, i) => <p key={i} className="py-1">
+          {split.expense.participants.find(p => p.email === response.actor)?.name ?? response.actor}: {response.status} · revision {response.revision}{response.reason ? ` · ${response.reason}` : ""}{response.at ? ` · ${new Date(response.at).toLocaleDateString("en-GB", {timeZone:"Asia/Seoul"})}` : ""}
+        </p>)}
+        {split.agreement && <p>Last agreed version: {split.agreement.revision}. A later dispute does not erase that agreement or confirmed transfers.</p>}
+      </details>}
       {split.repayments.length > 0 && (
         <h4 className="mt-5 text-sm font-medium">Repayments</h4>
       )}

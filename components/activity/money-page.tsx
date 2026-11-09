@@ -2,8 +2,9 @@
 import { useState } from "react";
 import { ChevronRight } from "lucide-react";
 import type { Activity } from "@/lib/activity/model";
-import { balances, calculateExpense } from "@/lib/pilot/model";
+import { balances, calculateExpense, claimState } from "@/lib/pilot/model";
 import { moneySummary } from "@/lib/activity/money-summary";
+import { summarizeSpendingPlan } from "@/lib/activity/planning";
 import { money } from "./expense-card";
 import { MoneyStatus } from "./money-overview";
 
@@ -49,8 +50,8 @@ export function MoneyPage({
         <MoneyStatus splits={splits} email={email} />
         {activities.length > 1 && <p>Across {activities.length} activities{activities.some(a => a.archivedBy.includes(email)) ? " · includes archived activities" : ""}</p>}
       </div>
-      <nav aria-label="Money views" className="sf-ledger-tabs">
-        {["Expenses", "Balances", "Repayments"].map((t) => (
+      <nav aria-label="Money views" className="sf-ledger-tabs overflow-x-auto whitespace-nowrap">
+        {["Expenses", "Balances", "Repayments", "Planning"].map((t) => (
           <button
             key={t}
             aria-current={tab === t ? "page" : undefined}
@@ -134,6 +135,8 @@ export function MoneyPage({
                       >
                         {s.expense.mode === "planned"
                           ? `Planned · share ${money(c.shares[email] ?? 0)}`
+                          : claimState(s) !== "agreed"
+                            ? `${claimState(s) === "disputed" ? "Disputed" : "Awaiting agreement"} · claimed share ${money(c.shares[email] ?? 0)}`
                           : b > 0
                             ? `You owe ${money(b)}`
                             : b < 0
@@ -175,7 +178,9 @@ export function MoneyPage({
                         Gets back {money(b.owed)}
                       </small>
                     )}
-                    {!b.owe && !b.owed && <small>Settled</small>}
+                    {!b.owe && !b.owed && <small>{b.pendingClaims || b.disputedClaims ? "No agreed amount outstanding" : "Settled"}</small>}
+                    {b.pendingClaims > 0 && <small>{b.pendingClaims} awaiting agreement</small>}
+                    {b.disputedClaims > 0 && <small>{b.disputedClaims} disputed</small>}
                   </span>
                 </div>
               );
@@ -206,6 +211,65 @@ export function MoneyPage({
             <p className="sf-ledger-footnote">
               Payments stay outstanding until the recipient confirms receipt.
             </p>
+          </>
+        )}
+        {tab === "Planning" && (
+          <>
+            <p className="sf-ledger-footnote">Allowances are plans, not available cash. Reported costs may still need agreement.</p>
+            {activities.length === 0 && <p className="sf-ledger-empty">Start an activity in conversation to plan shared costs.</p>}
+            {activities.map(activity => {
+              const summary = activity.plan ? summarizeSpendingPlan(activity.plan, activity.expenses) : undefined;
+              return <div key={activity.id}>
+                <button className="sf-ledger-row" onClick={() => onOpen(activity.id)}>
+                  <span className="sf-ledger-description">
+                    <strong>{activity.title}</strong>
+                    <small>{summary ? `Reported costs ${money(summary.reportedCost)}` : "Set a spending limit in conversation"}</small>
+                  </span>
+                  <span className="sf-ledger-amount">
+                    {summary ? <>
+                      <strong>{money(summary.limit)} limit</strong>
+                      <small className={summary.remainingAllowance < 0 ? "sf-owe" : ""}>
+                        {summary.remainingAllowance < 0 ? `${money(-summary.remainingAllowance)} over plan` : `${money(summary.remainingAllowance)} allowance left`}
+                      </small>
+                    </> : <small>Plan →</small>}
+                  </span>
+                  <ChevronRight className="sf-row-chevron" size={18} aria-hidden="true" />
+                </button>
+                {summary && <details className="py-2 text-sm">
+                  <summary className="min-h-11 cursor-pointer py-3">Categories and plan details</summary>
+                  <dl>
+                    {summary.categories.map(category => <div key={category.name} className="flex flex-wrap justify-between gap-x-3 gap-y-1 border-t border-app-border py-2">
+                      <dt className="min-w-0 break-words">{category.name}</dt>
+                      <dd className="text-right tabular-nums">
+                        {money(category.allowance)} allowance
+                        <small className="block text-app-muted">{money(category.reportedCost)} reported</small>
+                      </dd>
+                    </div>)}
+                  </dl>
+                  <p className="text-app-muted">Unallocated allowance {money(summary.unallocatedAllowance)}</p>
+                  <p className="text-app-muted">Uncategorized reported costs {money(summary.uncategorizedReportedCost)}</p>
+                  {summary.plannedCost > 0 && <p className="text-app-muted">Proposed expenses {money(summary.plannedCost)}</p>}
+                </details>}
+              </div>;
+            })}
+            {activities.some(activity => activity.schedule) && <>
+              <h2 className="sf-ledger-subheading">Monthly costs</h2>
+              {activities.filter(activity => activity.schedule).map(activity => {
+                const schedule = activity.schedule!;
+                const total = calculateExpense(schedule.expense).total;
+                const accepted = schedule.expense.participants.filter(person => schedule.accepted.includes(person.email)).length;
+                return <button key={activity.id} className="sf-ledger-row" onClick={() => onOpen(activity.id)}>
+                  <span className="sf-ledger-description">
+                    <strong>{schedule.expense.title}</strong>
+                    <small>{activity.title} · due day {schedule.dueDay} · from {schedule.start}</small>
+                    <small>{schedule.paused ? "Paused" : `${accepted}/${schedule.expense.participants.length} accepted terms`}</small>
+                  </span>
+                  <span className="sf-ledger-amount"><strong>{money(total)}</strong><small>{schedule.variable ? "Estimated monthly" : "Monthly terms"}</small></span>
+                  <ChevronRight className="sf-row-chevron" size={18} aria-hidden="true" />
+                </button>;
+              })}
+            </>}
+            {activities.length > 0 && <p className="sf-ledger-footnote">Open an activity to review or adjust its plan with SplitFlow.</p>}
           </>
         )}
         {tab === "Repayments" && (

@@ -1,6 +1,6 @@
 # Action-capable conversation
 
-The composer defaults to a private assistant conversation. Message group explicitly posts human discussion without invoking an assistant. Shared expenses and the compact money pages remain authoritative; assistant prose is never proof of a committed action.
+Every composer message goes to a private assistant conversation. Direct user-to-user messaging is disabled in UI, domain commands and database commits; historical discussion is preserved read-only. Shared expenses and the compact money pages remain authoritative; assistant prose is never proof of a committed action.
 
 ## Execution
 
@@ -18,7 +18,7 @@ Enter manually retains the private draft and transfers prepared expense, group, 
 
 ## Verification and operational boundary
 
-OpenAI setup is on hold. No credential was created or changed. Tests inject scripted function calls, clearly separate from live model output; production has no scripted provider switch. Without a key, the real endpoint persists the user turn and returns Assistant unavailable with Retry and Enter manually. Live model interpretation, tool selection quality, API latency and billing behavior are not verified until setup resumes.
+OpenAI setup was resumed by the user. No credential was created or changed by this implementation. Tests inject scripted function calls, clearly separate from live model output; production has no scripted provider switch. Without a key, the real endpoint persists the user turn and returns Assistant unavailable with Retry and Enter manually. Live model interpretation, tool selection quality, API latency and billing behavior are not established by scripted-provider tests.
 
 Coverage includes the Responses request envelope, multi-step reviewed creation, integer allocations, stale proposals, failed/duplicate submissions, group permissions, recipient-only confirmation, overpayment, recurring acceptance and pause, unknown tools, owner-scoped storage and actual local Postgres transaction rollback. Browser fixtures exercise message-only review/confirmation, reload recovery, private versus group discussion and manual fallback. Local Supabase tests use synthetic verified users; no real invitations or payments are sent.
 
@@ -37,3 +37,32 @@ Persistence uses the existing private JSON documents and transaction RPCs. New f
 The visual treatment adapts the ChatGPT inline shopping card and generated-result references in docs/design/FINISH-PASS.md and OpenAI's ChatKit widget/action documentation, using the existing React components and Responses backend rather than adding ChatKit or another service. Tests inject scripted providers explicitly; their screenshots are not proof of live OpenAI execution.
 
 Conversation reviews use compact, read-only transaction cards. Manual editing is explicit and reuses the retained draft; switching to payment controls also expands their activity context. Optional server-derived preview summaries carry repayment amounts/status and recurring dates for compact saved receipts. Older stored previews without summaries retain their original detail fallback. This additive JSON change requires no migration; historical snapshots and transactional confirmation remain unchanged. Full proposed access changes, revised shares and receipt consequences remain visible before confirmation, while saved details disclose on demand.
+
+## Activity spending plans
+
+An activity may contain an optional `plan`: an integer-KRW limit and named category allowances. The owner prepares or revises the complete plan through the `plan` command and supplies a reason. Existing activity expected revisions, proposal confirmation, audit events and transactional batch execution apply unchanged. Plans never create expenses, debts, acceptance or transfers. An additive JSON field preserves old activities without a data migration.
+
+Category allowances cannot exceed the total limit. Unallocated allowance remains explicit. Expense-to-category assignments are explicit IDs from the same activity; duplicate assignments and unknown references are rejected. Removing a category or changing an assignment appears in the review. Category names and expense titles are data, never instructions. The assistant must ask for missing facts rather than infer an expense classification.
+
+`reportedCost` sums recorded paid-mode expenses, even if their underlying claims still await agreement or are disputed. It is deliberately labeled reported cost. Planned expenses are shown separately; confirmed repayments do not change spending totals. Remaining allowance is the limit minus reported cost and can be negative. It is not available cash, bank funding or proof of an obligation. Shared obligations and receipt confirmations retain their independent consent rules.
+
+The Planning tab is read-only. Activity rows return to the original conversation; monthly terms show their amount, due day and acceptance state separately from reported costs. The optional manual editor uses the same domain validator, retains its draft when editing a review, and requires explicit confirmation before handing the typed command to the existing server operation service. Browser/provider failures never turn a prepared allowance into a shared record.
+
+
+## Claims, agreements and mutual friendship
+
+Each person independently adds the other. Pending friendship gives no authority to create debt. Friendship uses immutable two-person records, independent joined flags and a unique pair constraint. New shared groups/activities and newly published or revised costs require mutual friendship to the acting person. Removing a friend prevents new claims; existing records, responses and confirmed transfer history remain accessible. The database serializes friendship revocation with new cost writes. Existing groups are never silently upgraded into friendships.
+
+An expense begins as a claim. Only full participant consent establishes the first agreed snapshot; the organizer's publication represents their own statement, and all other participants must explicitly accept. A denial is recorded as a dispute, not proof that a claim is false. Until consensus, claimed amounts stay outside agreed balances. Later revisions require affected users to review again and cannot replace the previous agreed snapshot until consent is complete. This conservative whole-expense agreement rule means one unresolved participant can delay the first agreement for the entire expense. No silence-based acceptance is used.
+
+Response history preserves accepted/declined/correction statements and reasons, including legacy responses before any revision clears them. Agreed snapshots and confirmed historical transfers remain intact through later disputes. Existing unaccepted records are not retroactively declared true. Agreement records consent, not independent verification or a legal determination. A pending/disputed claim can remain unresolved; SplitFlow cannot enforce payment or decide who is telling the truth.
+
+Research basis: [Splitwise ledger and automatic balances](https://kb.splitwise.com/getting-started/how-do-i-use-splitwise), [collaborative correction/history](https://kb.splitwise.com/groups/can-i-prevent-group-members-from-changing-expenses-or-set-permissions), [blocking and abuse reports](https://kb.splitwise.com/account-issues/what-do-i-do-if-someone-is-abusing-or-harassing-me-on-splitwise), [Tricount receipt attachments](https://www.tricount.com/features), and [Venmo dispute evidence](https://help.venmo.com/cs/articles/following-up-on-a-dispute-vhel125). These are distinct trust models, not proof that an expense is authentic. SplitFlow adopts explicit consent and preserved history; it does not claim provider-style adjudication or receipt verification.
+
+Deployment requires migration `20261109140000_mutual_friendships.sql` before releasing the new app. It preserves records and adds pair uniqueness and commit guards. Keep these guards during an application rollback; an older app may need read-only mode until a compatible build is restored rather than bypassing mutual consent.
+
+### Acceptance and historical money
+
+Recorded expenses cannot be converted back into plans. Planned expenses may become recorded costs, but that requires fresh acceptance. Legacy planned records still expose confirmed transfer credits; a display mode must never erase payment history. Later objections preserve the last agreed expense snapshot and each person's dated response. The conversational response preview states the reviewed share, current claim status, prior accepted shares where present, and remaining balances after confirmed transfers.
+
+Switching an uncommitted activity-and-plan proposal to manual entry retains its plan. The user explicitly creates the activity, then reviews and saves the retained plan; neither step silently commits the other.

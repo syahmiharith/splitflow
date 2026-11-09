@@ -1,5 +1,6 @@
 import { beforeEach, afterEach, describe, it, expect, vi } from "vitest";
 import { NextRequest } from "next/server";
+import { createGroup, changeGroup } from "@/lib/activity/model";
 import { GET, POST } from "@/app/api/workspace/route";
 const id = "81000000-0000-4000-8000-000000000001",
   key = "82000000-0000-4000-8000-000000000001",
@@ -28,6 +29,10 @@ const input = {
     ],
   },
 };
+function friends() {
+  const group = createGroup("a@example.test", { name: "Friendship", friendship: true, people: input.input.people });
+  return [{ kind: "group", document: changeGroup(group, "b@example.test", { type: "join" }) }];
+}
 beforeEach(() => {
   vi.stubEnv("SUPABASE_URL", "https://test.example");
   vi.stubEnv("SUPABASE_SECRET_KEY", "secret");
@@ -54,6 +59,7 @@ describe("shared workspace boundary", () => {
       .mockResolvedValueOnce(auth())
       .mockResolvedValueOnce(json([]))
       .mockResolvedValueOnce(json([]))
+      .mockResolvedValueOnce(json(friends()))
       .mockImplementationOnce(async (_url, init) =>
         json(JSON.parse(init.body).p_document),
       );
@@ -64,7 +70,7 @@ describe("shared workspace boundary", () => {
     expect(response.status).toBe(200);
     const doc = await response.json();
     expect(doc.owner).toBe("a@example.test");
-    expect(JSON.parse(fetch.mock.calls[3][1].body).p_actor).toBe(uid);
+    expect(JSON.parse(fetch.mock.calls[4][1].body).p_actor).toBe(uid);
   });
   it("denies unrelated account reads through mutation and does not replay private results", async () => {
     const fetch = vi
@@ -93,13 +99,15 @@ describe("shared workspace boundary", () => {
     expect(fetch).toHaveBeenCalledTimes(2);
   });
   it("requires joined group members before creating a group activity", async () => {
+    const groupId = crypto.randomUUID();
     const fetch = vi
       .fn()
       .mockResolvedValueOnce(auth())
       .mockResolvedValueOnce(json([]))
       .mockResolvedValueOnce(json([]))
+      .mockResolvedValueOnce(json(friends()))
       .mockResolvedValueOnce(
-        json([{ document: { joined: ["a@example.test"] } }]),
+        json([{ kind: "group", document: { id: groupId, joined: ["a@example.test"] } }]),
       );
     vi.stubGlobal("fetch", fetch);
     expect(
@@ -107,7 +115,7 @@ describe("shared workspace boundary", () => {
         await POST(
           request({
             ...input,
-            input: { ...input.input, groupId: crypto.randomUUID() },
+            input: { ...input.input, groupId },
           }),
         )
       ).status,

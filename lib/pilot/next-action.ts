@@ -1,4 +1,4 @@
-import { balances, type Split } from "./model";
+import { balances, claimState, type Split } from "./model";
 export type SplitState = {
   stage: "needs_action" | "waiting" | "ready" | "settled";
   message: string;
@@ -45,6 +45,13 @@ export function splitState(split: Split, email: string): SplitState {
         message: "Waiting for explicit participant responses",
       };
     return { stage: "ready", message: "Participation agreed" };
+  }
+  const claim = claimState(split);
+  if (claim !== "agreed") {
+    if (claim === "disputed") return { stage: "needs_action", message: "Disputed claim — review the reasons and propose a resolution" };
+    if (email !== split.organizer && split.responses[email]?.status !== "accepted")
+      return { stage: "needs_action", message: "Review the claimed cost and accept or dispute your share" };
+    return { stage: "waiting", message: "Waiting for everyone to confirm the claimed cost" };
   }
   const remaining = balances(split);
   const balance = remaining[email] ?? 0;

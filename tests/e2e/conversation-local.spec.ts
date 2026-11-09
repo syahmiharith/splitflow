@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import nextEnv from "@next/env";
+import { ensureLocalMutualFriends } from "./local-friend-fixture";
 nextEnv.loadEnvConfig(process.cwd());
 test.skip(
   process.env.PILOT_LIVE_LOCAL !== "1",
@@ -45,6 +46,7 @@ test("private draft and published conversation recover in independent signed-in 
   const run = `${Date.now()}-${test.info().project.name}`;
   const email = `conversation-${run}@example.test`;
   await signIn(page, email);
+  await ensureLocalMutualFriends(page, [`minji-${run}@example.test`]);
   await page
     .getByRole("button", { name: "Enter manually", exact: true })
     .click();
@@ -143,6 +145,7 @@ test("saved groups persist privately and prefill an explicitly reviewed split wi
   const run = `${Date.now()}-${test.info().project.name}`;
   const email = `groups-${run}@example.test`;
   await signIn(page, email);
+  await ensureLocalMutualFriends(page, [`minji-${run}@example.test`, `alex-${run}@example.test`]);
   await page.getByRole("button", { name: "Groups", exact: true }).click();
   const groups = page.getByRole("dialog", {
     name: "Saved groups",

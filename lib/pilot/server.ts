@@ -46,6 +46,10 @@ export async function database(path: string, init?: RequestInit) {
         "Sign in with the email this invitation was sent to.",
         403,
       );
+    if (body.includes("MUTUAL_FRIENDSHIP_REQUIRED")) throw new PilotError("Both people must add each other before sharing new costs. Review Friends and try again.", 403);
+    if (body.includes("activity_friendship_pair")) throw new PilotError("This friendship request already exists. Reload Friends to add them back.", 409);
+    if (body.includes("FRIEND_CONSENT_REQUIRED") || body.includes("IMMUTABLE_FRIENDSHIP_PAIR") || body.includes("INVALID_FRIENDSHIP")) throw new PilotError("Each person must manage their own friendship consent.", 403);
+    if (body.includes("DIRECT_MESSAGES_DISABLED")) throw new PilotError("Direct messages are disabled. Talk privately with SplitFlow.", 403);
     if (body.includes("ACCESS_DENIED"))
       throw new PilotError("Split unavailable for this account.", 403);
     throw new PilotError(

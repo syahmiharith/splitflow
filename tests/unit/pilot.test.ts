@@ -28,7 +28,10 @@ const split: Split = {
   organizer: "a@example.com",
   revision: 1,
   expense,
-  responses: {},
+  responses: {
+    "b@example.com": { revision: 1, status: "accepted", reason: "" },
+    "c@example.com": { revision: 1, status: "accepted", reason: "" },
+  },
   repayments: [],
   audit: [],
 };
@@ -91,7 +94,10 @@ describe("pilot financial workflow", () => {
       reason: "Correct total",
     });
     expect(changed.repayments).toEqual(s.repayments);
-    expect(balances(changed)["b@example.com"]).toBe(-10000);
+    expect(balances(changed)["b@example.com"]).toBe(0);
+    const bAccepted = applyCommand(changed, "b@example.com", { type: "respond", status: "accepted", reason: "" });
+    const agreed = applyCommand(bAccepted, "c@example.com", { type: "respond", status: "accepted", reason: "" });
+    expect(balances(agreed)["b@example.com"]).toBe(-10000);
   });
   it("preserves only unaffected responses", () => {
     const s = structuredClone(split);
@@ -119,14 +125,14 @@ describe("pilot financial workflow", () => {
     expect(changed.responses["c@example.com"]).toBeDefined();
     expect(changed.responses["b@example.com"]).toBeUndefined();
   });
-  it("converts incurred declines into correction requests", () => {
+  it("retains explicit disagreement with an incurred claim", () => {
     expect(
       applyCommand(split, "b@example.com", {
         type: "respond",
         status: "declined",
         reason: "Wrong share",
       }).responses["b@example.com"].status,
-    ).toBe("correction");
+    ).toBe("declined");
   });
   it("provides exact remaining recipients for multiple payers and confirmed transfers", () => {
     const s = structuredClone(split);

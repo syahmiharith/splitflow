@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { findFriendship, isFriendship } from "@/lib/activity/friendships";
 import {
   groupInput,
   groupCommand,
@@ -10,11 +11,15 @@ import {
   commandSchema,
   calculateExpense,
   balances,
+  claimedBalances,
+  agreedExpense,
+  claimState,
   type Expense,
 } from "@/lib/pilot/model";
 import { prepareOperation } from "@/lib/activity/operations";
 import type { Operation, RecordRow } from "@/lib/activity/client";
 import type { Proposal, Preview } from "./model";
+import { spendingPlanInput, spendingPlanChanges, summarizeSpendingPlan } from "@/lib/activity/planning";
 const allocations = z
   .array(z.object({ email: z.email(), value: z.number().int().min(0) }))
   .nullable();
@@ -37,6 +42,11 @@ const splitCommand = z.union([
   ...commandSchema.options.slice(1),
 ]);
 const change = z.union([
+  z.object({
+    type: z.literal("plan"),
+    plan: spendingPlanInput,
+    reason: z.string().trim().min(1).max(500),
+  }),
   z.object({ type: z.literal("expense"), expense: wireExpense }),
   z.object({
     type: z.literal("expenseCommand"),
@@ -58,6 +68,7 @@ export const actionsSchema = z.object({
   actions: z
     .array(
       z.union([
+        z.object({ type: z.literal("add_friend"), person: z.object({name:z.string().trim().min(1).max(80),email:z.email().toLowerCase()}) }),
         z.object({
           type: z.literal("create_group"),
           ref: z.string().min(1).max(80),
@@ -166,6 +177,7 @@ function describe(
       ? `Group: ${"name" in d ? d.name : ""}`
       : (d as Activity).title;
   const label: Record<string, string> = {
+    plan: "Update spending plan",
     rename: "Rename group",
     invite: "Invite people",
     join: "Join group",
@@ -186,6 +198,7 @@ function describe(
   let expense: Expense | undefined;
   let expenseId: string | undefined;
   let summary: Preview["summary"];
+  let plan: Preview["plan"];
   if (after.kind === "group") {
     const group = d as Extract<RecordRow, { kind: "group" }>["document"];
     summary = { text: `${group.people.length} people · ${group.joined.length} joined` };
@@ -216,6 +229,27 @@ function describe(
         : `Create ${activity.kind === "quick" ? "shared" : activity.kind} activity`,
       `People: ${activity.people.map((p) => p.name).join(", ")}`,
     );
+    if (cmd?.type === "plan") {
+      const current = activity.plan!;
+      const previous = before?.kind === "activity" ? before.document.plan : undefined;
+      const totals = summarizeSpendingPlan(current, activity.expenses);
+      const changes = spendingPlanChanges(previous, current);
+      const format = (amount: number) => `₩${amount.toLocaleString("en-US")}`;
+      const classificationChanges = changes.categories.filter(category => JSON.stringify(category.expenseIds) !== JSON.stringify(category.previousExpenseIds)).map(category =>
+        `${category.name} expenses: ${category.expenseIds.map(id => activity.expenses.find(split => split.id === id)?.expense.title ?? id).join(", ") || "none"}`,
+      );
+      plan = { current, previous, summary: totals, reason: String(cmd.reason), classificationChanges };
+      summary = { amount: current.limit, suffix: " limit", text: "Spending allowance, not available cash" };
+      lines.push(
+        `Spending limit: ${format(changes.limit.before)} → ${format(changes.limit.after)}`,
+        ...changes.categories.map(category => `${category.name}: ${format(category.before)} → ${format(category.after)}${category.removed ? " (removed)" : ""}`),
+        ...classificationChanges,
+        `Unallocated allowance: ${format(totals.unallocatedAllowance)}`,
+        `Reported costs: ${format(totals.reportedCost)}; remaining allowance: ${format(totals.remainingAllowance)}`,
+        "Planning does not create a debt, prove a cost or record a payment.",
+        `Reason: ${cmd.reason}`,
+      );
+    }
     if (cmd?.type === "expense" || cmd?.type === "expenseCommand") {
       const split = activity.expenses.find((s) => s.id === cmd.id)!;
       expense = split.expense;
@@ -226,10 +260,10 @@ function describe(
           : undefined;
       const totals = calculateExpense(expense);
       const sub = cmd.command as Record<string, unknown> | undefined;
-      summary = { amount: totals.total, text: expense.mode === "paid" ? "Already paid" : "Planned expense" };
+      summary = { amount: totals.total, text: expense.mode === "paid" ? "Awaiting participant agreement" : "Planned expense" };
       if (!sub || sub.type === "revise")
         lines.push(
-          `${expense.title}: ₩${totals.total.toLocaleString("en-US")} · ${expense.mode === "paid" ? "Already paid" : "Planned"}`,
+          `${expense.title}: ₩${totals.total.toLocaleString("en-US")} · ${expense.mode === "paid" ? "Reported cost; participant agreement required" : "Planned"}`,
           ...expense.participants.map(
             (p) =>
               `${p.name}: ${old ? `₩${calculateExpense(old.expense).shares[p.email].toLocaleString("en-US")} → ` : ""}₩${totals.shares[p.email].toLocaleString("en-US")} · payer contribution ₩${p.paid.toLocaleString("en-US")}`,
@@ -265,10 +299,27 @@ function describe(
           lines.push(`${p.from} → ${p.to}: ₩${p.amount} · ${sub.status}`);
         }
         if (sub.type === "respond") {
-          summary = { text: `Response: ${sub.status}` };
+          const actor = split.audit.at(-1)?.actor;
+          const status = sub.status === "accepted" ? "Share accepted" : "Claim disputed";
+          summary = { amount: actor ? totals.shares[actor] : undefined, text: `${status} · ${claimState(split) === "agreed" ? "Everyone agreed" : "Agreement still unresolved"}` };
           lines.push(`Response: ${sub.status}`);
+          if (actor) lines.push(`Your reviewed share: ₩${totals.shares[actor].toLocaleString("en-US")}`);
         }
-        if (sub.type === "revise") summary = { amount: totals.total, text: "Revised shares · see updated amounts and credits in details" };
+        if (sub.type === "revise") summary = { amount: totals.total, text: "Revised claim · prior agreements and payments preserved" };
+      }
+      const state = claimState(split);
+      lines.push(`Claim status: ${state === "agreed" ? "Agreed by participants" : state === "disputed" ? "Disputed; neither statement establishes the facts" : "Awaiting participant agreement"}`);
+      const agreement = agreedExpense(split);
+      if (agreement && state !== "agreed") {
+        const agreed = calculateExpense(agreement);
+        lines.push("Previous acceptance remains recorded; this change does not erase it.");
+        for (const person of agreement.participants)
+          lines.push(`${person.name}: previously agreed share ₩${agreed.shares[person.email].toLocaleString("en-US")}`);
+      }
+      if (sub) {
+        const outstanding = balances(split);
+        for (const person of expense.participants)
+          lines.push(`${person.name}: agreed balance after confirmed payments ${outstanding[person.email] > 0 ? "owes" : outstanding[person.email] < 0 ? "is owed / credit" : ""} ₩${Math.abs(outstanding[person.email]).toLocaleString("en-US")}`);
       }
     }
     if (
@@ -302,6 +353,7 @@ function describe(
   }
   return {
     title,
+    plan,
     lines,
     summary,
     expense,
@@ -323,7 +375,14 @@ export function prepareActions(
   const dependencies = new Map<string, number>();
   for (const action of parsed.actions) {
     let op: Operation;
-    if (
+    if (action.type === "add_friend") {
+      if (action.person.email === email) throw Error("Choose another person.");
+      const existing = findFriendship(rows, email, action.person.email);
+      op = existing ? { id:existing.id,key:crypto.randomUUID(),expected:existing.revision,kind:"group",command:{type:"join"} } : {
+        id:crypto.randomUUID(),key:crypto.randomUUID(),expected:0,kind:"group",
+        input:{name:"Friendship",friendship:true,people:[{email,name:email},action.person]},
+      };
+    } else if (
       action.type === "create_group" ||
       action.type === "create_activity" ||
       action.type === "repeat_activity"
@@ -396,6 +455,9 @@ export function prepareActions(
       const g = records.find((r) => r.document.id === groupId);
       if (g) dependencies.set(g.document.id, g.document.revision);
     }
+    for (const r of records) {
+      if (r.kind === "group" && isFriendship(r.document)) dependencies.set(r.document.id, r.document.revision);
+    }
     const before = rows.find((r) => r.document.id === op.id);
     const result = prepareOperation(rows, email, op);
     previews.push(describe(before, result, op));
@@ -432,11 +494,16 @@ export function readableWorkspace(rows: RecordRow[]) {
           ...row,
           document: {
             ...row.document,
+            spendingPlanSummary: row.document.plan
+              ? summarizeSpendingPlan(row.document.plan, row.document.expenses)
+              : undefined,
             messages: row.document.messages.slice(-12),
             expenses: row.document.expenses.map((s) => ({
               ...s,
               calculation: calculateExpense(s.expense),
               balances: balances(s),
+              claimedBalances: claimedBalances(s),
+              claimState: claimState(s),
             })),
           },
         },

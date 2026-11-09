@@ -22,7 +22,10 @@ const split: Split = {
       },
     ],
   },
-  responses: {},
+  responses: {
+    "b@example.com": { revision: 1, status: "accepted", reason: "" },
+    "c@example.com": { revision: 1, status: "accepted", reason: "" },
+  },
   repayments: [],
   audit: [],
 };

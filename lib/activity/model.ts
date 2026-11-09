@@ -8,6 +8,7 @@ import {
   type Split,
 } from "@/lib/pilot/model";
 import { groupPeople } from "@/lib/pilot/groups";
+import { spendingPlanInput, setSpendingPlan, type SpendingPlan } from "./planning";
 export const activityInput = z.object({
   title: z.string().trim().min(1).max(120),
   kind: z.enum(["quick", "planned", "recurring"]),
@@ -18,6 +19,9 @@ export const activityInput = z.object({
 export const groupInput = z.object({
   name: z.string().trim().min(1).max(80),
   people: groupPeople,
+  friendship: z.boolean().optional(),
+}).refine(value => !value.friendship || value.people.length === 2, {
+  message: "A friendship is between exactly two people.",
 });
 const date = z
   .string()
@@ -29,6 +33,11 @@ const date = z
     "Enter a valid date.",
   );
 export const activityCommand = z.discriminatedUnion("type", [
+  z.object({
+    type: z.literal("plan"),
+    plan: spendingPlanInput,
+    reason: z.string().trim().min(1).max(500),
+  }),
   z.object({
     type: z.literal("message"),
     text: z.string().trim().min(1).max(4000),
@@ -71,6 +80,7 @@ export const groupCommand = z.discriminatedUnion("type", [
 ]);
 export type Person = z.infer<typeof groupPeople>[number];
 export type SharedGroup = {
+  friendship?: boolean;
   id: string;
   revision: number;
   name: string;
@@ -90,6 +100,7 @@ export type Schedule = {
   accepted: string[];
 };
 export type Activity = {
+  plan?: SpendingPlan;
   templates?: Expense[];
   id: string;
   revision: number;
@@ -135,6 +146,16 @@ export function changeGroup(
     throw Error("Group access required.");
   const cmd = groupCommand.parse(input),
     next = structuredClone(current);
+  if (current.friendship) {
+    if (cmd.type !== "join" && cmd.type !== "leave")
+      throw Error("Friendship members cannot be replaced. Each person adds or removes the other independently.");
+    next.joined = cmd.type === "join"
+      ? [...new Set([...next.joined, actor])]
+      : next.joined.filter(email => email !== actor);
+    delete next.invitations[actor];
+    next.revision++;
+    return next;
+  }
   if (cmd.type === "join") {
     if (!next.joined.includes(actor)) {
       if (
@@ -212,7 +233,13 @@ export function changeActivity(
   const cmd = activityCommand.parse(input),
     next = structuredClone(current);
   let text = "";
-  if (cmd.type === "message") text = cmd.text;
+  if (cmd.type === "plan") {
+    if (actor !== current.owner)
+      throw Error("Only the activity owner can change the spending plan.");
+    next.plan = setSpendingPlan(cmd.plan, current.expenses);
+    text = `Updated spending plan: ${cmd.reason}`;
+  }
+  if (cmd.type === "message") throw Error("Direct messages are disabled. Talk privately with SplitFlow.");
   if (cmd.type === "expense") {
     checkExpense(current, cmd.expense);
     if (!cmd.expense.participants.some((p) => p.email === actor))
@@ -297,7 +324,7 @@ export function changeActivity(
       id: crypto.randomUUID(),
       actor,
       text,
-      kind: cmd.type === "message" ? "message" : "event",
+      kind: "event",
       at: new Date().toISOString(),
     });
   next.revision++;

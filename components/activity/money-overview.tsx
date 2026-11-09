@@ -19,11 +19,11 @@ export function MoneyStatus({
       )}
       {!s.owe && !s.owed && (
         <span>
-          {splits.some((s) => s.expense.mode === "paid")
-            ? "Settled"
-            : "No recorded costs"}
+          {s.pendingClaims || s.disputedClaims ? "No agreed amount outstanding" : splits.some((s) => s.expense.mode === "paid") ? "Settled" : "No recorded costs"}
         </span>
       )}
+      {s.pendingClaims > 0 && <span>{s.pendingClaims} awaiting agreement</span>}
+      {s.disputedClaims > 0 && <span>{s.disputedClaims} disputed</span>}
       {s.planned > 0 && (
         <span className="text-app-muted">Planned share {money(s.planned)}</span>
       )}
@@ -126,18 +126,18 @@ export function MoneyOverview({
           </div>
         )}
         <p className="mt-3 text-xs text-app-muted">
-          Only confirmed receipts reduce balances. Obligations stay attached to
+          Only agreed costs create obligations; confirmed receipts reduce balances. Obligations stay attached to
           their expense.
         </p>
       </details>
       <details>
         <summary className="sf-money-disclosure">Totals</summary>
         <dl className="sf-money-totals">
-          <dt>Total recorded costs</dt>
+          <dt>Total claimed costs</dt>
           <dd>{money(s.spent)}</dd>
           <dt>Your share</dt>
           <dd>{money(s.share)}</dd>
-          <dt>You paid toward costs</dt>
+          <dt>Your reported payer contributions</dt>
           <dd>{money(s.paid)}</dd>
           <dt>Your planned share</dt>
           <dd>{money(s.planned)}</dd>

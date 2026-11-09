@@ -70,7 +70,24 @@ test("shared group acceptance, private activity, member cost and independent rel
       { email: b, name: "Member" },
     ],
     groupId = crypto.randomUUID();
+  const friendId = crypto.randomUUID();
   let response = await send(page, owner.access_token, {
+    kind: "group", id: friendId, key: crypto.randomUUID(), expected: 0,
+    input: { name: "Friendship", friendship: true, people },
+  });
+  expect(response.status()).toBe(200);
+  response = await send(page, owner.access_token, {
+    kind: "group", id: groupId, key: crypto.randomUUID(), expected: 0,
+    input: { name: "Shared friends", people },
+  });
+  expect(response.ok()).toBe(false);
+  expect(await response.json()).toHaveProperty("error", expect.stringContaining("Both people must add each other"));
+  response = await send(member, second.access_token, {
+    kind: "group", id: friendId, key: crypto.randomUUID(), expected: 1,
+    command: { type: "join" },
+  });
+  expect(response.status()).toBe(200);
+  response = await send(page, owner.access_token, {
     kind: "group",
     id: groupId,
     key: crypto.randomUUID(),
@@ -145,14 +162,17 @@ test("shared group acceptance, private activity, member cost and independent rel
     ).status(),
   ).toBe(403);
   await page.goto(`/?activity=${id}`);
+  await page.locator(".sf-activity-context > summary").click();
   await expect(
     page.getByRole("heading", { name: "Materials", exact: true }),
   ).toBeVisible();
   await page.reload();
+  await page.locator(".sf-activity-context > summary").click();
   await expect(
     page.getByRole("heading", { name: "Materials", exact: true }),
   ).toBeVisible();
   await member.goto(`/?activity=${id}`);
+  await member.locator(".sf-activity-context > summary").click();
   await expect(
     member.getByRole("heading", { name: "Materials", exact: true }),
   ).toBeVisible();

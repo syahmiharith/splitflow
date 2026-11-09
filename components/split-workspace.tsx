@@ -11,6 +11,8 @@ import type { Conversation } from "@/lib/pilot/conversation";
 import { WorkspaceFrame } from "@/components/workspace-frame";
 import {
   balances,
+  claimState,
+  agreedExpense,
   calculateExpense,
   itemShare,
   settlements,
@@ -547,6 +549,8 @@ export default function SplitWorkspace() {
             {visible.map((split) => {
               const allocation = calculateExpense(split.expense);
               const remaining = balances(split);
+              const state = claimState(split);
+              const agreement = agreedExpense(split);
               const mine = allocation.shares[email];
               return (
                 <article
@@ -557,29 +561,33 @@ export default function SplitWorkspace() {
                     <h2 className="text-xl font-bold">{split.expense.title}</h2>
                     <span className="rounded-md bg-blue-50 px-3 py-1 text-xs font-semibold text-app-blue">
                       {split.expense.mode === "paid"
-                        ? "Already paid"
+                        ? state === "agreed" ? "Agreed cost" : state === "disputed" ? "Disputed claim" : "Claim awaiting agreement"
                         : "Planned expense"}
                     </span>
                   </div>
                   <p className="font-medium">{nextAction(split, email)}</p>
                   <p>
                     {split.expense.mode === "paid"
-                      ? "Already paid"
+                      ? "Reported as paid"
                       : "Planned expense"}{" "}
                     · Revision {split.revision}
                   </p>
                   <div className="rounded-lg border border-blue-100 bg-blue-50 p-4">
                     <p className="text-sm font-semibold text-app-blue">
-                      Your share{" "}
+                      {state === "agreed" ? "Your share" : "Proposed share"}{" "}
                       <span className="mt-1 block text-3xl font-bold tracking-tight text-app-text">
                         {money(mine)}
                       </span>
                     </p>
                   </div>
+                  {state !== "agreed" && <p className="text-sm text-app-muted">
+                    {state === "disputed" ? "This claim is disputed. Neither statement proves what happened." : "This is a claim awaiting each participant's agreement."}
+                    {agreement ? " The previous agreed amounts remain in the balance." : " It is not included in agreed balances."}
+                  </p>}
                   <p>
                     {remaining[email] < 0
-                      ? "Still owed to you"
-                      : "Your remaining balance"}{" "}
+                      ? agreement ? "Still owed to you" : "Confirmed payment credit"
+                      : "Your agreed balance"}{" "}
                     {money(Math.abs(remaining[email]))}
                   </p>
                   {split.expense.mode === "paid" && (
@@ -611,11 +619,9 @@ export default function SplitWorkspace() {
                             </span>
                           </div>
                           <p className="mt-1 text-xs text-app-muted">
-                            Paid {money(p.paid)} ·{" "}
+                            Reported contribution {money(p.paid)} ·{" "}
                             {split.responses[p.email]?.status ??
-                              (split.expense.mode === "planned"
-                                ? "Awaiting response"
-                                : "No correction requested")}
+                              (p.email === split.organizer ? "Organizer's claim" : "Awaiting response")}
                           </p>
                           {split.responses[p.email]?.reason && (
                             <p className="mt-2 text-sm">
@@ -712,34 +718,13 @@ export default function SplitWorkspace() {
                       </button>
                     </div>
                   )}
-                  {split.expense.mode === "planned" && (
-                    <div className="flex gap-4">
-                      {(["accepted", "declined"] as const).map((status) => (
-                        <button
-                          disabled={busy}
-                          key={status}
-                          onClick={() =>
-                            void action(() =>
-                              save({
-                                id: split.id,
-                                expected:
-                                  viewedRevisions[split.id] ?? split.revision,
-                                command: {
-                                  type: "respond",
-                                  status,
-                                  reason: "",
-                                },
-                              }),
-                            )
-                          }
-                        >
-                          {status === "accepted"
-                            ? "Accept participation"
-                            : "Decline participation"}
-                        </button>
-                      ))}
-                    </div>
-                  )}
+                  <button disabled={busy} onClick={() => void action(() => save({
+                    id: split.id,
+                    expected: viewedRevisions[split.id] ?? split.revision,
+                    command: { type: "respond", status: "accepted", reason: "" },
+                  }))}>
+                    {split.expense.mode === "planned" ? "Accept participation" : "Accept claimed share"}
+                  </button>
                   <form
                     aria-label="Request a correction"
                     className="flex flex-wrap items-end gap-3 rounded-lg border border-app-border bg-slate-50 p-4"
@@ -752,7 +737,7 @@ export default function SplitWorkspace() {
                           expected: viewedRevisions[split.id] ?? split.revision,
                           command: {
                             type: "respond",
-                            status: "correction",
+                            status: (event.nativeEvent as SubmitEvent).submitter?.getAttribute("value") === "declined" ? "declined" : "correction",
                             reason: String(data.get("reason") ?? ""),
                           },
                         }),
@@ -768,7 +753,8 @@ export default function SplitWorkspace() {
                         maxLength={500}
                       />
                     </label>
-                    <button disabled={busy}>Request correction</button>
+                    <button disabled={busy} value="correction">Request correction</button>
+                    <button disabled={busy} value="declined">Dispute claim</button>
                   </form>
                   {split.expense.mode === "paid" && (
                     <form

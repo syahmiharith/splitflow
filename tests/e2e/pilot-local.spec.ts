@@ -1,6 +1,7 @@
 import { expect, test, type Browser, type Page } from "@playwright/test";
 import nextEnv from "@next/env";
 import path from "node:path";
+import { ensureLocalMutualFriends } from "./local-friend-fixture";
 nextEnv.loadEnvConfig(process.cwd());
 // Explicit opt-in uses only the isolated config.toml stack and its captured email.
 test.skip(
@@ -55,6 +56,7 @@ async function newDinner(
   title: string,
   total = 60000,
 ) {
+  await ensureLocalMutualFriends(page, emails);
   await page.getByRole("link", { name: "New split", exact: true }).first().click();
   await page.getByLabel("Title", { exact: true }).fill(title);
   for (let index = 1; index < emails.length; index++) {
@@ -110,7 +112,7 @@ test("real OTP, email-bound invitation, persisted dinner and unrelated-account d
   await newDinner(page, emails, "Shared dinner");
   await publish(page);
   await expect(
-    page.getByText("Your share ₩20,000", { exact: true }),
+    page.getByText("Proposed share ₩20,000", { exact: true }),
   ).toBeVisible();
   await page
     .getByRole("button", { name: "Report a problem", exact: true })
@@ -166,11 +168,11 @@ test("real OTP, email-bound invitation, persisted dinner and unrelated-account d
   const participant = await guest(browser, page);
   await signIn(participant.page, emails[1], link);
   await expect(
-    participant.page.getByText("Your share ₩20,000", { exact: true }),
+    participant.page.getByText("Proposed share ₩20,000", { exact: true }),
   ).toBeVisible();
   await participant.page.reload();
   await expect(
-    participant.page.getByText("Your share ₩20,000", { exact: true }),
+    participant.page.getByText("Proposed share ₩20,000", { exact: true }),
   ).toBeVisible();
   await participant.page
     .getByText("How your share was calculated", { exact: true })
@@ -189,7 +191,7 @@ test("real OTP, email-bound invitation, persisted dinner and unrelated-account d
   });
   await participant.page.reload();
   await expect(
-    participant.page.getByText("Your share ₩20,000", { exact: true }),
+    participant.page.getByText("Proposed share ₩20,000", { exact: true }),
   ).toBeVisible();
   expect(
     await participant.page.evaluate(
@@ -242,11 +244,11 @@ test("real outing with exclusions and two payers reconciles after reload", async
   await page.getByRole("checkbox", { name: "Guest 2", exact: true }).uncheck();
   await publish(page);
   await expect(
-    page.getByText("Your share ₩30,001", { exact: true }),
+    page.getByText("Proposed share ₩30,001", { exact: true }),
   ).toBeVisible();
   await page.reload();
   await expect(
-    page.getByText("Your share ₩30,001", { exact: true }),
+    page.getByText("Proposed share ₩30,001", { exact: true }),
   ).toBeVisible();
   await expect(
     page.getByRole("region", { name: "Participants and shares" }).getByRole("listitem").filter({ hasText: "Guest 2" }).getByText("₩0", { exact: true }),
@@ -266,8 +268,10 @@ test("real reported repayment, receipt and revision retain history and expose ov
   const participant = await guest(browser, page);
   await signIn(participant.page, emails[1], link);
   await expect(
-    participant.page.getByText("Your share ₩30,000", { exact: true }),
+    participant.page.getByText("Proposed share ₩30,000", { exact: true }),
   ).toBeVisible();
+  await participant.page.getByRole("button", { name: "Accept claimed share", exact: true }).click();
+  await expect(participant.page.getByRole("status").first()).toHaveText("Saved.");
   await participant.page.getByLabel("Amount sent (KRW)").fill("30000");
   await participant.page
     .getByRole("button", { name: "Report sent", exact: true })
@@ -276,7 +280,7 @@ test("real reported repayment, receipt and revision retain history and expose ov
     participant.page.getByText("Reported sent", { exact: false }),
   ).toBeVisible();
   await expect(
-    participant.page.getByText("Your remaining balance ₩30,000", {
+    participant.page.getByText("Your agreed balance ₩30,000", {
       exact: true,
     }),
   ).toBeVisible();
@@ -289,7 +293,7 @@ test("real reported repayment, receipt and revision retain history and expose ov
   ).toBeVisible();
   await participant.page.reload();
   await expect(
-    participant.page.getByText("Your remaining balance ₩0", { exact: true }),
+    participant.page.getByText("Your agreed balance ₩0", { exact: true }),
   ).toBeVisible();
   await page
     .getByRole("button", { name: "Revise expense", exact: true })
@@ -299,6 +303,8 @@ test("real reported repayment, receipt and revision retain history and expose ov
   await page.getByLabel("Reason for change").fill("Corrected receipt total");
   await publish(page);
   await participant.page.reload();
+  await participant.page.getByRole("button", { name: "Accept claimed share", exact: true }).click();
+  await expect(participant.page.getByRole("status").first()).toHaveText("Saved.");
   await expect(
     participant.page.getByText("Still owed to you ₩15,000", { exact: true }),
   ).toBeVisible();
@@ -395,7 +401,7 @@ test("planned allocations require renewed review after a change", async ({
     window.dispatchEvent(new Event("focus")),
   );
   await expect(
-    participant.page.getByText("Your share ₩15,000", { exact: true }),
+    participant.page.getByText("Proposed share ₩15,000", { exact: true }),
   ).toBeVisible();
   await participant.page
     .getByRole("button", { name: "Accept participation", exact: true })

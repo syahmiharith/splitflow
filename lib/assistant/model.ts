@@ -1,8 +1,10 @@
 import { z } from "zod";
 import type { Operation, RecordRow } from "@/lib/activity/client";
 import type { Expense } from "@/lib/pilot/model";
+import type { SpendingPlan, SpendingPlanSummary } from "@/lib/activity/planning";
 export type Preview = {
   title: string;
+  plan?: { current: SpendingPlan; previous?: SpendingPlan; summary: SpendingPlanSummary; reason: string; classificationChanges?: string[] };
   lines: string[];
   // Server-derived display summary; historical previews may omit it.
   summary?: { amount?: number; suffix?: string; text: string };

@@ -42,6 +42,10 @@ import { ActivityShare } from "./share";
 import { NewActivityForm, ScheduleForm } from "./activity-setup";
 import { GroupEditor } from "@/components/group-editor";
 import { ActivityDialog, ActivityPanel } from "./dialog";
+import { SpendingPlanEditor } from "./spending-plan-editor";
+import type { SpendingPlan } from "@/lib/activity/planning";
+import { FriendsPanel } from "./friends-panel";
+import { isFriendship } from "@/lib/activity/friendships";
 import { ActivitySignIn } from "./sign-in";
 import { ExpenseCard } from "./expense-card";
 import { RecurringTerms } from "./recurring-terms";
@@ -62,7 +66,7 @@ export default function ActivityWorkspace() {
     [menu, setMenu] = useState(false),
     [sidebarOpen, setSidebarOpen] = useState(true);
   const [modal, setModal] = useState<
-      "new" | "groups" | "expense" | "schedule" | "signin" | "share" | null
+      "new" | "groups" | "expense" | "schedule" | "plan" | "signin" | "share" | null
     >(null),
     [editing, setEditing] = useState<Split>(),
     [preset, setPreset] = useState<Expense>(),
@@ -106,9 +110,10 @@ export default function ActivityWorkspace() {
       .map((r) => r.document),
     groups = rows
       .filter(
-        (r): r is Extract<RecordRow, { kind: "group" }> => r.kind === "group",
+        (r): r is Extract<RecordRow, { kind: "group" }> => r.kind === "group" && !isFriendship(r.document),
       )
       .map((r) => r.document);
+  const friends = rows.filter((r): r is Extract<RecordRow,{kind:"group"}> => r.kind === "group" && isFriendship(r.document)).map(r => r.document);
   const activity = activities.find((a) => a.id === selected),
     chosenGroup = groups.find((g) => g.id === group);
   const refresh = useCallback(async () => {
@@ -419,12 +424,9 @@ export default function ActivityWorkspace() {
     dueDay: number;
     variable: boolean;
   }>();
+  const [manualPlan, setManualPlan] = useState<{plan:SpendingPlan;reason:string}>();
   const [manualSeed, setManualSeed] = useState<Activity>();
   const [manualExpense, setManualExpense] = useState<Expense>();
-  const [composerMode, setComposerMode] = useState<"assistant" | "group">(
-    "assistant",
-  );
-  useEffect(() => setComposerMode("assistant"), [selected, email]);
   const assistant = useAssistant(
     guest,
     email,
@@ -443,6 +445,12 @@ export default function ActivityWorkspace() {
   async function enterManually(preview?: Preview) {
     const last = assistant.thread?.draft?.operations.at(-1);
     const cmd = last?.command as Record<string, unknown> | undefined;
+    if (cmd?.type === "plan" && activity) {
+      setManualPlan({plan:cmd.plan as SpendingPlan,reason:String(cmd.reason ?? "")});
+      if (assistant.thread?.pending) await assistant.send("manual");
+      setModal("plan");
+      return;
+    }
     if (last?.kind === "group") {
       const g = groups.find((g) => g.id === last.id);
       if (!g) setManualGroup(last.input as { name: string; people: Person[] });
@@ -494,6 +502,7 @@ export default function ActivityWorkspace() {
       (op) => op.kind === "activity" && op.expected === 0,
     );
     if (!activity && staged?.input) {
+      setManualPlan(cmd?.type === "plan" ? {plan:cmd.plan as SpendingPlan,reason:String(cmd.reason ?? "")} : undefined);
       setManualSeed(
         createActivity(
           email,
@@ -545,9 +554,10 @@ export default function ActivityWorkspace() {
     modal === "new"
       ? "New activity"
       : modal === "groups"
-        ? "Shared groups"
+        ? "Friends & groups"
         : modal === "expense"
           ? "Review expense"
+          : modal === "plan" ? "Spending plan"
           : modal === "schedule"
             ? "Recurring schedule"
             : modal === "share"
@@ -615,10 +625,13 @@ export default function ActivityWorkspace() {
                 setEditing(undefined);
                 setManualExpense(undefined);
                 setModal("expense");
+              } else if (manualPlan) {
+                setModal("plan");
               }
             }}
           />
         )}
+        {modal === "groups" && <FriendsPanel friends={friends} email={email} busy={busy} onSave={submit} />}
         {modal === "groups" && (
           <GroupsPanel
             groups={groups}
@@ -712,6 +725,11 @@ export default function ActivityWorkspace() {
             }}
           />
         )}
+        {modal === "plan" && activity && <SpendingPlanEditor
+          activity={activity} initialPlan={manualPlan?.plan} initialReason={manualPlan?.reason}
+          busy={busy} onDraftChange={retainManualContext}
+          onReview={async value => { await command(value); setManualPlan(undefined); setModal(null); }}
+        />}
         {modal === "schedule" && activity && (
           <ScheduleForm
             seed={manualSchedule}
@@ -732,40 +750,16 @@ export default function ActivityWorkspace() {
   function renderComposer() {
     return (
       <div className="sf-composer-dock">
-        <div className="sf-composer-mode">
-          <label>
-            Send to{" "}
-            <Select
-              aria-label="Message destination"
-              value={composerMode}
-              onChange={(e) =>
-                setComposerMode(e.target.value as "assistant" | "group")
-              }
-            >
-              <option value="assistant">SplitFlow · private</option>
-              {activity && <option value="group">Message group</option>}
-            </Select>
-          </label>
-        </div>
+        <p className="sf-composer-mode">SplitFlow · private</p>
         <form
           className="sf-composer"
           onSubmit={(e) => {
             e.preventDefault();
             const value = text;
-            if (composerMode === "group" && activity) {
-              void command({ type: "message", text: value })
-                .then(() => setText(""))
-                .catch(() => {});
-            } else {
-              void assistant
-                .send(
-                  "send",
-                  value,
-                  localStorage.getItem(manualContextKey) ?? undefined,
-                )
-                .then(() => setText(""))
-                .catch(() => {});
-            }
+            void assistant
+              .send("send", value, localStorage.getItem(manualContextKey) ?? undefined)
+              .then(() => setText(""))
+              .catch(() => {});
           }}
         >
           <label className="sr-only" htmlFor="activity-message">
@@ -862,6 +856,7 @@ export default function ActivityWorkspace() {
                 >
                   People & share
                 </button>
+                {activity && activity.owner === email && <button type="button" onClick={() => {setManualPlan(undefined);setModal("plan");}}>Spending plan</button>}
                 {activity?.kind === "recurring" &&
                   activity.owner === email &&
                   !activity.schedule && (
@@ -905,11 +900,7 @@ export default function ActivityWorkspace() {
               value={text}
               onChange={(e) => setText(e.target.value)}
               rows={1}
-              placeholder={
-                composerMode === "group" && activity
-                  ? "Message the people in this activity…"
-                  : "Ask SplitFlow…"
-              }
+              placeholder="Ask SplitFlow…"
               className="sf-composer-input"
             />
             <button
@@ -917,7 +908,7 @@ export default function ActivityWorkspace() {
               disabled={
                 busy ||
                 assistant.busy ||
-                (composerMode === "assistant" && !assistant.thread) ||
+                !assistant.thread ||
                 !text.trim() ||
                 Boolean(pending)
               }
@@ -927,11 +918,7 @@ export default function ActivityWorkspace() {
             </button>
           </div>
         </form>
-        {composerMode === "group" && (
-          <p className="sf-composer-note">
-            Visible to everyone in this activity
-          </p>
-        )}
+
       </div>
     );
   }

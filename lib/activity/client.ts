@@ -2,6 +2,7 @@ import { prepareOperation, prepareBatch } from "./operations";
 import { pilotRequest } from "@/lib/pilot/session";
 import {
   createGroup,
+  changeGroup,
   createActivity,
   changeActivity,
   publishDuePeriods,
@@ -26,6 +27,10 @@ export const samplePeople = [
   { name: "Sam", email: "sam@example.test" },
 ];
 function seed(): RecordRow[] {
+  const friends: RecordRow[] = samplePeople.flatMap((p,i) => samplePeople.slice(i+1).map(other => {
+    const group = createGroup(p.email,{name:"Friendship",friendship:true,people:[p,other]});
+    return {kind:"group" as const,document:changeGroup(group,other.email,{type:"join"})};
+  }));
   const group = createGroup(samplePeople[0].email, {
     name: "Friends & housemates",
     people: samplePeople,
@@ -55,6 +60,11 @@ function seed(): RecordRow[] {
         },
       ],
     },
+  });
+  // Synthetic sample scenario: both participants explicitly agreed to this dinner.
+  for (const person of samplePeople.slice(1)) activity = changeActivity(activity, person.email, {
+    type:"expenseCommand",id:activity.expenses[0].id,expected:activity.expenses[0].revision,
+    command:{type:"respond",status:"accepted",reason:"Sample participant agreement"},
   });
   let trip = createActivity(samplePeople[0].email, {
     title: "Plan a shared trip",
@@ -120,6 +130,7 @@ function seed(): RecordRow[] {
     version: 1,
   });
   return [
+    ...friends,
     { kind: "group", document: group },
     { kind: "activity", document: activity },
     { kind: "activity", document: trip },

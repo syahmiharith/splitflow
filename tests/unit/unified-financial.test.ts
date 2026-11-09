@@ -26,7 +26,7 @@ const base = (): Split => ({
   organizer: "a@example.test",
   revision: 1,
   expense: structuredClone(expense),
-  responses: {},
+  responses: { "b@example.test": { revision: 1, status: "accepted", reason: "" } },
   repayments: [],
   audit: [],
 });

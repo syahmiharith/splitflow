@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { applyCommand } from "@/lib/pilot/model";
 import { moneySummary } from "@/lib/activity/money-summary";
 import { createActivity, changeActivity } from "@/lib/activity/model";
 const a = "a@example.test",
@@ -12,7 +13,7 @@ function split(payer = a, mode: "paid" | "planned" = "paid") {
       { name: "Bo", email: b },
     ],
   });
-  return changeActivity(activity, a, {
+  const result = changeActivity(activity, a, {
     type: "expense",
     id: crypto.randomUUID(),
     expense: {
@@ -25,6 +26,7 @@ function split(payer = a, mode: "paid" | "planned" = "paid") {
       items: [{ name: "Dinner", amount: 60000, included: [a, b] }],
     },
   }).expenses[0];
+  return applyCommand(result, b, { type: "respond", status: "accepted", reason: "" });
 }
 describe("money overview", () => {
   it("keeps opposite obligations separate rather than calling them settled", () => {
@@ -46,6 +48,11 @@ describe("money overview", () => {
       planned: 30000,
       obligations: [],
     });
+  });
+  it("retains confirmed transfer credits on legacy planned records", () => {
+    const record = split(a, "planned");
+    record.repayments = [{id:crypto.randomUUID(),from:b,to:a,amount:500,status:"confirmed"}];
+    expect(moneySummary([record], b)).toMatchObject({owe:0,owed:500,spent:0,planned:30000});
   });
   it("only confirmed transfers change totals and preserves overpayment credits", () => {
     const record = split();

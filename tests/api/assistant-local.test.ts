@@ -13,7 +13,16 @@ if (enabled && process.env.SUPABASE_URL !== "http://127.0.0.1:55421")
   throw Error("Local-only test");
 describe.skipIf(!enabled)("local Postgres assistant transaction", () => {
   let owner: { id: string; email: string },
-    other: { id: string; email: string };
+    other: { id: string; email: string },
+    outsider: { id: string; email: string };
+  async function commitActions(user: { id: string; email: string }, actions: unknown[]) {
+    const store = serverStore(user);
+    const proposal = prepareActions({ actions }, await store.rows(), user.email);
+    const thread = emptyThread(crypto.randomUUID(), null);
+    thread.pending = proposal;
+    const saved = await store.save(thread, 0, `setup:${thread.id}`);
+    return assistantRequest({ id: thread.id, key: crypto.randomUUID(), expected: saved.revision, activityId: null, action: "confirm", proposalId: proposal.id }, user.email, store);
+  }
   beforeAll(async () => {
     const create = async (name: string) => {
       const email = `assistant-${name}-${crypto.randomUUID()}@example.test`;
@@ -35,6 +44,27 @@ describe.skipIf(!enabled)("local Postgres assistant transaction", () => {
     };
     owner = await create("owner");
     other = await create("other");
+    outsider = await create("outsider");
+    await commitActions(owner, [{ type: "add_friend", person: { name: "Other", email: other.email } }]);
+    await commitActions(other, [{ type: "add_friend", person: { name: "Owner", email: owner.email } }]);
+  });
+  it("does not create mutual consent by adding a friend and claiming costs in one actor's batch", async () => {
+    const store = serverStore(owner);
+    const actions = [
+      { type: "add_friend", person: { name: "Outsider", email: outsider.email } },
+      { type: "create_activity", ref: "unauthorized", input: { title: "Unilateral claim", kind: "quick", groupId: null, people: [{ name: "Owner", email: owner.email }, { name: "Outsider", email: outsider.email }] } },
+    ];
+    const initialRows = await store.rows();
+    expect(() => prepareActions({ actions }, initialRows, owner.email)).toThrow("Both people must add each other");
+    expect((await store.rows()).some(row => row.document.people.some(p => p.email === outsider.email))).toBe(false);
+    await commitActions(owner, [actions[0]]);
+    const pendingRows = await store.rows();
+    expect(() => prepareActions({ actions: [actions[1]] }, pendingRows, owner.email)).toThrow("Both people must add each other");
+    const pending = (await store.rows()).find(row => row.kind === "group" && row.document.people.some(p => p.email === outsider.email))!;
+    expect(pending.document).toHaveProperty("joined", [owner.email]);
+    await expect(database("rpc/commit_activity", { method: "POST", body: JSON.stringify({ p_actor: owner.id, p_key: crypto.randomUUID(), p_id: pending.document.id, p_kind: "group", p_expected: pending.document.revision, p_document: { ...pending.document, revision: pending.document.revision + 1, joined: [owner.email, outsider.email] } }) })).rejects.toThrow();
+    await commitActions(outsider, [{ type: "add_friend", person: { name: "Owner", email: owner.email } }]);
+    await expect(commitActions(owner, [actions[1]])).resolves.toBeDefined();
   });
   it("saves turns privately, commits a reviewed multi-record batch, and replays its exact result", async () => {
     const people = [

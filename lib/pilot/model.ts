@@ -50,6 +50,9 @@ export type Split = {
   revision: number;
   expense: Expense;
   responses: Record<string, Response>;
+  /** Last unanimously accepted expense; subsequent proposals cannot rewrite it. */
+  agreement?: { expense: Expense; revision: number };
+  responseHistory?: { actor: string; revision: number; status: Response["status"]; reason: string; at?: string }[];
   repayments: Repayment[];
   audit: { actor: string; action: string; at: string }[];
 };
@@ -107,14 +110,37 @@ export function calculateExpense(input: Expense) {
   return { total, shares };
 }
 
+/** Agreement records consent, not independent proof that an expense happened. */
+export function claimState(split: Split): "pending" | "disputed" | "agreed" {
+  if (Object.values(split.responses).some(r => r.status === "declined" || r.status === "correction"))
+    return "disputed";
+  return split.expense.participants.every(p =>
+    p.email === split.organizer || split.responses[p.email]?.status === "accepted",
+  ) ? "agreed" : "pending";
+}
+
+/** Legacy records qualify only when their stored responses already show consent. */
+export function agreedExpense(split: Split): Expense | undefined {
+  return split.agreement?.expense ?? (claimState(split) === "agreed" ? split.expense : undefined);
+}
+
+function expenseBalances(expense: Expense) {
+  const { shares } = calculateExpense(expense);
+  return Object.fromEntries(expense.participants.map(p => [p.email, shares[p.email] - p.paid]));
+}
+
+/** Proposed amounts are claims, never collectible/agreed balances. */
+export function claimedBalances(split: Split) {
+  return expenseBalances(split.expense);
+}
+
 export function balances(split: Split) {
-  const { shares } = calculateExpense(split.expense);
-  const remaining = Object.fromEntries(
-    split.expense.participants.map((p) => [p.email, shares[p.email] - p.paid]),
-  );
-  for (const payment of split.repayments.filter(
-    (p) => p.status === "confirmed",
-  )) {
+  const agreed = agreedExpense(split);
+  const remaining = agreed?.mode === "paid"
+    ? expenseBalances(agreed)
+    : Object.fromEntries(split.expense.participants.map(p => [p.email, 0]));
+  // Real transfers remain historical even while the underlying claim is disputed.
+  for (const payment of split.repayments.filter(p => p.status === "confirmed")) {
     remaining[payment.from] -= payment.amount;
     remaining[payment.to] += payment.amount;
   }
@@ -191,9 +217,16 @@ export function applyCommand(
   if (!current.expense.participants.some((p) => p.email === actor))
     throw new Error("Participant access required.");
   const next = structuredClone(current);
+  if (!next.responseHistory)
+    next.responseHistory = Object.entries(current.responses).map(([email, response]) => ({ actor: email, ...response }));
+  const accepted = agreedExpense(current);
+  if (!next.agreement && accepted)
+    next.agreement = { expense: structuredClone(accepted), revision: current.revision };
   if (command.type === "revise") {
     if (actor !== current.organizer)
       throw new Error("Only the organizer can revise this split.");
+    if (current.expense.mode === "paid" && command.expense.mode === "planned")
+      throw new Error("A reported expense cannot be changed back to a plan. Revise the claimed cost or dispute it instead.");
     const old = calculateExpense(current.expense);
     const updated = calculateExpense(command.expense);
     if (
@@ -212,24 +245,30 @@ export function applyCommand(
         participantCommitment(current.expense, p.email) !==
           participantCommitment(command.expense, p.email) ||
         previous.paid !== p.paid ||
-        current.expense.mode !== command.expense.mode
+        current.expense.mode !== command.expense.mode ||
+        current.expense.title !== command.expense.title ||
+        current.expense.participants.some((person, i) =>
+          person.paid !== command.expense.participants[i].paid,
+        )
       )
         delete next.responses[p.email];
     }
     next.expense = command.expense;
   }
   if (command.type === "respond") {
-    if (command.status === "correction" && !command.reason)
-      throw new Error("Describe the correction you need.");
+    if (command.status !== "accepted" && !command.reason)
+      throw new Error("Describe why you disagree with this claim.");
     next.responses[actor] = {
       revision: current.revision,
-      status:
-        current.expense.mode === "paid" && command.status === "declined"
-          ? "correction"
-          : command.status,
+      status: command.status,
       reason: command.reason,
     };
+    next.responseHistory = [
+      ...next.responseHistory,
+      { actor, revision: current.revision, status: command.status, reason: command.reason, at: new Date().toISOString() },
+    ];
   }
+
   if (command.type === "report") {
     if (
       current.expense.mode !== "paid" ||
@@ -258,6 +297,8 @@ export function applyCommand(
     payment.status = command.status;
   }
   next.revision += 1;
+  if ((command.type === "revise" || (command.type === "respond" && command.status === "accepted")) && claimState(next) === "agreed")
+    next.agreement = { expense: structuredClone(next.expense), revision: next.revision };
   next.audit.push({
     actor,
     action:
@@ -265,7 +306,9 @@ export function applyCommand(
         ? `Revision: ${command.reason}`
         : command.type === "receipt"
           ? `receipt: ${command.paymentId} ${command.status}`
-          : command.type,
+          : command.type === "respond"
+            ? `respond: ${command.status}${command.reason ? ` · ${command.reason}` : ""}`
+            : command.type,
     at: new Date().toISOString(),
   });
   return next;

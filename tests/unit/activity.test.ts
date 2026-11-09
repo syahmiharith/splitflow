@@ -162,9 +162,9 @@ it("expires group invitations and preserves existing activity membership when so
   const removed = changeGroup(group, a, { type: "remove", email: b });
   expect(removed.people.some((p) => p.email === b)).toBe(false);
   expect(
-    changeActivity(active, b, {
-      type: "message",
-      text: "My existing activity remains available",
-    }).messages,
-  ).toHaveLength(1);
+    changeActivity(active, b, { type: "archive", archived: true }).archivedBy,
+  ).toContain(b);
+  expect(() => changeActivity(active, b, {
+    type: "message", text: "Direct messages are unavailable",
+  })).toThrow(/privately with SplitFlow/);
 });

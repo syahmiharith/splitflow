@@ -48,7 +48,10 @@ export async function POST(request: NextRequest) {
         throw new PilotError("Operation unavailable.", 403);
       return NextResponse.json(prior[0].result);
     }
-    const context: RecordRow[] = rows;
+    const friendRows = await database(
+      `activity_records?kind=eq.group&members=cs.${encodeURIComponent(`{"${user.email.replaceAll("\\", "\\\\").replaceAll('"', '\\"')}"}`)}&select=kind,document`,
+    );
+    const context: RecordRow[] = [...rows, ...friendRows.filter((r: RecordRow) => r.document.id !== input.id)];
     const groupId = (input.input as { groupId?: string } | undefined)?.groupId;
     if (input.kind === "activity" && input.expected === 0 && groupId) {
       const groups = await database(

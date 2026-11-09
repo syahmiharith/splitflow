@@ -230,8 +230,7 @@ test("an interrupted activity submission replays its original key after reload",
 }) => {
   const id = crypto.randomUUID();
   let revision = 1;
-  const messages: { id: string; actor: string; text: string; at: string }[] =
-    [];
+  const archivedBy: string[] = [];
   const keys: string[] = [];
   const document = () => ({
     id,
@@ -244,8 +243,8 @@ test("an interrupted activity submission replays its original key after reload",
       { name: "Guest", email: "guest@example.test" },
     ],
     expenses: [],
-    messages,
-    archivedBy: [],
+    messages: [],
+    archivedBy,
   });
   await page.addInitScript(() =>
     localStorage.setItem(
@@ -267,25 +266,15 @@ test("an interrupted activity submission replays its original key after reload",
     keys.push(input.key);
     if (keys.length === 1) {
       revision++;
-      messages.push({
-        id: crypto.randomUUID(),
-        actor: "owner@example.test",
-        text: input.command.text,
-        at: new Date().toISOString(),
-      });
+      expect(input.command).toEqual({ type: "archive", archived: true });
+      archivedBy.push("owner@example.test");
       return route.abort("failed");
     }
     return route.fulfill({ json: document() });
   });
   await page.goto(`/?activity=${id}`);
-  await page.getByLabel("Message destination").click();
-  await page
-    .getByRole("option", { name: "Message group", exact: true })
-    .click();
-  await page
-    .getByLabel("Message your activity")
-    .fill("Remember the shared tickets");
-  await page.getByRole("button", { name: "Send message" }).click();
+  await page.getByLabel("Conversation options").click();
+  await page.getByRole("button", { name: "Archive", exact: true }).click();
   await expect(
     page.getByRole("button", { name: "Retry original submission" }),
   ).toBeVisible();
@@ -296,9 +285,8 @@ test("an interrupted activity submission replays its original key after reload",
   ).toHaveCount(0);
   expect(keys).toHaveLength(2);
   expect(keys[0]).toBe(keys[1]);
-  await expect(
-    page.getByText("Remember the shared tickets", { exact: true }),
-  ).toHaveCount(1);
+  expect(revision).toBe(2);
+  expect(archivedBy).toEqual(["owner@example.test"]);
 });
 
 test("group picker opens a conversation and starts an activity with selected members", async ({
@@ -306,7 +294,7 @@ test("group picker opens a conversation and starts an activity with selected mem
 }) => {
   await page.goto("/");
   await page.getByRole("button", { name: "Groups", exact: true }).click();
-  let groups = page.getByRole("region", { name: "Shared groups" });
+  let groups = page.getByRole("region", { name: "Friends & groups" });
   await groups.getByRole("button", { name: /Friends & housemates/ }).click();
   await groups.getByRole("button", { name: /Weekend together/ }).click();
   await page.locator(".sf-activity-context > summary").click();
@@ -314,7 +302,7 @@ test("group picker opens a conversation and starts an activity with selected mem
     page.getByRole("heading", { name: "Dinner", exact: true }),
   ).toBeVisible();
   await page.getByRole("button", { name: "Groups", exact: true }).click();
-  groups = page.getByRole("region", { name: "Shared groups" });
+  groups = page.getByRole("region", { name: "Friends & groups" });
   await groups
     .getByRole("button", { name: "Start activity in Friends & housemates" })
     .click();
@@ -378,22 +366,21 @@ test("recurring edit keeps terms in context and shows who still needs to accept"
   ).toContainText("Schedule paused");
 });
 
-test("cost editing stays inline with discussion and the persistent composer", async ({
+test("cost editing stays inline with private requests and the persistent composer", async ({
   page,
 }) => {
   await page.goto("/");
   await openActivity(page, "Weekend together");
-  await page.getByLabel("Message destination").click();
-  await page
-    .getByRole("option", { name: "Message group", exact: true })
-    .click();
+  await expect(page.getByLabel("Message destination")).toHaveCount(0);
+  await expect(page.getByText("SplitFlow · private", { exact: true })).toBeVisible();
   await page
     .getByLabel("Message your activity")
     .fill("Keep the dinner and taxi together");
   await page.getByLabel("Message your activity").press("Enter");
   await expect(
-    page.getByText("Keep the dinner and taxi together", { exact: true }),
+    page.getByRole("region", { name: "Private assistant conversation" }).getByText("Keep the dinner and taxi together", { exact: true }),
   ).toBeVisible();
+  await expect(page.locator(".sf-context-event").filter({ hasText: "Keep the dinner and taxi together" })).toHaveCount(0);
   await composerAction(page, "Add cost");
   const editor = page.getByRole("region", { name: "Review expense" });
   await expect(editor).toBeVisible();
@@ -463,7 +450,7 @@ test("shared group creation hands off to an inline invitation panel", async ({
 }) => {
   await page.goto("/");
   await page.getByRole("button", { name: "Groups", exact: true }).click();
-  const groups = page.getByRole("region", { name: "Shared groups" });
+  const groups = page.getByRole("region", { name: "Friends & groups" });
   await groups
     .getByRole("button", { name: "Create group", exact: true })
     .click();
@@ -487,7 +474,7 @@ test("group management stays disclosed and preserves the conversation", async ({
   await page.goto("/");
   await openActivity(page, "Weekend together");
   await page.getByRole("button", { name: "Groups", exact: true }).click();
-  const panel = page.getByRole("region", { name: "Shared groups" });
+  const panel = page.getByRole("region", { name: "Friends & groups" });
   if (
     !(await panel
       .getByRole("tab", { name: "People & invitations" })
@@ -514,9 +501,15 @@ test("group management stays disclosed and preserves the conversation", async ({
   await panel
     .getByRole("button", { name: "Invite or renew invitation" })
     .click();
-  await expect(
-    panel.getByText("Taylor · Invited", { exact: true }),
-  ).toBeVisible();
+  await expect(page.getByRole("alert").filter({ hasText: "Both people must add each other" }).first()).toBeVisible();
+  await expect(panel.getByText("Taylor · Invited", { exact: true })).toHaveCount(0);
+  await panel.getByLabel("Options for Sam").click();
+  await panel.getByRole("button", { name: "Remove from group", exact: true }).click();
+  await expect(panel.getByText("Sam · Joined", { exact: true })).toHaveCount(0);
+  await panel.getByLabel("Invite name").fill("Sam");
+  await panel.getByLabel("Invite email").fill("sam@example.test");
+  await panel.getByRole("button", { name: "Invite or renew invitation" }).click();
+  await expect(panel.getByText("Sam · Invited", { exact: true })).toBeVisible();
   await expect(page.getByLabel("Message your activity")).toBeVisible();
   await expect(page.getByRole("dialog")).toHaveCount(0);
   await page.reload();

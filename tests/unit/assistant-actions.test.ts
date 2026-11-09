@@ -26,6 +26,10 @@ const people = [
   { name: "Alex", email },
   { name: "Minji", email: other },
 ];
+function friendships(): RecordRow[] {
+  const pending = createGroup(email, { name: "Friendship", people, friendship: true });
+  return [{ kind: "group", document: changeGroup(pending, other, { type: "join" }) }];
+}
 const expense = {
   title: "Dinner",
   mode: "paid" as const,
@@ -67,7 +71,7 @@ function provider(actions?: unknown, text = "Which amount?"): Provider {
         };
 }
 function memory(initial: RecordRow[] = []) {
-  let rows = structuredClone(initial);
+  let rows = structuredClone(initial.some(r => r.kind === "group" && r.document.friendship) ? initial : [...initial, ...friendships()]);
   const threads = new Map<string, AssistantThread>(),
     results = new Map<string, AssistantThread>();
   let fail = false;
@@ -105,7 +109,7 @@ function memory(initial: RecordRow[] = []) {
   return {
     store,
     setRows: (r: RecordRow[]) => {
-      rows = r;
+      rows = [...r, ...friendships()];
     },
     fail: () => {
       fail = true;
@@ -139,7 +143,7 @@ describe("action-capable assistant", () => {
     const draft = await assistantRequest(req(id), email, store, (t, r, e) =>
       runAssistant(t, r, e, provider(actions)),
     );
-    expect(await store.rows()).toHaveLength(0);
+    expect((await store.rows()).filter(r => r.kind === "activity")).toHaveLength(0);
     expect(draft.pending?.operations).toHaveLength(2);
     expect(draft.pending?.previews[1].lines.join()).toContain("₩30,000");
     const confirm = {
@@ -149,7 +153,7 @@ describe("action-capable assistant", () => {
     };
     const saved = await assistantRequest(confirm, email, store);
     expect(saved.pending).toBeNull();
-    expect((await store.rows())[0].document.revision).toBe(2);
+    expect((await store.rows()).find(r => r.kind === "activity")?.document.revision).toBe(2);
     expect(await assistantRequest(confirm, email, store)).toEqual(saved);
   });
   it("persists a user message before provider failure and preserves it on retry", async () => {
@@ -180,11 +184,11 @@ describe("action-capable assistant", () => {
     );
     expect(result.pending).toBeNull();
     expect(result.messages.at(-1)?.text).toContain("Which Alex");
-    expect(await store.rows()).toHaveLength(0);
+    expect((await store.rows()).filter(r => r.kind === "activity")).toHaveLength(0);
   });
   it("invalidates an old confirmation when a replacement fails", async () => {
     const a = fixture();
-    const { store } = memory([{ kind: "activity", document: a }]);
+    const { store } = memory([{ kind: "activity", document: a }, ...friendships()]);
     const id = crypto.randomUUID();
     const first = await assistantRequest(
       req(id, 0, a.id),
@@ -225,7 +229,7 @@ describe("action-capable assistant", () => {
   });
   it("rejects stale financial reviews without saving", async () => {
     const a = fixture();
-    const m = memory([{ kind: "activity", document: a }]);
+    const m = memory([{ kind: "activity", document: a }, ...friendships()]);
     const id = crypto.randomUUID();
     const draft = await assistantRequest(
       req(id, 0, a.id),
@@ -249,8 +253,8 @@ describe("action-capable assistant", () => {
       {
         kind: "activity",
         document: changeActivity(a, email, {
-          type: "message",
-          text: "Concurrent update",
+          type: "archive",
+          archived: true,
         }),
       },
     ]);
@@ -269,7 +273,7 @@ describe("action-capable assistant", () => {
   });
   it("validates every batch member before writing any record", () => {
     const a = fixture();
-    const rows: RecordRow[] = [{ kind: "activity", document: a }];
+    const rows: RecordRow[] = [{ kind: "activity", document: a }, ...friendships()];
     expect(() =>
       prepareActions(
         {
@@ -305,7 +309,7 @@ describe("action-capable assistant", () => {
             },
           ],
         },
-        [{ kind: "group", document: group }],
+        [{ kind: "group", document: group }, ...friendships()],
         other,
       ),
     ).toThrow("owner");
@@ -342,16 +346,18 @@ describe("action-capable assistant", () => {
       ],
     };
     expect(() =>
-      prepareActions(actions, [{ kind: "group", document: group }], email),
+      prepareActions(actions, [{ kind: "group", document: group }, ...friendships()], email),
     ).toThrow("joined");
     const joined = changeGroup(group, other, { type: "join" });
+    const mutual = friendships();
     const proposal = prepareActions(
       actions,
-      [{ kind: "group", document: joined }],
+      [{ kind: "group", document: joined }, ...mutual],
       email,
     );
     expect(proposal.dependencies).toEqual([
       { id: group.id, revision: joined.revision },
+      { id: mutual[0].document.id, revision: mutual[0].document.revision },
     ]);
   });
   it("supports exclusions, units and custom allocations using exact deterministic shares", () => {
@@ -388,7 +394,7 @@ describe("action-capable assistant", () => {
           },
         ],
       },
-      [{ kind: "activity", document: a }],
+      [{ kind: "activity", document: a }, ...friendships()],
       email,
     );
     expect(p.previews[0].lines.join()).toContain("₩28,000");
@@ -406,16 +412,21 @@ describe("action-capable assistant", () => {
           },
         ],
       },
-      [{ kind: "activity", document: a }],
+      [{ kind: "activity", document: a }, ...friendships()],
       email,
     );
     let rows = prepareBatch(
-      [{ kind: "activity", document: a }],
+      [{ kind: "activity", document: a }, ...friendships()],
       email,
       publish.operations,
     ).rows;
     let active = rows[0].document as ReturnType<typeof fixture>;
     const split = active.expenses[0];
+    const acceptance = prepareActions({ actions: [{
+      type: "change_activity", target: a.id,
+      command: { type: "expenseCommand", id: split.id, command: { type: "respond", status: "accepted", reason: "" } },
+    }] }, rows, other);
+    rows = prepareBatch(rows, other, acceptance.operations).rows;
     const report = prepareActions(
       {
         actions: [
@@ -474,7 +485,7 @@ describe("action-capable assistant", () => {
   });
   it("supports recurring terms, acceptance and pause without fabricated payments", () => {
     let a = createActivity(email, { title: "Rent", kind: "recurring", people });
-    let rows: RecordRow[] = [{ kind: "activity", document: a }];
+    let rows: RecordRow[] = [{ kind: "activity", document: a }, ...friendships()];
     const schedule = prepareActions(
       {
         actions: [
@@ -568,7 +579,7 @@ describe("action-capable assistant", () => {
 
 it("keeps a reviewed proposal retryable if the database commit fails", async () => {
   const a = fixture();
-  const m = memory([{ kind: "activity", document: a }]);
+  const m = memory([{ kind: "activity", document: a }, ...friendships()]);
   const id = crypto.randomUUID();
   const review = await assistantRequest(
     req(id, 0, a.id),

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { assertMutualFriends, isFriendship, findFriendship } from "./friendships";
 import {
   activityInput,
   groupInput,
@@ -47,6 +48,19 @@ export function prepareOperation(
       "This activity changed. Review the latest version.",
       409,
     );
+  if (!row && !(op.kind === "group" && (op.input as { friendship?: boolean })?.friendship))
+    assertMutualFriends(rows, email, (op.kind === "group" ? groupInput : activityInput).parse(op.input).people);
+  const command = op.command as { type?: string; people?: {email:string; name?:string}[]; expense?: Activity["expenses"][number]["expense"]; command?: {type?:string; expense?: Activity["expenses"][number]["expense"]} } | undefined;
+  if (row?.kind === "group" && !isFriendship(row.document) && command?.type === "invite")
+    assertMutualFriends(rows, email, command.people ?? []);
+  if (row?.kind === "activity") {
+    const expense = command?.expense ?? (command?.type === "expenseCommand" && command.command?.type === "revise" ? command.command.expense : undefined);
+    if (expense) assertMutualFriends(rows, email, expense.participants);
+  }
+  if (!row && op.kind === "group" && (op.input as {friendship?:boolean})?.friendship) {
+    const other = groupInput.parse(op.input).people.find(p => p.email !== email);
+    if (other && findFriendship(rows, email, other.email)) throw new WorkspaceError("A friendship request already exists. Review it in Friends and add them back.", 409);
+  }
   let document: Activity | SharedGroup;
   if (op.kind === "group")
     document = row

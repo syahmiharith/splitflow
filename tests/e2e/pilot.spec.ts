@@ -58,14 +58,16 @@ test("manual dinner review, publish and reload with a simulated storage boundary
     .getByRole("button", { name: "Publish split", exact: true })
     .click();
   await expect(
-    page.getByText("Your share ₩20,000", { exact: true }),
+    page.getByText("Proposed share ₩20,000", { exact: true }),
   ).toBeVisible();
+  await expect(page.getByText("Your agreed balance ₩0", { exact: true })).toBeVisible();
+  await expect(page.getByText("Claim awaiting agreement", { exact: true })).toBeVisible();
   await expect
     .poll(() => page.getByRole("main").evaluate((element) => element.scrollTop))
     .toBe(0);
   await page.reload();
   await expect(
-    page.getByText("Your share ₩20,000", { exact: true }),
+    page.getByText("Proposed share ₩20,000", { exact: true }),
   ).toBeVisible();
   expect(
     await page.evaluate(
@@ -169,11 +171,12 @@ test("reload retries an interrupted save with the original operation key", async
   await page.reload();
   await page.getByRole("button", { name: "Retry interrupted save" }).click();
   await expect(
-    page.getByText("Your share ₩30,000", { exact: true }),
+    page.getByText("Proposed share ₩30,000", { exact: true }),
   ).toBeVisible();
   await expect(
     page.getByRole("button", { name: "Retry interrupted save" }),
   ).toHaveCount(0);
+  await expect(page.getByText("Your agreed balance ₩0", { exact: true })).toBeVisible();
   expect(keys).toHaveLength(2);
   expect(keys[0]).toBe(keys[1]);
 });

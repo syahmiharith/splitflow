@@ -1,4 +1,5 @@
 "use client";
+import { SpendingPlanCard } from "./spending-plan-card";
 import type { Preview } from "@/lib/assistant/model";
 import { calculateExpense } from "@/lib/pilot/model";
 import { money } from "./expense-card";
@@ -11,6 +12,10 @@ export function ActionResult({
   preview: Preview;
   review?: boolean;
 }) {
+  if (preview.plan) return <>
+    <SpendingPlanCard {...preview.plan} review={review} />
+    {review && <details className="sf-chat-card-section"><summary>Category assignments and changes</summary><ul>{preview.lines.map((line,i) => <li key={i}>{line}</li>)}</ul></details>}
+  </>;
   const expense = preview.expense;
   const detail = (
     <ul>
@@ -54,9 +59,10 @@ export function ActionResult({
       <p className="sf-result-meta">
         {equal ? `${money(totals.total)} total · ` : ""}
         {expense.mode === "paid"
-          ? `Paid by ${payers.map(p => p.name).join(", ")}`
+          ? `Reported paid by ${payers.map(p => p.name).join(", ")}`
           : "Planned expense"}
       </p>
+      <p className="sf-result-meta">{expense.mode === "paid" ? "Awaiting participant agreement" : "Proposed cost"}</p>
       {review && (
         <p className="sf-money-message-people">
           {expense.participants.map(p => p.name).join(", ")}

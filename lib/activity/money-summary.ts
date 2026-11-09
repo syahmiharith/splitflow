@@ -1,5 +1,6 @@
 import {
   balances,
+  claimState,
   calculateExpense,
   settlements,
   type Split,
@@ -12,7 +13,9 @@ export function moneySummary(splits: Split[], email: string) {
     paid = 0,
     owe = 0,
     owed = 0,
-    planned = 0;
+    planned = 0,
+    pendingClaims = 0,
+    disputedClaims = 0;
   const obligations: {
     splitId: string;
     title: string;
@@ -24,12 +27,15 @@ export function moneySummary(splits: Split[], email: string) {
     const calculation = calculateExpense(split.expense);
     if (split.expense.mode === "planned") {
       planned += calculation.shares[email] ?? 0;
-      continue;
     }
-    spent += calculation.total;
-    share += calculation.shares[email] ?? 0;
-    paid +=
-      split.expense.participants.find((p) => p.email === email)?.paid ?? 0;
+    const state = claimState(split);
+    if (state === "pending") pendingClaims += 1;
+    if (state === "disputed") disputedClaims += 1;
+    if (split.expense.mode === "paid") {
+      spent += calculation.total;
+      share += calculation.shares[email] ?? 0;
+      paid += split.expense.participants.find((p) => p.email === email)?.paid ?? 0;
+    }
     const remaining = balances(split)[email] ?? 0;
     owe += Math.max(0, remaining);
     owed += Math.max(0, -remaining);
@@ -41,5 +47,5 @@ export function moneySummary(splits: Split[], email: string) {
       })),
     );
   }
-  return { spent, share, paid, owe, owed, planned, obligations };
+  return { spent, share, paid, owe, owed, planned, pendingClaims, disputedClaims, obligations };
 }

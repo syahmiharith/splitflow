@@ -44,7 +44,7 @@ export function AssistantThread({
         </div>
         {proposal.previews.map((p, i) =>
           !p.expense && p.lines[0]?.startsWith("Create ") && p.activityId &&
-          proposal.previews.some(other => other.expense && other.activityId === p.activityId) ? (
+          proposal.previews.some(other => (other.expense || other.plan) && other.activityId === p.activityId) ? (
             <p key={i} className="sf-chat-card-context">New activity · {p.title}</p>
           ) : <ActionResult key={i} preview={p} review saved={!active} />,
         )}

@@ -34,6 +34,10 @@ See tests/unit/assistant-history.test.ts, assistant-retrieval.test.ts, assistant
 
 Latest local follow-up: typecheck, lint and production build passed; 399 unit/API tests passed with three conditional local-Supabase tests skipped. Fourteen desktop/mobile browser regressions passed on the production build, including actual CSV download, unauthorized account handoff, Upcoming period handoff, confirmation/reload, import deduplication and responsive finance views. These browser fixtures use isolated sample data or scripted providers.
 
+An additional eight mocked notification-worker tests passed, covering the disabled gate, provider acceptance, recipient mute/stop, invitation acceptance after queueing, snooze attempt preservation, bounded rate-limit retries and ambiguous failure. Typecheck and targeted ESLint passed for that addition. No email was sent.
+
+Completion remains unproven for the following deployed gates: actual OpenAI journeys for every shared/personal action family; signed-in continuation/history beyond 160 turns; the corrected allocation target; import/reconciliation through the live assistant; recovery under stale reviews and interrupted inference; and final signed-in screenshots at 320, 375, 768 and 1440 pixels. Existing unit, SQL and browser fixtures provide regression evidence for those mechanisms, not proof of those deployed journeys. The locked Mac prevents access to the controlled signed-in Safari sessions; unlocking is the next required external step. Live Brevo delivery is separately deferred by user decision.
+
 ## Applied pilot database validation — November 10
 
 Migrations `20261110110000_conversation_segments`, `20261110111000_personal_finance` and `20261110120000_notification_outbox` were applied to the dedicated SplitFlow pilot. Their corresponding SQL suites completed successfully with transaction rollback. Outbound notifications remain disabled. Deployment/UI and actual model verification are separate gates; this database result does not establish them.

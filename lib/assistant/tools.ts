@@ -109,6 +109,9 @@ function strictSchema(value: unknown): unknown {
   const obj = { ...(value as Record<string, unknown>) };
   delete obj.$schema;
   delete obj.default;
+  // Keep rich Zod regex validation at the command boundary; provider grammars
+  // cannot reliably compile JavaScript lookarounds used by email schemas.
+  delete obj.pattern;
   // Zod emits oneOf for discriminated commands. Their literal type tags are
   // disjoint, so anyOf preserves their meaning in OpenAI's strict subset.
   if (obj.oneOf) {

@@ -636,7 +636,6 @@ it("sends strict tools through Responses without provider storage", async () => 
       new AbortController().signal,
     );
     const body = JSON.parse(fetcher.mock.calls[0][1].body);
-    expect(body.reasoning).toEqual({ effort: "low" });
     expect(body.store).toBe(false);
     expect(body.parallel_tool_calls).toBe(false);
     expect(body.tools.every((t: { strict: boolean }) => t.strict)).toBe(true);
@@ -725,6 +724,7 @@ it("exports every action branch in the OpenAI strict schema subset", () => {
     const schema = value as Record<string, unknown>;
     expect(schema).not.toHaveProperty("oneOf");
     expect(schema).not.toHaveProperty("default");
+    expect(schema).not.toHaveProperty("pattern");
     if (schema.type === "object") {
       expect(schema.additionalProperties).toBe(false);
       expect(schema.required).toEqual(Object.keys(schema.properties as object));

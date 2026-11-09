@@ -393,7 +393,6 @@ input::placeholder,textarea::placeholder { color:#626262; opacity:1; }
 
 .sf-activity-context { margin:12px 0; border:1px solid var(--sf-line); border-radius:12px; padding:0 12px; font-size:13px; }
 .sf-activity-context > summary { padding:12px 0; min-height:44px; color:var(--sf-muted); cursor:pointer; }
-.sf-context-note { padding:0 0 12px; font-size:12px; color:var(--sf-muted); }
 .sf-context-event { padding:10px 0; border-bottom:1px solid var(--sf-line); font-size:13px; }
 .sf-tool-activity { display:flex; align-items:center; gap:8px; margin:8px 0; font-size:12px; color:var(--sf-muted); }
 .sf-tool-spinner { animation:sf-tool-spin 1s linear infinite; }

@@ -1250,13 +1250,10 @@ export default function ActivityWorkspace() {
                   onToggle={(e) => setContextOpen(e.currentTarget.open)}
                 >
                   <summary>
-                    Activity context · {activity.expenses.length} expenses
+                    Activity context · {activity.expenses.length} {activity.expenses.length === 1 ? "expense" : "expenses"}
                     {activity.schedule ? " · recurring terms" : ""}
                   </summary>
-                  <p className="sf-context-note">
-                    Existing workspace records. Updates and discussion are shown
-                    here; this is not an assistant response.
-                  </p>
+
                   {!activity.expenses.length &&
                     !activity.schedule &&
                     (activity.kind !== "recurring" ||

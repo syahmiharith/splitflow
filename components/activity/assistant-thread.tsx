@@ -17,7 +17,9 @@ export function AssistantThread({
   onRetry,
   onManual,
   onOpen,
+  readOnly = false,
 }: {
+  readOnly?: boolean;
   thread: Thread | null;
   busy: boolean;
   error: string;
@@ -48,21 +50,21 @@ export function AssistantThread({
             <p key={i} className="sf-chat-card-context">New activity · {p.title}</p>
           ) : <ActionResult key={i} preview={p} review saved={!active} />,
         )}
-        {active && (
+        {active && !readOnly && (
           <>
             <div className="sf-chat-card-actions">
               <button
                 className="sf-assistant-confirm"
-                disabled={busy}
+                disabled={busy || readOnly}
                 onClick={onConfirm}
               >
                 {busy ? "Saving…" : "Confirm changes"}
               </button>
-              <button disabled={busy} onClick={onCancel}>
+              <button disabled={busy || readOnly} onClick={onCancel}>
                 Discard
               </button>
               <button
-                disabled={busy}
+                disabled={busy || readOnly}
                 onClick={() =>
                   onManual(proposal.previews.find((p) => p.expense))
                 }
@@ -172,11 +174,11 @@ export function AssistantThread({
                 ? "A previous reply was interrupted. Retry after a minute."
                 : "Assistant unavailable")}
           <div className="flex gap-4">
-            <button disabled={busy} onClick={onRetry}>
+            <button disabled={busy || readOnly} onClick={onRetry}>
               Retry
             </button>
             <button
-              disabled={busy}
+              disabled={busy || readOnly}
               onClick={() =>
                 onManual(thread?.draft?.previews.find((p) => p.expense))
               }

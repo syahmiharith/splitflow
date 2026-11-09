@@ -1383,7 +1383,8 @@ export default function ActivityWorkspace() {
             {!moneyView && (
               <AssistantThread
                 thread={assistant.thread}
-                busy={assistant.busy || assistant.viewingEarlier}
+                busy={assistant.busy}
+                readOnly={assistant.viewingEarlier}
                 error={assistant.error}
                 onConfirm={() => {
                   void assistant.send("confirm").catch(() => {});

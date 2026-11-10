@@ -4,6 +4,7 @@ import {
   balances,
   settlements,
   calculateExpense,
+  expenseSchema,
   type Expense,
   type Split,
 } from "@/lib/pilot/model";
@@ -23,6 +24,11 @@ const expense: Expense = {
     },
   ],
 };
+it("bounds item membership input to the supported participant limit",()=>{
+  const included=Array.from({length:31},(_,i)=>`person${i}@example.test`);
+  expect(expenseSchema.safeParse({...expense,items:[{...expense.items[0],included}]}).success).toBe(false);
+  expect(expenseSchema.safeParse(expense).success).toBe(true);
+});
 const split: Split = {
   id: crypto.randomUUID(),
   organizer: "a@example.com",

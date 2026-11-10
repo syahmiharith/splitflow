@@ -22,7 +22,7 @@ export const expenseSchema = z.object({
       z.object({
         name: z.string().trim().min(1).max(120),
         amount: won.positive(),
-        included: z.array(z.email().toLowerCase()).min(1),
+        included: z.array(z.email().toLowerCase()).min(1).max(30),
         custom: z.record(z.string(), won).optional(),
         units: z
           .record(z.string(), z.number().int().min(1).max(1000000))

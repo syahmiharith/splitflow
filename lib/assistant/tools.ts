@@ -35,7 +35,7 @@ const wireExpense = expenseSchema.extend({
       z.object({
         name: z.string().min(1).max(120),
         amount: z.number().int().positive().max(1000000000),
-        included: z.array(z.email()).min(1),
+        included: z.array(z.email()).min(1).max(30),
         custom: allocations,
         units: allocations,
       }),
@@ -45,7 +45,8 @@ const wireExpense = expenseSchema.extend({
 });
 const splitCommand = z.union([
   commandSchema.options[0].extend({ expense: wireExpense }),
-  ...commandSchema.options.slice(1),
+  ...commandSchema.options.slice(1, -1),
+  z.object({type:z.literal("receipt"),paymentId:z.string().trim().min(1).max(200).nullable().describe("Exact existing payment UUID or unique payment reference. Use null when exactly one incoming reported/disputed receipt exists in this expense; never ask the user for an internal ID."),status:z.enum(["confirmed","disputed"])}),
 ]);
 const change = z.union([
   z.object({
@@ -53,10 +54,10 @@ const change = z.union([
     plan: spendingPlanInput,
     reason: z.string().trim().min(1).max(500),
   }),
-  z.object({ type: z.literal("expense"), expense: wireExpense }),
+  z.object({ type: z.literal("expense"), ref: z.string().trim().min(1).max(80).optional().describe("Unique temporary reference for this new expense. Later finance sharedExpenseId fields in this same batch can use this reference; the server assigns the actual expense UUID."), expense: wireExpense }),
   z.object({
     type: z.literal("expenseCommand"),
-    id: z.uuid(),
+    id: z.string().trim().min(1).max(120).describe("Existing expense UUID or exact unique expense title in this activity."),
     command: splitCommand,
   }),
   z.object({
@@ -84,7 +85,7 @@ export const actionsSchema = z.object({
         }),
         z.object({
           type: z.literal("change_group"),
-          target: z.string(),
+          target: z.string().trim().min(1).max(120).describe("Authorized existing record ID, earlier batch alias, or exact unique group name/activity title."),
           command: groupCommand,
         }),
         z.object({
@@ -102,7 +103,7 @@ export const actionsSchema = z.object({
         }),
         z.object({
           type: z.literal("change_activity"),
-          target: z.string(),
+          target: z.string().trim().min(1).max(120).describe("Authorized existing record ID, earlier batch alias, or exact unique group name/activity title."),
           command: change,
         }),
       ]),
@@ -177,7 +178,7 @@ export const assistantTools = [
     type: "function",
     name: "prepare_actions",
     description:
-      "Prepare an ordered batch for private review, never commit it. All requested changes must appear in this one batch. Use ref aliases for records created earlier in the batch. create_group already invites its initial people; do not add a second invite action for the same people. This replaces the previous draft. Ask for missing facts before calling. Shared external repayments use change_activity with command {type:expenseCommand,id:expenseId,command:{type:report,to:recipientEmail,amount,reference}}. Receipt confirmation/dispute uses the same wrapper with command {type:receipt,paymentId,status}; only the recipient can do it. finance transfer is only between the owner's recorded personal accounts, never shared repayments or transfers to another person.",
+      "Prepare an ordered batch for private review, never commit it. All requested changes must appear in this one batch. Use ref aliases for records created earlier in the batch. A new change_activity expense may have command.ref; use that reference as sharedExpenseId in a later finance transaction or linkSharedExpense action to record the shared cost and private paid contribution in one review. Never use a future reference or an invented expense UUID. create_group already invites its initial people; do not add a second invite action for the same people. This replaces the previous draft. Ask for missing facts before calling. Shared external repayments use change_activity with command {type:expenseCommand,id:expenseId,command:{type:report,to:recipientEmail,amount,reference}}. Receipt confirmation/dispute uses the same wrapper with command {type:receipt,paymentId,status}; only the recipient can do it. finance transfer is only between the owner's recorded personal accounts, never shared repayments or transfers to another person.",
     strict: true,
     parameters: strictSchema(z.toJSONSchema(actionsSchema)),
   },
@@ -417,6 +418,7 @@ export function prepareActions(
   const financeCommands: FinanceCommand[] = [];
   const notificationCommands: NotificationCommand[] = [];
   const financeAliases = new Map<string, string>();
+  const expenseAliases = new Map<string, string>();
   const aliases = new Map<string, string>();
   const createdGroups = new Set<string>();
   const dependencies = new Map<string, number>();
@@ -438,10 +440,23 @@ export function prepareActions(
       const knownIds = new Set([...financeState.accounts,...financeState.categories,...financeState.transactions,...financeState.goals,...financeState.schedules].map(r => r.id));
       const newId = command.type === "account" ? command.account.id : command.type === "category" ? command.category.id : command.type === "transaction" ? command.transaction.id : command.type === "schedule" ? command.schedule.id : ["transfer","goal"].includes(command.type) && "id" in command ? command.id : command.type === "reconcile" ? command.adjustmentId : command.type === "recordOccurrence" ? command.transactionId : null;
       if (newId && !knownIds.has(newId) && !financeAliases.has(newId)) financeAliases.set(newId, crypto.randomUUID());
-      const replaceIds = (value: unknown, key = ""): unknown => Array.isArray(value) ? value.map(v=>replaceIds(v)) : value && typeof value === "object" ? Object.fromEntries(Object.entries(value).map(([k,v])=>[k,replaceIds(v,k)])) : typeof value === "string" && ["id","accountId","categoryId","from","to","feeCategoryId","adjustmentId","transactionId","originalTransactionId"].includes(key) ? financeAliases.get(value) ?? value : value;
+      const replaceIds = (value: unknown, key = ""): unknown => {
+        if (Array.isArray(value)) return value.map(v => replaceIds(v));
+        if (value && typeof value === "object") return Object.fromEntries(Object.entries(value).map(([k,v]) => [k,replaceIds(v,k)]));
+        if (typeof value !== "string") return value;
+        if (key === "sharedExpenseId") {
+          const resolved = expenseAliases.get(value);
+          if (resolved) return resolved;
+          if (!z.uuid().safeParse(value).success) throw Error("Shared expense unavailable. Use an existing expense UUID or a reference created earlier in this batch.");
+          return value;
+        }
+        return ["id","accountId","categoryId","from","to","feeCategoryId","adjustmentId","transactionId","originalTransactionId"].includes(key) ? financeAliases.get(value) ?? value : value;
+      };
       const resolved = resolveFinanceReferences(financeCommandSchema.parse(replaceIds(command)), financeState);
       validateFinanceLinks(financeState,resolved,rows,email);
       const result=financePreview(financeState,resolved);
+      if (resolved.type === "linkSharedExpense" || (resolved.type === "transaction" && resolved.transaction.sharedExpenseId))
+        result.preview.lines.push("Private bookkeeping only. A recoverable amount is not participant agreement or a confirmed receipt.");
       financeState=result.state; financeCommands.push(resolved); previews.push(result.preview);
       continue;
     }
@@ -497,8 +512,16 @@ export function prepareActions(
         input,
       };
     } else {
-      const id = aliases.get(action.target) ?? action.target;
-      const record = rows.find((r) => r.document.id === id);
+      const kind = action.type === "change_group" ? "group" : "activity";
+      const target = aliases.get(action.target) ?? action.target;
+      const candidates = rows.filter(row => row.kind === kind && row.document.people.some(person => person.email === email));
+      let record = candidates.find(row => row.document.id === target);
+      if (!record) {
+        const matches = candidates.filter(row => (row.kind === "group" ? row.document.name : row.document.title).trim().toLowerCase() === target.trim().toLowerCase());
+        if (matches.length > 1) throw Error("Ambiguous workspace name. Ask which group or activity the user means.");
+        record = matches[0];
+      }
+      const id = record?.document.id ?? target;
       if (!record) throw Error("Workspace unavailable.");
       // Group creation already includes these invitations. Only remove exact same-batch duplicates.
       if (action.type === "change_group" && action.command.type === "invite" && record.kind === "group" && createdGroups.has(id) &&
@@ -506,11 +529,37 @@ export function prepareActions(
       const command = clean(action.command) as Record<string, unknown>;
       if (action.type === "change_activity") {
         const a = record.document as Activity;
-        if (command.type === "expense") command.id = crypto.randomUUID();
-        if (command.type === "expenseCommand")
-          command.expected = a.expenses.find(
-            (s) => s.id === command.id,
-          )?.revision;
+        if (command.type === "expense") {
+          const reference = command.ref;
+          if (typeof reference === "string" && (expenseAliases.has(reference) || rows.some(row => row.document.id === reference || (row.kind === "activity" && row.document.expenses.some(split => split.id === reference)))))
+            throw Error("Use a unique reference for each new expense; existing record IDs cannot be reused as aliases.");
+          command.id = crypto.randomUUID();
+          if (typeof reference === "string") expenseAliases.set(reference, String(command.id));
+          delete command.ref;
+        }
+        if (command.type === "expenseCommand") {
+          let split = a.expenses.find(s => s.id === command.id);
+          if (!split) {
+            const matches = a.expenses.filter(s => s.expense.title.trim().toLowerCase() === String(command.id).trim().toLowerCase());
+            if (matches.length > 1) throw Error("Ambiguous expense title. Ask which expense or date the user means.");
+            split = matches[0];
+          }
+          if (!split) throw Error("Expense unavailable. Retrieve an authorized expense or clarify its title.");
+          command.id = split.id;
+          command.expected = split.revision;
+          const sub = command.command as Record<string, unknown>;
+          if (sub.type === "receipt") {
+            const exact = split.repayments.find(payment => payment.id === sub.paymentId);
+            if (exact) sub.paymentId = exact.id; // Domain enforces recipient and status, even for explicit foreign IDs.
+            else {
+              const matches = split.repayments.filter(payment => payment.to === email && ["reported", "disputed"].includes(payment.status) &&
+                (sub.paymentId == null || payment.reference?.trim().toLowerCase() === String(sub.paymentId).trim().toLowerCase()));
+              if (matches.length > 1) throw Error("Ambiguous incoming payment. Ask which sender, amount, date or reference the user means.");
+              if (!matches.length) throw Error("Incoming payment unavailable. Retrieve reported receipts or clarify the payment; only its recipient may review it.");
+              sub.paymentId = matches[0].id;
+            }
+          }
+        }
         if (command.type === "schedule")
           command.expectedVersion = a.schedule?.version ?? 0;
         if (command.type === "acceptTerms")
@@ -558,7 +607,7 @@ function stripOptionalNulls(raw: unknown): unknown {
     return Object.fromEntries(
       Object.entries(raw)
         .filter(
-          ([k, v]) => v !== null || ["custom", "units", "groupId", "expenseId", "snoozedUntil", "dueAt"].includes(k),
+          ([k, v]) => v !== null || ["custom", "units", "groupId", "expenseId", "paymentId", "snoozedUntil", "dueAt"].includes(k),
         )
         .map(([k, v]) => [k, stripOptionalNulls(v)]),
     );

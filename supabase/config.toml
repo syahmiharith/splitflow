@@ -1,0 +1,64 @@
+# Isolated local-only pilot. CLI version used for verification is 3.0.0.
+project_id = "splitflow-pilot-local"
+
+[api]
+enabled = true
+port = 55421
+schemas = ["public"]
+extra_search_path = ["public", "extensions"]
+max_rows = 1000
+
+[db]
+port = 55422
+shadow_port = 55420
+major_version = 17
+
+[db.seed]
+enabled = false
+
+[realtime]
+enabled = false
+
+[studio]
+enabled = false
+
+[local_smtp]
+enabled = true
+port = 55424
+
+[storage]
+enabled = false
+
+[auth]
+enabled = true
+site_url = "http://127.0.0.1:3122"
+additional_redirect_urls = []
+jwt_expiry = 3600
+enable_refresh_token_rotation = true
+refresh_token_reuse_interval = 10
+enable_signup = true
+enable_anonymous_sign_ins = false
+
+[auth.email]
+enabled = true
+enable_confirmations = true
+max_frequency = "1s"
+otp_length = 6
+otp_expiry = 600
+
+[auth.rate_limit]
+email_sent = 60
+
+[auth.email.template.magic_link]
+subject = "Your SplitFlow sign-in code"
+content_path = "./supabase/templates/otp.html"
+
+[auth.email.template.confirmation]
+subject = "Your SplitFlow sign-in code"
+content_path = "./supabase/templates/otp.html"
+
+[edge_runtime]
+enabled = false
+
+[analytics]
+enabled = false

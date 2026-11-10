@@ -1,3 +1,19 @@
+# Personal finance expansion (2026-11-10)
+
+The approved personal + shared finance plan supersedes earlier KRW-only/prototype-only scope where applicable. Personal ledgers are owner-private, multi-currency recorded accounts with CSV import and reviewed conversational commands. Shared expenses support explicit currency; legacy missing currency means KRW. Never aggregate currencies or treat account transfers as spending. Dedicated read-only review spaces are supported; manual entry is secondary. No bank aggregation/payment execution. Outbound Brevo setup is on hold by user request; keep NOTIFICATIONS_ENABLED off and distinguish tested queue behavior from live delivery. See docs/PERSONAL-FINANCE.md.
+
+# Current trust and planning decision (2026-11-09)
+
+The user superseded group messaging: every person communicates privately with SplitFlow; no new user-to-user messages. Existing shared events/history remain inspectable. Friendships require both people to explicitly add each other; group membership alone is not friendship. Claims are not proof: pending or disputed claims remain visible separately from agreed balances. Denial is not proof a claim is false. Preserve prior agreements and confirmed transfer history through disputes and revisions. SplitFlow does not adjudicate factual truth or enforce collection. Planning limits/allowances are not cash or debt. Planning and adjustments use reviewed conversational commands. The earlier instruction to keep OpenAI setup on hold was superseded by the user's subsequent authorization; credentials stay server-side and live verification must be distinguished from scripted-provider tests.
+
+# Approved pilot direction
+
+The main signed-in dinner and outing workspace at / uses Supabase email-code authentication and Postgres. The main experience is conversation-first: a quiet conversation list, one thread/composer and one current split preview. Manual entry remains available without AI. Review, invitations, participant decisions, corrections, confirmed repayments and history use explicit controls and appear when needed. Deterministic money logic remains mandatory. Avoid agent-role displays, artificial waiting, duplicate artifact summaries, mandatory groups and a dashboard before the conversation. The user now requires one app for real and sample use: the guest sample workspace must share the signed-in activity components and deterministic domain model. Replace and remove the separate /demo implementation after parity checks. Shared groups contain activities; activities contain multiple expenses and may use quick, planned or recurring workflows. Most actions belong inside the activity conversation. /pilot is a compatibility redirect, never a second app. OpenAI setup has been authorized; distinguish live provider verification from scripted tests. No payment processing. Keep guest sample records isolated from real accounts; never promote simulated payment confirmations into real records.
+
+Read-only money inspection uses dedicated compact Expenses, Balances and Repayments views. Financial mutations stay inline in the original conversation; overview rows hand back to that context. Do not restore sprawling read-only summaries above the composer.
+
+The composer addresses the private assistant only. Direct user-to-user messaging is retired; historical messages remain readable. Manual input is secondary. Financial or membership mutations require confirmation of a stored exact proposal. Do not expose a model commit tool or silently publish private messages. OpenAI credentials stay server-side; scripted providers belong only in tests.
+
 # SplitFlow Agent Instructions
 
 ## Product Direction
@@ -88,9 +104,9 @@ Do not add:
 * shadcn/ui
 * another UI framework
 * real payment processing
-* real authentication
+* external billing beyond the approved pilot
 * real push notifications
-* production database
+* unrelated production services
 * external billing provider
 * unnecessary backend services
 
@@ -437,8 +453,8 @@ For this version:
 * mock data is acceptable
 * local deterministic state is acceptable
 * server actions/API routes are acceptable if already used
-* no production database
-* no real auth
+* Supabase Postgres for the signed-in pilot
+* Supabase email-code authentication for the signed-in pilot
 * no real payment settlement
 * no real push notifications
 

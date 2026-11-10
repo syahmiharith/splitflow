@@ -1,23 +1,24 @@
 import type { Metadata } from "next";
-import { StoreProvider } from "@/lib/store";
 import { AppShell } from "@/components/app-shell";
 import "./globals.css";
+import { FormFeedback } from "@/components/controls/form-feedback";
 
 export const metadata: Metadata = {
   title: "SplitFlow",
-  description: "AI-assisted group split agreement workspace",
+  description: "Shared expenses, clear shares and confirmed repayments",
   icons: {
-    icon: "/favicon.svg"
-  }
+    icon: "/favicon.svg",
+  },
 };
 
-export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+export default function RootLayout({
+  children,
+}: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en">
       <body className="antialiased">
-        <StoreProvider>
-          <AppShell>{children}</AppShell>
-        </StoreProvider>
+        <AppShell>{children}</AppShell>
+        <FormFeedback />
       </body>
     </html>
   );

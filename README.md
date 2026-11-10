@@ -1,5 +1,7 @@
 # SplitFlow
 
+SplitFlow brings shared groups, activities and expenses into one conversation workspace. Use the same app with isolated guest samples or sign in for real records. Quick costs, planned activities and monthly recurring arrangements support exact reviewed shares, participant decisions, corrections, references and confirmed repayments. Groups are optional; an activity can contain several costs with different payers and allocations. OpenAI setup is on hold, and contextual controls complete the workflow independently. See [the unified workspace](docs/UNIFIED-WORKSPACE.md) for behavior, recovery and release limits.
+
 ### AI-Powered Copilot for Group Payments
 
 Most bill-splitting apps solve the math.<br>
@@ -7,7 +9,7 @@ SplitFlow solves the agreement.
 
 SplitFlow turns messy shared-cost conversations into reviewable, tool-verified payment proposals, helping groups move from confusion, claims, and awkward payment questions to a clear agreement state.
 
-[Live Demo](https://splitflow-xi.vercel.app/) · [Technical Docs](docs/TECHNICAL.md) · [LinkedIn](https://www.linkedin.com/in/zsyhmizlkfli/)
+[App preview](https://splitflow-git-codex-real-dinner-pilot-syahmiharith.vercel.app/) · [Technical Docs](docs/TECHNICAL.md) · [LinkedIn](https://www.linkedin.com/in/zsyhmizlkfli/)
 
 **TypeScript · Next.js · OpenAI API · Tailwind CSS · Domain-Driven Design · Vercel**
 
@@ -102,7 +104,8 @@ Technical proof:
 
 ## Demo & Links
 
-- **Live Demo:** [Try SplitFlow](https://splitflow-xi.vercel.app/)
+- **Main workspace:** [Open SplitFlow](https://splitflow-git-codex-real-dinner-pilot-syahmiharith.vercel.app/)
+- **Optional sample experience:** [Try demo](https://splitflow-git-codex-real-dinner-pilot-syahmiharith.vercel.app/demo)
 - **Technical Deep Dive:** [docs/TECHNICAL.md](docs/TECHNICAL.md)
 - **Product Case Study:** [docs/shardlab-product-case-study.md](docs/shardlab-product-case-study.md)
 - **LinkedIn:** [Connect with me](https://www.linkedin.com/in/zsyhmizlkfli/)

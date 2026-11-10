@@ -39,3 +39,33 @@ describe("shared money read semantics",()=>{
   expect(a.expenses[0].repayments).toHaveLength(0);
  });
 });
+
+it("supplies only the current authorized activity with exact payment references before the latest request",async()=>{
+ let a=fixture();const id=a.expenses[0].id;
+ a=changeActivity(a,debtor,{type:"expenseCommand",id,expected:a.expenses[0].revision,command:{type:"report",to:payer,amount:15000,reference:"Receipt ref"}});
+ const other=fixture();other.title="Other private activity";
+ const thread=emptyThread(payer,a.id);
+ thread.messages=[{id:crypto.randomUUID(),role:"user",text:"Confirm the payment",at:new Date().toISOString()}];
+ await runAssistant(thread,[{kind:"activity",document:a},{kind:"activity",document:other}],payer,async input=>{
+  const text=JSON.stringify(input);
+  expect(text).toContain(a.expenses[0].repayments[0].id);
+  expect(text).toContain("agreedMoneyByPerson");expect(text).not.toContain("Other private activity");
+  expect(input.at(-1)).toEqual({role:"user",content:"Confirm the payment"});
+  return {output:[{type:"message",content:[{type:"output_text",text:"Which receipt?"}]}]};
+ });
+ const foreign=emptyThread("outsider@example.test",a.id);
+ await runAssistant(foreign,[{kind:"activity",document:a}],"outsider@example.test",async input=>{
+  expect(JSON.stringify(input)).not.toContain("Receipt ref");
+  return {output:[{type:"message",content:[{type:"output_text",text:"Hello"}]}]};
+ });
+});
+it("bounds oversized current activity context without presenting partial totals",async()=>{
+ const a=fixture();a.expenses=Array.from({length:100},()=>structuredClone(a.expenses[0]));
+ await runAssistant(emptyThread(payer,a.id),[{kind:"activity",document:a}],payer,async input=>{
+  const context=input.find(item=>typeof item==="object"&&item!==null&&"content" in item&&typeof item.content==="string"&&item.content.startsWith('{"untrustedCurrentActivityContext"')) as {content:string};
+  expect(context.content.length).toBeLessThan(40000);
+  expect(JSON.parse(context.content)).toMatchObject({untrustedCurrentActivityContext:{id:a.id,revision:a.revision,title:a.title,detailsOmitted:true}});
+  expect(context.content).not.toContain("agreedMoneyByPerson");expect(context.content).not.toContain('"total"');
+  return {output:[{type:"message",content:[{type:"output_text",text:"Checking"}]}]};
+ });
+});

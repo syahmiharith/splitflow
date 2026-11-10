@@ -177,7 +177,7 @@ export const assistantTools = [
     type: "function",
     name: "prepare_actions",
     description:
-      "Prepare an ordered batch for private review, never commit it. All requested changes must appear in this one batch. Use ref aliases for records created earlier in the batch. This replaces the previous draft. Ask for missing facts before calling. Shared external repayments use change_activity with command {type:expenseCommand,id:expenseId,command:{type:report,to:recipientEmail,amount,reference}}. Receipt confirmation/dispute uses the same wrapper with command {type:receipt,paymentId,status}; only the recipient can do it. finance transfer is only between the owner's recorded personal accounts, never shared repayments or transfers to another person.",
+      "Prepare an ordered batch for private review, never commit it. All requested changes must appear in this one batch. Use ref aliases for records created earlier in the batch. create_group already invites its initial people; do not add a second invite action for the same people. This replaces the previous draft. Ask for missing facts before calling. Shared external repayments use change_activity with command {type:expenseCommand,id:expenseId,command:{type:report,to:recipientEmail,amount,reference}}. Receipt confirmation/dispute uses the same wrapper with command {type:receipt,paymentId,status}; only the recipient can do it. finance transfer is only between the owner's recorded personal accounts, never shared repayments or transfers to another person.",
     strict: true,
     parameters: strictSchema(z.toJSONSchema(actionsSchema)),
   },
@@ -418,6 +418,7 @@ export function prepareActions(
   const notificationCommands: NotificationCommand[] = [];
   const financeAliases = new Map<string, string>();
   const aliases = new Map<string, string>();
+  const createdGroups = new Set<string>();
   const dependencies = new Map<string, number>();
   for (const action of parsed.actions) {
     let op: Operation;
@@ -463,6 +464,7 @@ export function prepareActions(
         throw Error("Use a unique reference for each new record.");
       const id = crypto.randomUUID();
       aliases.set(action.ref, id);
+      if (action.type === "create_group") createdGroups.add(id);
       let input: unknown = clean("input" in action ? action.input : {});
       if (action.type === "repeat_activity") {
         const source = rows.find(
@@ -498,6 +500,9 @@ export function prepareActions(
       const id = aliases.get(action.target) ?? action.target;
       const record = rows.find((r) => r.document.id === id);
       if (!record) throw Error("Workspace unavailable.");
+      // Group creation already includes these invitations. Only remove exact same-batch duplicates.
+      if (action.type === "change_group" && action.command.type === "invite" && record.kind === "group" && createdGroups.has(id) &&
+          action.command.people.every(person => record.document.people.some(existing => existing.email === person.email && existing.name === person.name))) continue;
       const command = clean(action.command) as Record<string, unknown>;
       if (action.type === "change_activity") {
         const a = record.document as Activity;

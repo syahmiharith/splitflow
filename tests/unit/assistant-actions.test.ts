@@ -792,3 +792,22 @@ describe("ordinary conversational groups",()=>{
   expect(existing).toHaveLength(1);
  });
 });
+
+
+describe("same-batch group invitation deduplication",()=>{
+ it("keeps one creation review for initial members and preserves meaningful subsequent invitations",()=>{
+  const create={type:"create_group",ref:"crew",input:{name:"Dinner crew",people}};
+  const invite={type:"change_group",target:"crew",command:{type:"invite",people}};
+  const simple=prepareActions({actions:[create,invite]},friendships(),email);
+  expect(simple.operations).toHaveLength(1);expect(simple.previews).toHaveLength(1);
+  const renamed=prepareActions({actions:[create,{...invite,command:{type:"invite",people:[people[0],{email:other,name:"New name"}]}}]},friendships(),email);
+  expect(renamed.operations).toHaveLength(2);
+  const third=createGroup(email,{name:"Friendship",friendship:true,people:[people[0],{email:"third@example.test",name:"Third"}]});
+  const withThird:RecordRow[]=[...friendships(),{kind:"group",document:changeGroup(third,"third@example.test",{type:"join"})}];
+  const added=prepareActions({actions:[create,{...invite,command:{type:"invite",people:[people[0],{email:"third@example.test",name:"Third"}]}}]},withThird,email);
+  expect(added.operations).toHaveLength(2);expect(added.previews).toHaveLength(2);
+  const existing=prepareBatch(friendships(),email,simple.operations).rows;
+  const unchanged=prepareActions({actions:[{...invite,target:simple.operations[0].id}]},existing,email);
+  expect(unchanged.operations).toHaveLength(1);
+ });
+});

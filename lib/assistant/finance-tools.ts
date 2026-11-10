@@ -6,12 +6,17 @@ export type FinanceSnapshot = { revision: number; state: FinanceState };
 export const financeReadParameters = {
   type: "object", properties: {
     kind: {type:"string",enum:["summary","accounts","transactions","categories","goals","schedules","reconciliations","export"]},
-    query: {type:["string","null"]}, recordId:{type:["string","null"]}, cursor:{type:["string","null"]}, currency:{type:["string","null"]}, month:{type:["string","null"]},
-  }, required:["kind","query","recordId","cursor","currency","month"],additionalProperties:false,
+    query: {type:["string","null"],description:"Optional text search; do not put an account ID here."}, recordId:{type:["string","null"],description:"Exact ID of the requested record kind: a transaction ID for transactions, a schedule ID for schedules, an account ID for accounts/export. Not an account filter."}, accountId:{type:["string","null"],description:"Filter transactions, schedules or reconciliations by their authorized owning account. Null for other kinds."}, cursor:{type:["string","null"]}, currency:{type:["string","null"]}, month:{type:["string","null"]},
+  }, required:["kind","query","recordId","accountId","cursor","currency","month"],additionalProperties:false,
 };
-const readSchema=z.object({kind:z.enum(["summary","accounts","transactions","categories","goals","schedules","reconciliations","export"]),query:z.string().max(300).nullable().optional(),recordId:z.string().max(100).nullable().optional(),cursor:z.string().max(2000).nullable().optional(),currency:z.string().length(3).nullable().optional(),month:z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/).nullable().optional()}).strict();
+const readSchema=z.object({kind:z.enum(["summary","accounts","transactions","categories","goals","schedules","reconciliations","export"]),query:z.string().max(300).nullable().optional(),recordId:z.string().max(100).nullable().optional(),accountId:z.string().min(1).max(100).nullable().optional(),cursor:z.string().max(2000).nullable().optional(),currency:z.string().length(3).nullable().optional(),month:z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/).nullable().optional()}).strict();
 export function readFinance(raw:unknown,snapshot:FinanceSnapshot) {
   const args=readSchema.parse(raw), state=snapshot.state;
+  if(args.accountId){
+    if(!state.accounts.some(account=>account.id===args.accountId))throw Error("Account unavailable. Choose an account returned by read_finance accounts.");
+    if(!["transactions","schedules","reconciliations"].includes(args.kind))throw Error("accountId filters transactions, schedules and reconciliations only. For an exact account or export use recordId.");
+  }
+  if(["transactions","schedules","reconciliations"].includes(args.kind)&&args.recordId&&state.accounts.some(account=>account.id===args.recordId))throw Error("recordId is an account ID, not a record of the requested kind. Retry with accountId set to that account ID and recordId null.");
   if(args.kind==="summary" && (args.query || args.recordId || args.cursor)) throw Error("Summary supports currency and month filters only. Use a record search for specific entries.");
   if(args.kind==="export") {
     const account=state.accounts.find(a=>a.id===args.recordId);
@@ -26,18 +31,21 @@ export function readFinance(raw:unknown,snapshot:FinanceSnapshot) {
     return {revision:snapshot.revision,complete:true,balanceAsOf:currentDate,categoryThroughMonth:month,currencies:summaries};
   }
   const data:Record<string,unknown>[] = state[args.kind].map(row=>({...row}));
-  const filtered=data.filter(row=>{
+  const accountRecords=data.filter(row=>!args.accountId||row.accountId===args.accountId);
+  const filtered=accountRecords.filter(row=>{
     const currency=row.currency??state.accounts.find(a=>a.id===row.accountId)?.currency??state.categories.find(c=>c.id===row.categoryId)?.currency;
     return (!args.currency||currency===args.currency)&&(!args.recordId||row.id===args.recordId)&&(!args.month||typeof row.date!=="string"||row.date.startsWith(args.month))&&(!args.query||JSON.stringify(row).toLocaleLowerCase("en-US").includes(args.query.toLocaleLowerCase("en-US")));
   });
   // Bind pagination to both immutable revision and filters; never accept a different query's cursor.
-  const signature=encodeURIComponent(JSON.stringify([args.kind,args.query??null,args.recordId??null,args.currency??null,args.month??null]));
+  const signature=encodeURIComponent(JSON.stringify([args.kind,args.query??null,args.recordId??null,args.accountId??null,args.currency??null,args.month??null]));
   const stamp=`${snapshot.revision}:${signature}`;
   const offset=args.cursor?Number(args.cursor.split(":")[0]):0;
   if(args.cursor&&(!Number.isSafeInteger(offset)||offset<0||offset>filtered.length||args.cursor.slice(args.cursor.indexOf(":")+1)!==stamp)) throw Error("Finance records changed or cursor is invalid. Restart the search.");
   const page=filtered.slice(offset,offset+20).map(row=>args.kind==="schedules"?{...row,nextOccurrence:nextOccurrence(row as FinanceState["schedules"][number]),statusMeaning:"Expected occurrence only; not a recorded expense or payment"}:args.kind==="accounts"?{...row,balanceAsOf:today(),balance:accountBalance(state,String(row.id)),clearedBalance:accountBalance(state,String(row.id),true)}:args.kind==="categories"?{...row,available:categoryAvailable(state,String(row.id),args.month??undefined)}:row);
   const nextCursor=offset+page.length<filtered.length?`${offset+page.length}:${stamp}`:null;
-  return {revision:snapshot.revision,records:page,matchedCount:filtered.length,nextCursor,complete:!nextCursor&&offset===0};
+  return {revision:snapshot.revision,records:page,matchedCount:filtered.length,nextCursor,complete:!nextCursor&&offset===0,
+    scope:{kind:args.kind,accountId:args.accountId??null,recordId:args.recordId??null,query:args.query??null,currency:args.currency??null,month:args.month??null},
+    ...(!filtered.length&&accountRecords.length?{otherRecordsExist:true,instruction:"No records match these filters, but other authorized records exist in this account scope. Do not say the account or workspace has no records. If the user did not specify these date or text restrictions, retry without them."}:{})};
 }
 export function financePreview(before:FinanceState,command:FinanceCommand):{state:FinanceState;preview:Preview} {
   const state=applyFinanceCommand(before,command);
@@ -56,7 +64,7 @@ export function financePreview(before:FinanceState,command:FinanceCommand):{stat
     case "transfer":{const from=state.accounts.find(a=>a.id===command.from)!,to=state.accounts.find(a=>a.id===command.to)!;lines.push(`${from.name}: ${formatMoney(command.sourceAmount,from.currency)} → ${to.name}: ${formatMoney(command.destinationAmount,to.currency)}`,`Fee ${formatMoney(command.fee,from.currency)}`,"Records an external transfer; does not move money.");break;}
     case "reconcile":title=account!.name;lines.push(`Cleared ${formatMoney(accountBalance(before,account!.id,true),account!.currency)} → ${formatMoney(command.statedBalance,account!.currency)}`,command.reason);break;
     case "goal":title=command.name;lines.push(`${formatMoney(command.target,category!.currency)} by ${command.targetDate}`);break;
-    case "schedule":{const a=state.accounts.find(a=>a.id===command.schedule.accountId)!;title=command.schedule.name;lines.push(`${formatMoney(command.schedule.amount,a.currency)} · ${command.schedule.frequency}`,`Starts ${command.schedule.start} · expected, not recorded spending`);break;}
+    case "schedule":{const a=state.accounts.find(a=>a.id===command.schedule.accountId)!;title=command.schedule.name;lines.push(`${formatMoney(command.schedule.amount,a.currency)} · ${command.schedule.frequency}`,`Starts ${command.schedule.start} · expected, not recorded spending`, `Account: ${a.name}`, ...(command.schedule.categoryId ? [`Category: ${state.categories.find(c=>c.id===command.schedule.categoryId)!.name}`] : []));break;}
     case "allocateCardPayment":lines.push(`${account!.name}: ${formatMoney(before.cardPayments[account!.id]??0,account!.currency)} → ${formatMoney(state.cardPayments[account!.id]??0,account!.currency)}`);break;
     case "linkSharedExpense":case "classifyReimbursement":{const t=state.transactions.find(t=>t.id===command.id)!,a=state.accounts.find(a=>a.id===t.accountId)!;title=t.payee;lines.push(`${formatMoney(t.amount,a.currency)} · ${a.name}`,command.type==="linkSharedExpense"?`Reimbursable ${formatMoney(command.reimbursableAmount,a.currency)} · own spending ${formatMoney(Math.abs(t.amount)-command.reimbursableAmount,a.currency)}`:"Reimbursement of linked shared spending; not new income");break;}
     case "voidTransfer":{const entries=before.transactions.filter(t=>t.transferId===command.id&&!t.voided);title="Void transfer";lines.push(...entries.map(t=>`${state.accounts.find(a=>a.id===t.accountId)!.name}: ${formatMoney(t.amount,state.accounts.find(a=>a.id===t.accountId)!.currency)}`),command.reason);break;}

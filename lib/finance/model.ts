@@ -41,7 +41,7 @@ export const financeCommandSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("schedule"), schedule: scheduleSchema }),
   z.object({ type: z.literal("pauseSchedule"), id, paused: z.boolean() }),
   z.object({ type: z.literal("skipOccurrence"), id, date }),
-  z.object({ type: z.literal("recordOccurrence"), id, date, actualDate: date, actualAmount: positive, transactionId: id }),
+  z.object({ type: z.literal("recordOccurrence"), id: id.describe("Existing schedule ID from read_finance schedules."), date: date.describe("Expected occurrence date, distinct from the actual payment date."), actualDate: date, actualAmount: positive, transactionId: id.describe("New unique temporary transaction alias, never an existing transaction ID. The server creates the recorded transaction.") }),
   z.object({ type: z.literal("reconcile"), accountId: id, date, statedBalance: amount, adjustmentId: id, reason: name }),
   z.object({ type: z.literal("archive"), kind: z.enum(["account", "category"]), id, archived: z.boolean() }),
 ]);
@@ -282,7 +282,9 @@ export function applyFinanceCommand(current: FinanceState, raw: unknown): Financ
     case "pauseSchedule": find(state.schedules, command.id).paused = command.paused; break;
     case "skipOccurrence": case "recordOccurrence": {
       const s = find(state.schedules, command.id);
-      if (s.paused || !isOccurrence(s, command.date) || s.occurrences[command.date]) throw Error("Occurrence is paused, invalid or already handled.");
+      if (s.paused) throw Error("Schedule is paused. Resume it before recording or skipping an occurrence.");
+      if (!isOccurrence(s, command.date)) throw Error("Occurrence date is invalid for this schedule. Choose an expected date.");
+      if (s.occurrences[command.date]) throw Error("This occurrence has already been recorded or skipped.");
       if (command.type === "skipOccurrence") s.occurrences[command.date] = "skipped";
       else {
         addTransaction(state, { id: command.transactionId, accountId: s.accountId, date: command.actualDate, amount: s.kind === "income" ? command.actualAmount : -command.actualAmount, kind: s.kind, payee: s.name, cleared: true, splits: s.categoryId && s.kind === "expense" ? [{ categoryId: s.categoryId, amount: command.actualAmount }] : [] });

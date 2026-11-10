@@ -6,6 +6,12 @@ import { runAssistant } from "@/lib/assistant/provider";
 import { emptyThread } from "@/lib/assistant/model";
 const actor="alex@example.test";
 describe("personal finance conversation tools",()=>{
+  it("reviews the account and category affected by a recurring cost",()=>{
+    let state=applyFinanceCommand(emptyFinance(),{type:"account",account:{id:"cash",name:"Wallet",kind:"cash",currency:"KRW",openingBalance:100000}});
+    state=applyFinanceCommand(state,{type:"category",category:{id:"food",name:"Food",currency:"KRW"}});
+    const result=prepareFinanceCommands({revision:1,state},[{type:"schedule",schedule:{id:"monthly",name:"Groceries",accountId:"cash",categoryId:"food",kind:"expense",amount:30000,start:"2026-11-10",frequency:"monthly",paused:false}}]);
+    expect(result.previews[0].lines).toEqual(expect.arrayContaining(["Account: Wallet","Category: Food"]));
+  });
   it("shows transaction categories and split amounts in the confirmation review",()=>{
     let state=applyFinanceCommand(emptyFinance(),{type:"account",account:{id:"cash",name:"Wallet",kind:"cash",currency:"KRW",openingBalance:100000}});
     state=applyFinanceCommand(state,{type:"category",category:{id:"food",name:"Food",currency:"KRW"}});
@@ -91,4 +97,26 @@ it("labels current balances explicitly when returning historical category alloca
  expect(result).toMatchObject({historicalCashSupported:false,categoryThroughMonth:"2000-01",currencies:[{currency:"USD",currentCash:10000}]});
  if(!("currencies" in result)||!result.currencies)throw Error("summary");
  expect(result.currencies[0]).not.toHaveProperty("cash");expect(result.currencies[0]).not.toHaveProperty("readyToAssign");
+});
+
+it("finds transactions using an authorized account filter and reports restricted empty results honestly",()=>{
+ let state=applyFinanceCommand(emptyFinance(),{type:"account",account:{id:"bank",name:"Bank",kind:"bank",currency:"USD",openingBalance:10000}});
+ state=applyFinanceCommand(state,{type:"account",account:{id:"cash",name:"Cash",kind:"cash",currency:"USD",openingBalance:10000}});
+ state=applyFinanceCommand(state,{type:"transaction",transaction:{id:"grocery",accountId:"bank",date:"2026-11-10",amount:-1500,kind:"expense",payee:"Grocery",splits:[],cleared:true}});
+ state=applyFinanceCommand(state,{type:"transaction",transaction:{id:"other",accountId:"cash",date:"2026-11-10",amount:-500,kind:"expense",payee:"Other",splits:[],cleared:true}});
+ const snapshot={revision:4,state};
+ expect(readFinance({kind:"transactions",accountId:"bank"},snapshot)).toMatchObject({matchedCount:1,records:[{id:"grocery"}],scope:{accountId:"bank",recordId:null}});
+ expect(()=>readFinance({kind:"transactions",recordId:"bank"},snapshot)).toThrow("Retry with accountId");
+ expect(()=>readFinance({kind:"transactions",accountId:"foreign-account"},snapshot)).toThrow("Account unavailable");
+ expect(readFinance({kind:"transactions",accountId:"bank",month:"2026-10"},snapshot)).toMatchObject({records:[],matchedCount:0,otherRecordsExist:true,scope:{month:"2026-10"}});
+ expect(readFinance({kind:"transactions",accountId:"bank",recordId:"grocery"},snapshot)).toMatchObject({records:[{id:"grocery"}]});
+ expect(readFinance({kind:"transactions",accountId:"cash",recordId:"grocery"},snapshot)).toMatchObject({records:[],matchedCount:0});
+});
+it("binds finance pagination to the account filter",()=>{
+ let state=applyFinanceCommand(emptyFinance(),{type:"account",account:{id:"bank",name:"Bank",kind:"bank",currency:"USD",openingBalance:10000}});
+ state=applyFinanceCommand(state,{type:"account",account:{id:"cash",name:"Cash",kind:"cash",currency:"USD",openingBalance:10000}});
+ for(let i=0;i<21;i++)state=applyFinanceCommand(state,{type:"transaction",transaction:{id:`t${i}`,accountId:"bank",date:"2026-11-10",amount:-100,kind:"expense",payee:"Meal",splits:[],cleared:true}});
+ const first=readFinance({kind:"transactions",accountId:"bank"},{revision:1,state});if(!("nextCursor" in first))throw Error("page");
+ expect(()=>readFinance({kind:"transactions",accountId:"cash",cursor:first.nextCursor},{revision:1,state})).toThrow("cursor is invalid");
+ expect(readFinance({kind:"transactions",accountId:"bank",cursor:first.nextCursor},{revision:1,state})).toMatchObject({records:[{id:"t20"}],matchedCount:21});
 });

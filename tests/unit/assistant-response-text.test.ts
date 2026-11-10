@@ -30,3 +30,21 @@ it("continues commentary-only provider responses and returns only the final clar
   return {output:[{type:"message",phase:"final_answer",content:[{type:"output_text",text:"What payee should I use?"}]}]};
  });expect(result.text).toBe("What payee should I use?");expect(calls).toBe(2);
 });
+
+it("does not report a review ready without a successful prepare tool result",async()=>{
+ const {runAssistant}=await import("@/lib/assistant/provider");const {emptyThread}=await import("@/lib/assistant/model");
+ const {emptyFinance}=await import("@/lib/finance/model");let calls=0;
+ const result=await runAssistant(emptyThread(crypto.randomUUID(),null),[],"alex@example.test",async input=>{
+  if(calls++===0)return {output:[{type:"message",content:[{type:"output_text",text:"Ready for your review."}]}]};
+  expect(input.at(-1)).toMatchObject({role:"system",content:expect.stringContaining("No proposal exists")});
+  return {output:[{type:"function_call",name:"prepare_actions",call_id:"prepare",arguments:JSON.stringify({actions:[{type:"finance",command:{type:"account",account:{id:"bank",name:"Bank",kind:"bank",currency:"KRW",openingBalance:1000}}}]})}]};
+ },[],undefined,undefined,{revision:0,state:emptyFinance()});
+ expect(result.text).toBe("Ready for your review.");expect(result.proposal?.finance?.commands).toHaveLength(1);expect(calls).toBe(2);
+});
+it("bounds repeated false review readiness and keeps ordinary conversation available",async()=>{
+ const {runAssistant}=await import("@/lib/assistant/provider");const {emptyThread}=await import("@/lib/assistant/model");let calls=0;
+ await expect(runAssistant(emptyThread(crypto.randomUUID(),null),[],"alex@example.test",async()=>{calls++;return {output:[{type:"message",content:[{type:"output_text",text:"Ready for your review."}]}]};})).rejects.toThrow("could not finish");
+ expect(calls).toBe(5);
+ const greeting=await runAssistant(emptyThread(crypto.randomUUID(),null),[],"alex@example.test",async()=>({output:[{type:"message",content:[{type:"output_text",text:"Hello! What would you like to do?"}]}]}));
+ expect(greeting.proposal).toBeNull();expect(greeting.text).toBe("Hello! What would you like to do?");
+});

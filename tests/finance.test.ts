@@ -45,6 +45,9 @@ describe("personal finance", () => {
     expect(accountBalance(s, "bank")).toBe(98800);
     expect(() => apply(s, command)).toThrow(/already/);
     expect(() => apply(s, { ...command, date: "2026-03-28", transactionId: "bad" })).toThrow(/invalid/);
+    const paused=apply(s,{type:"pauseSchedule",id:"bill",paused:true});
+    expect(()=>apply(paused,{...command,date:"2026-03-31",transactionId:"later"})).toThrow("Schedule is paused.");
+    expect(paused.transactions).toHaveLength(1);
   });
   it("reconciles cleared rather than pending amounts and keeps inputs immutable", () => {
     const before = fixture();

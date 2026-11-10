@@ -1,110 +1,68 @@
 # SplitFlow
 
-### AI-Powered Copilot for Group Payments
+Agree on shared costs before anyone pays. SplitFlow turns an expense description into a proposal that participants can accept, challenge or revise.
 
-Most bill-splitting apps solve the math.<br>
-SplitFlow solves the agreement.
+[Try demo](https://splitflow-xi.vercel.app/) · [Case study](https://zsyahmi.dev/work/splitflow) · [Architecture](docs/TECHNICAL.md)
 
-SplitFlow turns messy shared-cost conversations into reviewable, tool-verified payment proposals, helping groups move from confusion, claims, and awkward payment questions to a clear agreement state.
+## Walk through an agreement
 
-[Live Demo](https://splitflow-xi.vercel.app/) · [Technical Docs](docs/TECHNICAL.md) · [LinkedIn](https://www.linkedin.com/in/zsyhmizlkfli/)
+1. Describe a shared expense, including who paid and who joined each item.
+2. Review the calculated shares and send the proposal.
+3. Switch demo participants to accept, request a change or opt out.
+4. Revise the proposal and inspect who must reconfirm.
+5. Resolve payment claims and check the remaining readiness blockers.
 
-**TypeScript · Next.js · OpenAI API · Tailwind CSS · Domain-Driven Design · Vercel**
+The demo uses local state and simulated participants. It does not authenticate real users, verify bank payments or move money.
 
-> AI structures the conversation. Tools verify the agreement.
+## Decisions in the implementation
 
-![SplitFlow product preview](public/splitflow-product-preview.png)
+**Interpretation and calculation have separate responsibilities.** A parser structures the expense; optional server-side OpenAI support can assist drafting. Typed TypeScript functions own amounts, eligibility, rounding and settlement balances. The demo works without an API key.
 
----
+**A changed amount needs a new agreement.** Participant responses and proposal revisions determine who must reconfirm. A generated proposal is a draft, not permission to settle.
 
-## Why SplitFlow Exists
+**A payment claim is not confirmation.** Claimed and disputed payments remain visible in the readiness check until resolved.
 
-Shared payments usually break down before the actual payment happens.
-
-The hard part is not only calculating who owes what. The hard part is agreeing on what happened: who joined, who paid first, who opted out, who already claimed a payment, and whether the group is actually ready to pay.
-
-SplitFlow treats group expenses as an agreement workflow, not just a calculator problem.
-
----
-
-## How It Works
-
-```txt
-Messy shared-cost conversation
-        ↓
-AI interprets the expense situation
-        ↓
-SplitFlow creates a reviewable payment proposal
-        ↓
-Participants confirm, challenge, or update claims
-        ↓
-Tools verify math, rounding, eligibility, claims, and readiness
-        ↓
-The group reaches a clear payment agreement
+```text
+Expense description → proposal → calculated shares
+                                      ↓
+                              participant review
+                                      ↓
+                         revision / reconfirmation
+                                      ↓
+                              readiness check
 ```
 
-Example prompt:
+## Maintenance evidence
 
-> "We ordered food for 5 people, but Mina only got drinks, Joon paid first, and Alex already sent part of his share."
+A [readiness fix](https://github.com/syahmiharith/splitflow/commit/929425f9242f78ff357c054bf807a614424d92b0) keeps claimed and disputed payments in the blocker check. The [regression tests](tests/unit/readiness.test.ts) make those cases inspectable.
 
-SplitFlow turns that messy context into a structured payment proposal with participant state, split logic, payment claims, and readiness checks.
+For the underlying contracts, read the [state machine](docs/engineering/STATE_MACHINE.md), [financial invariants](docs/engineering/FINANCIAL_INVARIANTS.md) and [edge-case matrix](docs/engineering/EDGE_CASE_TEST_MATRIX.md).
 
----
+## Run locally
 
-## Engineering Focus
+Requires Node.js and pnpm.
 
-SplitFlow was built around one core engineering decision:
+```bash
+pnpm install
+pnpm dev
+```
 
-> AI can guide the workflow, but tools must verify the money.
+Open http://localhost:3000. No OpenAI key is needed for the deterministic demo. Optional agent configuration is documented in [technical setup](docs/TECHNICAL.md#local-development); credentials stay server-side.
 
-- **Agreement-first domain model** - group payments are modeled as proposal states, participant responses, eligibility, payment claims, revisions, and readiness checks instead of a one-time calculator result.
-- **Tool-orchestrated verification** - split math, item eligibility, rounding, settlement instructions, payment claims, and readiness-to-pay status are checked through deterministic TypeScript logic.
-- **AI-guided proposal flow** - messy shared-cost conversations are converted into structured, reviewable payment proposals through a server-side orchestration path.
-- **Human-in-the-loop review** - organizers and participants can confirm, challenge, opt out, accept changes, or mark settlement progress before payment readiness is reached.
-- **Production-style full-stack build** - implemented with Next.js, TypeScript, Tailwind CSS, OpenAI API support, Vitest, Playwright, and Vercel.
+## Check a change
 
-For architecture, domain logic, AI workflow design, validation rules, and implementation details, see the [Technical Documentation](docs/TECHNICAL.md).
+```bash
+pnpm typecheck
+pnpm lint
+pnpm test
+pnpm build
+pnpm test:e2e
+```
 
----
+Vitest covers calculations, proposal transitions, parser behavior, readiness and API contracts. Playwright covers the interactive flow and responsive layouts. See [technical documentation](docs/TECHNICAL.md#testing) for the optional live-agent check.
 
-## Engineering Proof
+## Scope and history
 
-SplitFlow uses AI for interpretation and workflow guidance, but final money decisions are guarded by deterministic invariants:
+This repository is an interactive prototype built with Next.js, React, TypeScript and Tailwind CSS. Persistence, participant switching and payment records are prototype mechanisms. [Prototype boundaries](docs/engineering/PROTOTYPE_BOUNDARIES.md) distinguish them from production infrastructure.
 
-- AI can propose, but cannot finalize money.
-- A proposal cannot be ready while participant claims are unresolved.
-- Rounding must be deterministic and auditable.
-- Participant opt-outs trigger recalculation and reconfirmation.
-- Payment readiness is a state-machine decision.
-
-Technical proof:
-
-- [State Machine](docs/engineering/STATE_MACHINE.md)
-- [Financial Invariants](docs/engineering/FINANCIAL_INVARIANTS.md)
-- [Edge-Case Test Matrix](docs/engineering/EDGE_CASE_TEST_MATRIX.md)
-- [Messy Prompt Examples](docs/engineering/MESSY_PROMPT_EXAMPLES.md)
-- [Prototype Boundaries](docs/engineering/PROTOTYPE_BOUNDARIES.md)
-
----
-
-## Why It Is Different
-
-| Traditional Split Apps  | SplitFlow                                 |
-| ----------------------- | ----------------------------------------- |
-| Calculator-first        | Agreement-first                           |
-| Manual form input       | Natural language expense prompts          |
-| Static split result     | Reviewable proposal flow                  |
-| Assumes everyone agrees | Tracks participant responses              |
-| Focuses only on amounts | Tracks claims, eligibility, and readiness |
-| Splits the bill         | Helps the group reach agreement           |
-
----
-
-## Demo & Links
-
-- **Live Demo:** [Try SplitFlow](https://splitflow-xi.vercel.app/)
-- **Technical Deep Dive:** [docs/TECHNICAL.md](docs/TECHNICAL.md)
-- **Product Case Study:** [docs/shardlab-product-case-study.md](docs/shardlab-product-case-study.md)
-- **LinkedIn:** [Connect with me](https://www.linkedin.com/in/zsyhmizlkfli/)
-
-> AI structures the conversation. Tools verify the agreement.
+The [original product case study](docs/shardlab-product-case-study.md) remains available alongside the [current portfolio story](https://zsyahmi.dev/work/splitflow).

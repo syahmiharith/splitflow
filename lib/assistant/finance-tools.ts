@@ -73,7 +73,22 @@ export function financePreview(before:FinanceState,command:FinanceCommand):{stat
     case "archive":{const record=command.kind==="account"?state.accounts.find(a=>a.id===command.id)!:state.categories.find(c=>c.id===command.id)!;title=record.name;lines.push(command.archived?"Archived":"Restored");break;}
     case "rename":{const old=command.kind==="account"?before.accounts.find(a=>a.id===command.id)!:before.categories.find(c=>c.id===command.id)!;title=command.name;lines.push(`${old.name} → ${command.name}`);break;}
   }
-  return {state,preview:{title,summary:{text:lines[0]??labels[command.type]},lines:[labels[command.type],...lines]}};
+  return {state,preview:{title,entity:financeEntity(command),summary:{text:lines[0]??labels[command.type]},lines:[labels[command.type],...lines]}};
+}
+
+function financeEntity(command: FinanceCommand): NonNullable<Preview["entity"]> {
+  switch (command.type) {
+    case "account": return { kind: "account", id: command.account.id };
+    case "category": return { kind: "category", id: command.category.id };
+    case "transaction": return { kind: "transaction", id: command.transaction.id };
+    case "allocate": return { kind: "category", id: command.categoryId };
+    case "allocateCardPayment": case "reconcile": return { kind: "account", id: command.accountId };
+    case "goal": return { kind: "goal", id: command.id };
+    case "schedule": return { kind: "schedule", id: command.schedule.id };
+    case "pauseSchedule": case "skipOccurrence": case "recordOccurrence": return { kind: "schedule", id: command.id };
+    case "archive": case "rename": return { kind: command.kind, id: command.id };
+    case "voidTransaction": case "voidTransfer": case "transfer": case "categorize": case "clear": case "linkSharedExpense": case "classifyReimbursement": return { kind: "transaction", id: command.id };
+  }
 }
 
 /** Manual import/review uses exactly the same deterministic command previews. */

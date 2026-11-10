@@ -11,12 +11,14 @@ export function ActionResult({
   preview,
   review = false,
   saved = false,
+  embedded = false,
 }: {
   preview: Preview;
   review?: boolean;
   saved?: boolean;
+  embedded?: boolean;
 }) {
-  if (preview.plan) return <SpendingPlanCard {...preview.plan} review={review} detailLines={preview.lines} />;
+  if (preview.plan) return <SpendingPlanCard {...preview.plan} review={review} detailLines={preview.lines} embedded={embedded} />;
   const expense = preview.expense;
   const money = (amount: number) => formatMoney(amount, expense?.currency ?? preview.transfer?.currency ?? preview.summary?.currency ?? "KRW");
   const changes = preview.lines.filter(line => {
@@ -32,23 +34,23 @@ export function ActionResult({
   if (preview.transfer) {
     const transfer = preview.transfer;
     const status = transfer.status === "reported" ? "Awaiting recipient confirmation" : transfer.status === "confirmed" ? review && !saved ? "Confirm receipt" : "Receipt confirmed" : review && !saved ? "Dispute receipt" : "Disputed";
-    return <div className="sf-chat-card-section">
-      <div className="sf-money-card-title"><h3>{preview.title}</h3><span>Repayment</span></div>
+    return <div className={`sf-chat-card-section${embedded ? " sf-embedded-money-action" : ""}`}>
+      <div className="sf-money-card-title">{!embedded && <h3>{preview.title}</h3>}<span>Repayment</span></div>
       <p className="sf-money-message-amount">{money(transfer.amount)}</p>
       <p className="sf-transfer-parties"><span>{transfer.from}</span><ArrowRight size={16} aria-label="to" /><span>{transfer.to}</span></p>
       <MoneyState tone={transfer.status === "confirmed" ? "positive" : "attention"}>{status}</MoneyState>
       {transfer.claimStatus && transfer.claimStatus !== "agreed" && <p className="sf-result-meta">{transfer.claimStatus === "disputed" ? "Claim disputed · prior agreements retained" : "Expense awaiting agreement"}</p>}
       {transfer.reference && <p className="sf-result-meta">{transfer.reference}</p>}
       {review && !saved && <p className="sf-result-meta">{transfer.status === "confirmed" ? "Confirming receipt reduces the agreed outstanding amount." : "Only a confirmed receipt reduces the outstanding amount."}</p>}
-      <details><summary>Details</summary>{detail}</details>
+      {!embedded && <details><summary>Details</summary>{detail}</details>}
     </div>;
   }
   if (!expense || preview.lines[0] !== "Add expense") {
     // Every consequence remains visible before committing: access changes,
     // recurring dates, old/new shares, credits and receipt status.
     return (
-      <div className="sf-chat-card-section">
-        <h3>{preview.title}</h3>
+      <div className={`sf-chat-card-section${embedded ? " sf-embedded-money-action" : ""}`}>
+        {!embedded && <h3>{preview.title}</h3>}
         {preview.summary?.amount !== undefined && (
           <p className="sf-money-message-amount">
             {money(preview.summary.amount)}<span>{preview.summary.suffix}</span>
@@ -61,7 +63,7 @@ export function ActionResult({
             {!preview.summary && preview.lines.filter(line =>
               /Awaiting recipient confirmation| · (confirmed|disputed)$|^Response:|^Starts /.test(line),
             ).map((line, i) => <p key={i}>{line}</p>)}
-            <details><summary>View details</summary>{detail}</details>
+            {!embedded && <details><summary>View details</summary>{detail}</details>}
           </>
         )}
       </div>
@@ -72,8 +74,8 @@ export function ActionResult({
   const equal = shares.every(value => value === shares[0]);
   const payers = expense.participants.filter(p => p.paid > 0);
   return (
-    <div className="sf-chat-card-section">
-      <div className="sf-money-card-title"><h3>{expense.title}</h3><span>{expense.participants.length} people</span></div>
+    <div className={`sf-chat-card-section${embedded ? " sf-embedded-money-action" : ""}`}>
+      <div className="sf-money-card-title">{!embedded && <h3>{expense.title}</h3>}<span>{expense.participants.length} people</span></div>
       <p className="sf-money-message-amount">
         {money(equal ? shares[0] : totals.total)}
         <span>{equal ? " each" : " total"}</span>
@@ -110,10 +112,10 @@ export function ActionResult({
           {item.custom ? " · custom shares" : item.units ? " · by units" : ""}
         </p>
       ))}
-      <details>
+      {!embedded && <details>
         <summary>{review ? "See calculation" : "View details"}</summary>
         {detail}
-      </details>
+      </details>}
     </div>
   );
 }

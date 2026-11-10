@@ -1,6 +1,6 @@
 "use client";
 import { AssistantMessageText } from "./assistant-message-text";
-import { ActionResult } from "./action-result";
+import { GroupedActionResults } from "./grouped-action-results";
 import { useEffect, useRef } from "react";
 import { Check, ChevronRight, LoaderCircle } from "lucide-react";
 import type {
@@ -48,12 +48,7 @@ export function AssistantThread({
           {status === "saved" && <Check size={14} aria-hidden="true" />}
           <span>{active ? "Ready to confirm" : status === "saved" ? "Saved" : status === "discarded" ? "Discarded" : "Superseded"}</span>
         </div>
-        {proposal.previews.map((p, i) =>
-          !p.expense && p.lines[0]?.startsWith("Create ") && p.activityId &&
-          proposal.previews.some(other => (other.expense || other.plan) && other.activityId === p.activityId) ? (
-            <p key={i} className="sf-chat-card-context">New activity · {p.title}</p>
-          ) : <ActionResult key={i} preview={p} review saved={!active} />,
-        )}
+        <GroupedActionResults previews={proposal.previews} proposal={proposal} review saved={!active} />
         {active && !readOnly && (
           <>
             <div className="sf-chat-card-actions">
@@ -116,18 +111,7 @@ export function AssistantThread({
           <Check size={15} />
           <span>Recorded</span>
         </div>
-        {p.previews
-          .filter(
-            (preview) =>
-              preview.expense ||
-              !p.previews.some(
-                (other) =>
-                  other.expense && other.activityId === preview.activityId,
-              ),
-          )
-          .map((preview, j) => (
-            <ActionResult key={j} preview={preview} />
-          ))}
+        <GroupedActionResults previews={p.previews} saved />
         {onOpen && p.records.some((r) => r.kind === "activity") && (
           <div className="sf-chat-card-actions">
             {Array.from(

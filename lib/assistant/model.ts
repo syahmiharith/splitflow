@@ -5,6 +5,9 @@ import type { Expense } from "@/lib/pilot/model";
 import type { SpendingPlan, SpendingPlanSummary } from "@/lib/activity/planning";
 export type Preview = {
   title: string;
+  /** Presentation-only correlation within a proposal, never a mutation or navigation reference. */
+  entity?: { kind: "group" | "activity" | "expense" | "repayment" | "account" | "category" | "transaction" | "schedule" | "goal"; id: string };
+  group?: { name: string; people: { name: string; email: string; status: "joined" | "invited" }[]; delivery: "held" | "queued_on_confirm" };
   plan?: { current: SpendingPlan; previous?: SpendingPlan; summary: SpendingPlanSummary; reason: string; classificationChanges?: string[] };
   lines: string[];
   // Server-derived display summary; historical previews may omit it.

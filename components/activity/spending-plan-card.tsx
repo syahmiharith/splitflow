@@ -13,6 +13,7 @@ export function SpendingPlanCard({
   classificationChanges = [],
   review = false,
   detailLines = [],
+  embedded = false,
 }: {
   current: SpendingPlan;
   previous?: SpendingPlan;
@@ -21,12 +22,13 @@ export function SpendingPlanCard({
   classificationChanges?: string[];
   review?: boolean;
   detailLines?: string[];
+  embedded?: boolean;
 }) {
   const changes = spendingPlanChanges(previous, current);
   const over = summary.remainingAllowance < 0;
   return (
-    <div className="sf-chat-card-section">
-      <div className="sf-money-card-title"><h3>Spending plan</h3><span>{previous && review ? "Adjustment" : "Plan"}</span></div>
+    <div className={`sf-chat-card-section${embedded ? " sf-embedded-money-action" : ""}`}>
+      <div className="sf-money-card-title">{!embedded && <h3>Spending plan</h3>}<span>{previous && review ? "Adjustment" : "Plan"}</span></div>
       {(!review || !previous || previous.limit !== current.limit) && <p className="sf-money-message-amount">{money(current.limit)}<span> allowance limit</span></p>}
       <p className="sf-result-meta">Allowance, not available cash</p>
       {review && previous && previous.limit !== current.limit && (
@@ -45,7 +47,7 @@ export function SpendingPlanCard({
       </dl>
       {review && classificationChanges.map((change, i) => <p key={i} className="mt-2 break-words text-sm">{change}</p>)}
 
-      <details>
+      {!embedded && <details>
         <summary>Details</summary>
         {reason && <p>{reason}</p>}
         {detailLines.length > 0 && <ul>{detailLines.map((line, i) => <li key={i}>{line}</li>)}</ul>}
@@ -59,7 +61,7 @@ export function SpendingPlanCard({
             <dd className="text-right font-medium tabular-nums">{money(category.allowance)}</dd>
           </div>)}
         </dl>}
-      </details>
+      </details>}
     </div>
   );
 }

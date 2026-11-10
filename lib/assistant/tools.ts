@@ -233,8 +233,15 @@ function describe(
   let summary: Preview["summary"];
   let plan: Preview["plan"];
   let transfer: Preview["transfer"];
+  let entity: Preview["entity"] = { kind: after.kind, id: d.id };
+  let groupSnapshot: Preview["group"];
   if (after.kind === "group") {
     const group = d as Extract<RecordRow, { kind: "group" }>["document"];
+    groupSnapshot = {
+      name: group.name,
+      people: group.people.map(person => ({ ...person, status: group.joined.includes(person.email) ? "joined" : "invited" })),
+      delivery: process.env.NOTIFICATIONS_ENABLED === "true" && (!before || cmd?.type === "invite") && group.people.some(person => !group.joined.includes(person.email)) ? "queued_on_confirm" : "held",
+    };
     summary = { text: `${group.people.length} people · ${group.joined.length} joined` };
     lines.push(
       before ? label[String(cmd?.type)] : "Create group",
@@ -244,6 +251,8 @@ function describe(
       ),
     );
     if (before) {
+      if (before.kind === "group" && before.document.name !== group.name)
+        lines.push(`Rename group: ${before.document.name} → ${group.name}`);
       const removed = before.document.people.filter(
         (p) => !group.people.some((n) => n.email === p.email),
       );
@@ -251,9 +260,10 @@ function describe(
         lines.push(`Remove access: ${p.name} (${p.email})`),
       );
     }
-    lines.push(
-      "Invitation links are account-bound. Email is queued after confirmation; check delivery status before assuming it was sent.",
-    );
+    if ((!before || cmd?.type === "invite") && group.people.some(person => !group.joined.includes(person.email)))
+      lines.push(groupSnapshot.delivery === "held"
+        ? "Invitation links are account-bound. Email delivery is on hold; share the invitation links."
+        : "Invitation links are account-bound. Email is queued after confirmation; check delivery status before assuming it was sent.");
   } else {
     const activity = d as Activity;
     summary = { text: `${activity.people.length} people` };
@@ -289,6 +299,7 @@ function describe(
       expense = split.expense;
       const money = (amount: number) => formatMoney(amount, expense!.currency ?? "KRW");
       expenseId = split.id;
+      entity = { kind: "expense", id: split.id };
       const old =
         before?.kind === "activity"
           ? before.document.expenses.find((s) => s.id === split.id)
@@ -321,6 +332,8 @@ function describe(
         if (sub.reason) lines.push(`Reason: ${sub.reason}`);
         if (sub.type === "report") {
           const payment = split.repayments.at(-1)!;
+          // Reports generate their stored payment ID on commit; correlate their preview by the stored operation key.
+          entity = { kind: "repayment", id: op.key };
           const name = (email: string) => split.expense.participants.find(p => p.email === email)?.name ?? email;
           transfer = { from: name(payment.from), to: name(payment.to), amount: payment.amount, status: payment.status, claimStatus: claimState(split), reference: payment.reference };
           const recipient = expense.participants.find(p => p.email === sub.to);
@@ -332,6 +345,7 @@ function describe(
         }
         if (sub.type === "receipt") {
           const p = split.repayments.find((p) => p.id === sub.paymentId)!;
+          entity = { kind: "repayment", id: p.id };
           const name = (email: string) => split.expense.participants.find(person => person.email === email)?.name ?? email;
           transfer = { from: name(p.from), to: name(p.to), amount: p.amount, status: p.status, claimStatus: claimState(split), reference: p.reference };
           summary = { amount: p.amount, text: `${name(p.from)} → ${name(p.to)} · ${sub.status === "confirmed" ? "Receipt confirmed" : "Disputed"}` };
@@ -393,6 +407,8 @@ function describe(
   }
   return {
     title,
+    entity,
+    group: groupSnapshot,
     plan,
     transfer: transfer ? { ...transfer, currency: expense?.currency ?? "KRW" } : undefined,
     lines,

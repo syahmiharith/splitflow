@@ -498,3 +498,19 @@ input::placeholder,textarea::placeholder { color:#626262; opacity:1; }
 .sf-friends-disclosure { border-bottom:1px solid var(--sf-line); margin-bottom:12px; font-size:13px; }
 .sf-friends-disclosure > summary { min-height:44px; padding:12px 0; cursor:pointer; }
 @media(max-width:420px) { .sf-ledger-tabs { gap:14px; font-size:13px; } }
+
+/* Multiple reviewed actions for one record share a single money card. */
+.sf-grouped-money-card { padding: 12px 16px; min-width: 0; }
+.sf-grouped-money-card + .sf-grouped-money-card { border-top: 1px solid var(--app-border, #e5e7eb); }
+.sf-grouped-money-card > h3 { font-size: 1rem; font-weight: 600; margin-bottom: 12px; overflow-wrap: anywhere; }
+.sf-group-review-people { display: grid; gap: 10px; }
+.sf-group-review-people > div { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.sf-group-review-people dt { min-width: 0; overflow-wrap: anywhere; }
+.sf-group-review-people small { display: block; font-size: 12px; color: #62676d; overflow-wrap: anywhere; }
+.sf-group-review-people dd { flex-shrink: 0; font-size: 13px; color: #62676d; }
+.sf-embedded-money-action { padding: 0; }
+.sf-grouped-money-details { margin-top: 12px; font-size: 13px; }
+.sf-grouped-money-details > summary { min-height: 44px; display: list-item; align-content: center; cursor: pointer; }
+.sf-review-history-step { margin-top: 12px; overflow-wrap: anywhere; }
+.sf-review-history-step h4 { font-weight: 600; }
+.sf-review-history-step ul { padding-left: 18px; list-style: disc; }

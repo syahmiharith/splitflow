@@ -71,3 +71,19 @@ Inspected through Mobbin images, not metadata:
 - [YNAB CSV import, web](https://mobbin.com/screens/24c2981b-68e6-4b64-a27e-02a688acf1ce): account selection, preview before import and explicit options. Adapt column mapping and duplicate review into an optional inline workflow, ending in the shared proposal card.
 
 Behavioral references: [YNAB credit-card transfers](https://support.ynab.com/en_us/credit-card-payments-a-guide-r1_506Q1j), [Monarch recurring tracking](https://help.monarch.com/hc/en-us/articles/4890751141908-Tracking-Recurring-Expenses-and-Bills), [Wise requests](https://wise.com/help/articles/2WvlZST6DiDMUBhyl1N4zM/how-do-i-request-money). Expected bills remain separate from actual records; invitations do not assert debts; allocation changes do not move cash.
+
+## Grouped results and progressive guidance — November 10
+
+The user requested one card for multiple actions that produce the same result, and feature-by-feature review before proceeding. Phase one groups by server-provided presentation identity, never matching titles alone. One group heading contains final membership, visible operation labels and access/name changes, with the original ordered snapshots under one Details disclosure. Distinct expenses, repayments and other records remain distinct. Confirmation still approves the complete stored batch once; grouping does not change financial execution or history.
+
+Inspected Mobbin images:
+
+- [Wise transaction details, web](https://mobbin.com/screens/cdebb2c8-108a-4a6c-9436-98b9725a15b9): one transaction heading, restrained detail rows and small information affordances beside relevant labels. Adopt the shared result heading and readable rows.
+- [Expensify report review, web](https://mobbin.com/screens/3eeed405-32d1-4bc4-bb42-04d44b5286a5): one report header with related expense rows; contextual tip attached to an action. Adopt parent-result hierarchy for grouped changes.
+- [Wanderlog budget coach mark, iOS](https://mobbin.com/screens/6b857410-7700-4fec-a2a1-da0826032bdd): short anchored explanation beside the budget control.
+- [Copilot category coach mark, iOS](https://mobbin.com/screens/ac98327c-ab63-4a23-b2cd-6c4faadf9648): focused explanation and explicit Got it dismissal. The reference uses dimming; SplitFlow's conversation should remain lightweight.
+
+Tooltips and dismissible coach marks are phase two, pending the user's review of grouped cards. They are not activated by phase one. Amounts, affected people, access changes and claim/agreement/receipt states must remain visible when optional guidance moves into help.
+
+Phase-one verification: the serial unit/API suite passed 445 tests (three isolated-Supabase tests skipped). After restoring compact new-activity context, all 16 targeted grouping/metadata tests passed. Lint, production build and typecheck passed. Group metadata is additive and presentation-only; no migration or historical financial rewrite is required. Held email delivery is stated consistently in both the card and its details.
+Ten production-build desktop/mobile browser regressions passed, including confirm/edit/reload, private unavailable fallback, money-view handoffs and independent-person planning/dispute/repayment rules. Those browser fixtures use a scripted provider; deployed live evidence is recorded separately.

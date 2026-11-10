@@ -1,3 +1,4 @@
+import { resolveFinanceReferences } from "./finance-references";
 import { z } from "zod";
 import { validateFinanceLinks } from "@/lib/finance/shared-links";
 import { notificationCommandSchema, prepareNotificationCommands, type NotificationPreference, type NotificationCommand } from "@/lib/notifications/commands";
@@ -425,11 +426,20 @@ export function prepareActions(
     if (action.type === "finance") {
       if (!financeState || !finance) throw Error("Personal finance unavailable. Reload and retry.");
       const command = structuredClone(action.command);
+      if (command.type === "schedule" || command.type === "goal") {
+        const candidates = command.type === "schedule" ? financeState.schedules : financeState.goals;
+        const value = command.type === "schedule" ? command.schedule.id : command.id;
+        if (!financeAliases.has(value) && !candidates.some(row => row.id === value)) {
+          const matches = candidates.filter(row => row.name.trim().toLowerCase() === value.trim().toLowerCase());
+          if (matches.length > 1) throw Error("Ambiguous finance name. Ask which existing record the user means.");
+          if (matches.length === 1) { if (command.type === "schedule") command.schedule.id = matches[0].id; else command.id = matches[0].id; }
+        }
+      }
       const knownIds = new Set([...financeState.accounts,...financeState.categories,...financeState.transactions,...financeState.goals,...financeState.schedules].map(r => r.id));
       const newId = command.type === "account" ? command.account.id : command.type === "category" ? command.category.id : command.type === "transaction" ? command.transaction.id : command.type === "schedule" ? command.schedule.id : ["transfer","goal"].includes(command.type) && "id" in command ? command.id : command.type === "reconcile" ? command.adjustmentId : command.type === "recordOccurrence" ? command.transactionId : null;
       if (newId && !knownIds.has(newId) && !financeAliases.has(newId)) financeAliases.set(newId, crypto.randomUUID());
       const replaceIds = (value: unknown, key = ""): unknown => Array.isArray(value) ? value.map(v=>replaceIds(v)) : value && typeof value === "object" ? Object.fromEntries(Object.entries(value).map(([k,v])=>[k,replaceIds(v,k)])) : typeof value === "string" && ["id","accountId","categoryId","from","to","feeCategoryId","adjustmentId","transactionId","originalTransactionId"].includes(key) ? financeAliases.get(value) ?? value : value;
-      const resolved = financeCommandSchema.parse(replaceIds(command));
+      const resolved = resolveFinanceReferences(financeCommandSchema.parse(replaceIds(command)), financeState);
       validateFinanceLinks(financeState,resolved,rows,email);
       const result=financePreview(financeState,resolved);
       financeState=result.state; financeCommands.push(resolved); previews.push(result.preview);

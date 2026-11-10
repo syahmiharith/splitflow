@@ -120,3 +120,45 @@ it("binds finance pagination to the account filter",()=>{
  expect(()=>readFinance({kind:"transactions",accountId:"cash",cursor:first.nextCursor},{revision:1,state})).toThrow("cursor is invalid");
  expect(readFinance({kind:"transactions",accountId:"bank",cursor:first.nextCursor},{revision:1,state})).toMatchObject({records:[{id:"t20"}],matchedCount:21});
 });
+
+describe("authorized finance name resolution",()=>{
+  const fixture=()=>{
+    let state=applyFinanceCommand(emptyFinance(),{type:"account",account:{id:"a",name:"Pilot wallet",kind:"cash",currency:"KRW",openingBalance:952000}});
+    state=applyFinanceCommand(state,{type:"category",category:{id:"c",name:"Food",currency:"KRW"}});
+    return applyFinanceCommand(state,{type:"schedule",schedule:{id:"s",name:"Pilot groceries",accountId:"a",categoryId:"c",amount:30000,kind:"expense",frequency:"weekly",start:"2026-11-10",paused:false}});
+  };
+  it("prepares ordered pause and reconciliation by exact names without mutating source",()=>{
+    const state=fixture();
+    const result=prepareActions({actions:[
+      {type:"finance",command:{type:"pauseSchedule",id:"PILOT GROCERIES",paused:true}},
+      {type:"finance",command:{type:"reconcile",accountId:"Pilot wallet",date:"2026-11-10",statedBalance:950000,adjustmentId:"adjust",reason:"Balance correction"}},
+    ]},[],actor,{revision:8,state});
+    expect(result.finance).toMatchObject({expected:8,commands:[{type:"pauseSchedule",id:"s"},{type:"reconcile",accountId:"a"}]});
+    expect(result.previews).toHaveLength(2);
+    expect(state.schedules[0].paused).toBe(false);
+    expect(state.transactions).toHaveLength(0);
+  });
+  it("rejects ambiguous and unavailable names without preparing a partial batch",()=>{
+    const state=fixture();
+    state.accounts.push({...state.accounts[0],id:"other"});
+    expect(()=>prepareActions({actions:[{type:"finance",command:{type:"reconcile",accountId:"Pilot wallet",date:"2026-11-10",statedBalance:1,adjustmentId:"adjust",reason:"Correction"}}]},[],actor,{revision:8,state})).toThrow("Ambiguous");
+    expect(()=>prepareActions({actions:[{type:"finance",command:{type:"pauseSchedule",id:"s",paused:true}},{type:"finance",command:{type:"reconcile",accountId:"another-owner-account",date:"2026-11-10",statedBalance:1,adjustmentId:"adjust",reason:"Correction"}}]},[],actor,{revision:8,state})).toThrow("unavailable");
+    expect(state.schedules[0].paused).toBe(false);
+  });
+  it("preserves new aliases and resolves new category names in sequential batches",()=>{
+    const result=prepareActions({actions:[
+      {type:"finance",command:{type:"account",account:{id:"new-wallet",name:"New wallet",kind:"cash",currency:"KRW",openingBalance:1000}}},
+      {type:"finance",command:{type:"category",category:{id:"new-food",name:"New food",currency:"KRW"}}},
+      {type:"finance",command:{type:"transaction",transaction:{id:"new-tx",accountId:"new-wallet",date:"2026-11-10",amount:-100,kind:"expense",payee:"Grocer",cleared:true,splits:[{categoryId:"NEW FOOD",amount:100}]}}},
+    ]},[],actor,{revision:0,state:emptyFinance()});
+    const commands=result.finance!.commands;
+    expect(commands[0].type==="account"&&commands[2].type==="transaction"&&commands[2].transaction.accountId===commands[0].account.id).toBe(true);
+    expect(commands[1].type==="category"&&commands[2].type==="transaction"&&commands[2].transaction.splits[0].categoryId===commands[1].category.id).toBe(true);
+  });
+  it("requires clarification for duplicate transaction payees instead of choosing one",()=>{
+    let state=fixture();
+    for(const id of ["t1","t2"])state=applyFinanceCommand(state,{type:"transaction",transaction:{id,accountId:"a",date:"2026-11-10",amount:-100,kind:"expense",payee:"Grocer",cleared:false,splits:[{categoryId:"c",amount:100}]}});
+    expect(()=>prepareActions({actions:[{type:"finance",command:{type:"clear",id:"grocer",cleared:true}}]},[],actor,{revision:0,state})).toThrow("Ambiguous Transaction");
+    expect(prepareActions({actions:[{type:"finance",command:{type:"clear",id:"t2",cleared:true}}]},[],actor,{revision:0,state}).finance!.commands[0]).toMatchObject({id:"t2"});
+  });
+});

@@ -2,6 +2,7 @@ import { z } from "zod";
 import { currencyMinorUnits, sumMoney } from "./money";
 
 const id = z.string().min(1).max(100);
+const reference = id.describe("Existing authorized record: use the exact name supplied by the user, an exact ID from read_finance, or an alias created earlier in this batch. The server resolves unique case-insensitive names; ambiguous names require clarification.");
 const amount = z.number().int().safe();
 const positive = amount.positive();
 const currency = z.string().refine(value => { try { currencyMinorUnits(value); return true; } catch { return false; } }, "Unsupported currency");
@@ -10,40 +11,40 @@ const month = z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/);
 const name = z.string().trim().min(1).max(120);
 export const accountSchema = z.object({ id, name, kind: z.enum(["cash", "bank", "credit"]), currency, openingBalance: amount, archived: z.boolean().default(false) });
 export const categorySchema = z.object({ id, name, currency, archived: z.boolean().default(false) });
-const split = z.object({ categoryId: id, amount: positive });
+const split = z.object({ categoryId: reference, amount: positive });
 export const transactionSchema = z.object({
-  id, accountId: id, date, amount: amount.refine(value => value !== 0, "Enter a nonzero amount"),
+  id, accountId: reference, date, amount: amount.refine(value => value !== 0, "Enter a nonzero amount"),
   kind: z.enum(["income", "expense", "refund", "reimbursement", "adjustment"]), payee: name,
   cleared: z.boolean().default(true), splits: z.array(split).default([]),
   sharedExpenseId: id.optional(), sharedRepaymentId: id.optional(), importKey: id.optional(),
-  originalTransactionId: id.optional(), reimbursableAmount: amount.nonnegative().optional(),
+  originalTransactionId: reference.optional(), reimbursableAmount: amount.nonnegative().optional(),
 });
-export const scheduleSchema = z.object({ id, name, accountId: id, amount: positive, kind: z.enum(["income", "expense"]), categoryId: id.optional(), start: date, frequency: z.enum(["weekly", "monthly", "yearly"]), paused: z.boolean().default(false) });
+export const scheduleSchema = z.object({ id, name, accountId: reference, amount: positive, kind: z.enum(["income", "expense"]), categoryId: reference.optional(), start: date, frequency: z.enum(["weekly", "monthly", "yearly"]), paused: z.boolean().default(false) });
 export const financeCommandSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("account"), account: accountSchema }),
   z.object({ type: z.literal("category"), category: categorySchema }),
-  z.object({ type: z.literal("rename"), kind: z.enum(["account", "category"]), id, name }),
+  z.object({ type: z.literal("rename"), kind: z.enum(["account", "category"]), id: reference, name }),
   z.object({ type: z.literal("transaction"), transaction: transactionSchema }),
-  z.object({ type: z.literal("voidTransaction"), id, reason: name }),
+  z.object({ type: z.literal("voidTransaction"), id: reference, reason: name }),
   z.object({ type: z.literal("voidTransfer"), id, reason: name }),
-  z.object({ type: z.literal("categorize"), id, splits: z.array(split) }),
-  z.object({ type: z.literal("linkSharedExpense"), id, sharedExpenseId: id, reimbursableAmount: amount.nonnegative(), splits: z.array(split) }),
-  z.object({ type: z.literal("classifyReimbursement"), id, sharedRepaymentId: id, originalTransactionId: id }),
-  z.object({ type: z.literal("clear"), id, cleared: z.boolean() }),
-  z.object({ type: z.literal("transfer"), id, from: id, to: id, date, sourceAmount: positive, destinationAmount: positive, fee: amount.nonnegative().default(0), feeCategoryId: id.optional() }),
+  z.object({ type: z.literal("categorize"), id: reference, splits: z.array(split) }),
+  z.object({ type: z.literal("linkSharedExpense"), id: reference, sharedExpenseId: id, reimbursableAmount: amount.nonnegative(), splits: z.array(split) }),
+  z.object({ type: z.literal("classifyReimbursement"), id: reference, sharedRepaymentId: id, originalTransactionId: reference }),
+  z.object({ type: z.literal("clear"), id: reference, cleared: z.boolean() }),
+  z.object({ type: z.literal("transfer"), id, from: reference, to: reference, date, sourceAmount: positive, destinationAmount: positive, fee: amount.nonnegative().default(0), feeCategoryId: reference.optional() }),
   z.object({
-    type: z.literal("allocate"), categoryId: id, month,
+    type: z.literal("allocate"), categoryId: reference, month,
     mode: z.enum(["change", "setMonthly"]).optional().describe("Use setMonthly when the user gives the desired total allocation for this month, such as reduce November Food from 300000 to 250000. Use change for add/remove/move an explicit amount. Omitted mode preserves legacy change behavior."),
     amount: amount.describe("Integer minor units. With setMonthly this is the desired total allocated in the selected month, not the remaining balance. With change or omitted mode this is a SIGNED DELTA: positive adds funds, negative releases funds. Never pass a new target total as a positive change."),
   }),
-  z.object({ type: z.literal("allocateCardPayment"), accountId: id, amount: amount.describe("Signed change in integer minor units: positive reserves additional cash for the card payment; negative releases reserved cash. This is not a target balance or an actual card payment.") }),
-  z.object({ type: z.literal("goal"), id, name, categoryId: id, target: positive, targetDate: date }),
+  z.object({ type: z.literal("allocateCardPayment"), accountId: reference, amount: amount.describe("Signed change in integer minor units: positive reserves additional cash for the card payment; negative releases reserved cash. This is not a target balance or an actual card payment.") }),
+  z.object({ type: z.literal("goal"), id, name, categoryId: reference, target: positive, targetDate: date }),
   z.object({ type: z.literal("schedule"), schedule: scheduleSchema }),
-  z.object({ type: z.literal("pauseSchedule"), id, paused: z.boolean() }),
-  z.object({ type: z.literal("skipOccurrence"), id, date }),
-  z.object({ type: z.literal("recordOccurrence"), id: id.describe("Existing schedule ID from read_finance schedules."), date: date.describe("Expected occurrence date, distinct from the actual payment date."), actualDate: date, actualAmount: positive, transactionId: id.describe("New unique temporary transaction alias, never an existing transaction ID. The server creates the recorded transaction.") }),
-  z.object({ type: z.literal("reconcile"), accountId: id, date, statedBalance: amount, adjustmentId: id, reason: name }),
-  z.object({ type: z.literal("archive"), kind: z.enum(["account", "category"]), id, archived: z.boolean() }),
+  z.object({ type: z.literal("pauseSchedule"), id: reference, paused: z.boolean() }),
+  z.object({ type: z.literal("skipOccurrence"), id: reference, date }),
+  z.object({ type: z.literal("recordOccurrence"), id: reference.describe("Existing schedule exact name or ID from read_finance schedules."), date: date.describe("Expected occurrence date, distinct from the actual payment date."), actualDate: date, actualAmount: positive, transactionId: id.describe("New unique temporary transaction alias, never an existing transaction ID. The server creates the recorded transaction.") }),
+  z.object({ type: z.literal("reconcile"), accountId: reference, date, statedBalance: amount, adjustmentId: id, reason: name }),
+  z.object({ type: z.literal("archive"), kind: z.enum(["account", "category"]), id: reference, archived: z.boolean() }),
 ]);
 export type FinanceCommand = z.infer<typeof financeCommandSchema>;
 export type Account = z.infer<typeof accountSchema>;

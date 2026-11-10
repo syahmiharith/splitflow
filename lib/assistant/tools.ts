@@ -5,7 +5,7 @@ import { notificationCommandSchema, prepareNotificationCommands, type Notificati
 import { formatMoney } from "@/lib/finance/money";
 import { financeCommandSchema, type FinanceCommand } from "@/lib/finance/model";
 import { financeReadParameters, financePreview, type FinanceSnapshot } from "./finance-tools";
-import { workspaceReadParameters } from "./retrieval";
+import { workspaceReadParameters, readableExpense } from "./retrieval";
 import { findFriendship, isFriendship } from "@/lib/activity/friendships";
 import {
   groupInput,
@@ -18,7 +18,6 @@ import {
   commandSchema,
   calculateExpense,
   balances,
-  claimedBalances,
   agreedExpense,
   claimState,
   type Expense,
@@ -81,7 +80,7 @@ export const actionsSchema = z.object({
         z.object({
           type: z.literal("create_group"),
           ref: z.string().min(1).max(80),
-          input: groupInput,
+          input: z.object({ name: groupInput.shape.name, people: groupInput.shape.people }).strict(),
         }),
         z.object({
           type: z.literal("change_group"),
@@ -178,7 +177,7 @@ export const assistantTools = [
     type: "function",
     name: "prepare_actions",
     description:
-      "Prepare an ordered batch for private review, never commit it. All requested changes must appear in this one batch. Use ref aliases for records created earlier in the batch. This replaces the previous draft. Ask for missing facts before calling.",
+      "Prepare an ordered batch for private review, never commit it. All requested changes must appear in this one batch. Use ref aliases for records created earlier in the batch. This replaces the previous draft. Ask for missing facts before calling. Shared external repayments use change_activity with command {type:expenseCommand,id:expenseId,command:{type:report,to:recipientEmail,amount,reference}}. Receipt confirmation/dispute uses the same wrapper with command {type:receipt,paymentId,status}; only the recipient can do it. finance transfer is only between the owner's recorded personal accounts, never shared repayments or transfers to another person.",
     strict: true,
     parameters: strictSchema(z.toJSONSchema(actionsSchema)),
   },
@@ -572,13 +571,7 @@ export function readableWorkspace(rows: RecordRow[]) {
               ? summarizeSpendingPlan(row.document.plan, row.document.expenses)
               : undefined,
             messages: row.document.messages.slice(-12),
-            expenses: row.document.expenses.map((s) => ({
-              ...s,
-              calculation: calculateExpense(s.expense),
-              balances: balances(s),
-              claimedBalances: claimedBalances(s),
-              claimState: claimState(s),
-            })),
+            expenses: row.document.expenses.map(readableExpense),
           },
         },
   );

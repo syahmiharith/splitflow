@@ -775,3 +775,20 @@ it("retrieves the authorized current activity exactly after a text search has no
   };
   await runAssistant(emptyThread(crypto.randomUUID(),activity.id),[{kind:"activity",document:activity}],email,scripted);
 });
+
+
+describe("ordinary conversational groups",()=>{
+ it("does not expose friendship creation through create_group",()=>{
+  expect(()=>actionsSchema.parse({actions:[{type:"create_group",ref:"crew",input:{name:"Dinner crew",people,friendship:true}}]})).toThrow();
+  const tool=assistantTools.find(t=>t.name==="prepare_actions")!;
+  // Existing friendship remains a separate record; a normal group can coexist.
+  expect(JSON.stringify(tool.parameters)).not.toContain('"friendship"');
+  const existing=friendships();
+  const proposal=prepareActions({actions:[{type:"create_group",ref:"crew",input:{name:"Dinner crew",people}}]},existing,email);
+  const result=prepareBatch(existing,email,proposal.operations);
+  const group=result.rows.find(row=>row.kind==="group"&&row.document.name==="Dinner crew");
+  expect(group?.document).toMatchObject({name:"Dinner crew"});
+  expect(group?.kind === "group" && group.document.friendship === true).toBe(false);
+  expect(existing).toHaveLength(1);
+ });
+});

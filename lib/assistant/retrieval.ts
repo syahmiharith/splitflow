@@ -1,6 +1,15 @@
 import { z } from "zod";
 import type { RecordRow } from "@/lib/activity/client";
-import { balances, calculateExpense, claimState } from "@/lib/pilot/model";
+import { balances, calculateExpense, claimState, claimedBalances, type Split } from "@/lib/pilot/model";
+
+export const balanceConvention = "Positive signed balance means this person owes; negative means this person is owed. All owes/isOwed amounts below are nonnegative minor units. Agreed balances include confirmed receipts only; claimed balances are proposed costs, not agreements.";
+export function labeledBalances(values: Record<string, number>) {
+  return Object.fromEntries(Object.entries(values).map(([email, signedBalance]) => [email, {signedBalance, owes: Math.max(0, signedBalance), isOwed: Math.max(0, -signedBalance)}]));
+}
+export function readableExpense(split: Split) {
+  const agreed = balances(split), claimed = claimedBalances(split);
+  return {...split, calculation: calculateExpense(split.expense), balances: agreed, claimedBalances: claimed, balanceConvention, agreedMoneyByPerson: labeledBalances(agreed), claimedMoneyByPerson: labeledBalances(claimed), claimState: claimState(split)};
+}
 
 export const workspaceReadParameters = {
   type: "object",
@@ -29,7 +38,7 @@ function entries(rows: RecordRow[], kind: string | null | undefined): Entry[] {
     if (!kind || kind === row.kind) return [{ ...base, id: d.id, kind: row.kind, data: row }];
     if (row.kind !== "activity") return [];
     const a = row.document;
-    if (kind === "expense") return a.expenses.map(s => ({ ...base, search: JSON.stringify(s).toLocaleLowerCase("en-US"), id: s.id, kind, activityId: a.id, data: { ...s, calculation: calculateExpense(s.expense), balances: balances(s), claimState: claimState(s) } }));
+    if (kind === "expense") return a.expenses.map(s => ({ ...base, search: JSON.stringify(s).toLocaleLowerCase("en-US"), id: s.id, kind, activityId: a.id, data: readableExpense(s) }));
     if (kind === "repayment") return a.expenses.flatMap(s => s.repayments.map(p => ({ ...base, search: JSON.stringify(p).toLocaleLowerCase("en-US"), id: p.id, kind, activityId: a.id, data: { ...p, expenseId: s.id } })));
     if (kind === "plan" && a.plan) return [{ ...base, id: a.id, kind, activityId: a.id, data: a.plan }];
     return [];
@@ -72,7 +81,7 @@ export function readWorkspace(input: unknown, rows: RecordRow[], activityId: str
       }
       for (const p of s.repayments) if (args.kind !== "repayment" || ids.has(p.id)) t[p.status === "confirmed" ? "confirmedTransfers" : p.status === "disputed" ? "disputedTransfers" : "reportedTransfers"] += p.amount;
     }
-    return { matchedCount: matched.length, complete: true, scope: "All authorized matches; reported costs are claims, not agreements", totals };
+    return { matchedCount: matched.length, complete: true, scope: "All authorized matches; reported costs are claims, not agreements", balanceConvention, totals: Object.fromEntries(Object.entries(totals).map(([currency, values]) => [currency, {...values, agreedMoneyByPerson: labeledBalances(values.agreedBalances)}])) };
   }
   const page = matched.slice(offset, offset + 20);
   const nextCursor = offset + page.length < matched.length ? `${offset + page.length}:${version}` : null;

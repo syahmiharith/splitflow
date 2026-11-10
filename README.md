@@ -16,21 +16,11 @@ The demo uses local state and simulated participants. It does not authenticate r
 
 ## Decisions in the implementation
 
-**Interpretation and calculation have separate responsibilities.** A parser structures the expense; optional server-side OpenAI support can assist drafting. Typed TypeScript functions own amounts, eligibility, rounding and settlement balances. The demo works without an API key.
+**Interpretation and calculation have separate responsibilities.** A parser structures the expense; optional server-side OpenAI support can assist drafting. Typed TypeScript functions own amounts, eligibility, rounding and settlement balances.
 
 **A changed amount needs a new agreement.** Participant responses and proposal revisions determine who must reconfirm. A generated proposal is a draft, not permission to settle.
 
 **A payment claim is not confirmation.** Claimed and disputed payments remain visible in the readiness check until resolved.
-
-```text
-Expense description → proposal → calculated shares
-                                      ↓
-                              participant review
-                                      ↓
-                         revision / reconfirmation
-                                      ↓
-                              readiness check
-```
 
 ## Maintenance evidence
 
@@ -63,6 +53,6 @@ Vitest covers calculations, proposal transitions, parser behavior, readiness and
 
 ## Scope and history
 
-This repository is an interactive prototype built with Next.js, React, TypeScript and Tailwind CSS. Persistence, participant switching and payment records are prototype mechanisms. [Prototype boundaries](docs/engineering/PROTOTYPE_BOUNDARIES.md) distinguish them from production infrastructure.
+Built with Next.js, React, TypeScript and Tailwind CSS. [Prototype boundaries](docs/engineering/PROTOTYPE_BOUNDARIES.md) explain the persistence and infrastructure limits.
 
 The [original product case study](docs/shardlab-product-case-study.md) remains available alongside the [current portfolio story](https://zsyahmi.dev/work/splitflow).

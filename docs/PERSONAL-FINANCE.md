@@ -2,6 +2,14 @@
 
 The November 10 direction extends the shared-cost app with private recorded accounts, multi-currency budgeting and CSV imports. It supersedes older prototype-only and KRW-only guidance for the new personal ledger. Shared activity allowances remain KRW; shared expenses can carry their own currency. No bank connection or payment execution is implied.
 
+## Current verification status — November 10
+
+This section supersedes the pending statements in the chronological checkpoints below. The final grouped-card batch passed 446 unit/API tests (three conditional isolated-Supabase tests skipped), lint, production build and typecheck, plus ten production-build desktop/mobile regressions. Earlier finance browser coverage remains separate from the latest card-focused regression run.
+
+Actual deployed OpenAI has prepared and saved accounts in separate currencies, category allocations/adjustments, a savings goal, a recurring schedule and its actual occurrence, pause/reconciliation, a two-person dinner with an exclusion, participant acceptance, a repayment report and recipient confirmation. Receipt confirmation on `019ac8e` changed the controlled fixture to Settled and survived reload; reporting alone had left the obligation outstanding. Ordinary group creation also saved. On `0d9be19`, a later rename plus renewal of the existing pending group invitation used one review card, became one Saved card, and survived reload with the new name independently visible in the sidebar. These are controlled, assisted pilot observations, not unassisted completion or comprehensive live-model coverage. See [card verification](design/MOBBIN-CONTROL-AUDIT.md#grouped-results-and-progressive-guidance--november-10).
+
+Remaining deployed gates include live OpenAI coverage for every action family and failure path, signed-in continuation beyond 160 turns, broad workspace retrieval beyond 20 records, imported instruction-like payee categorization, mixed shared/private linking, revised recurring acceptance, and post-repayment revision/overpayment/dispute recovery. Scripted and SQL coverage does not establish those live outcomes. The Mac lock was a past interruption, not the current blocker. Current sequencing follows the user's feature-by-feature review: grouped cards have been shown, and tooltips/coach marks await that review. Brevo application delivery remains explicitly on hold.
+
 ## Boundaries
 
 The assistant prepares commands; the user confirms one stored proposal. Shared and personal commands can commit in the same database transaction with audit records and idempotency. Personal ledger ownership comes from the signed-in session, never tool arguments. A private account balance is not visible to another activity member.
@@ -36,7 +44,7 @@ Latest local follow-up: typecheck, lint and production build passed; 399 unit/AP
 
 An additional eight mocked notification-worker tests passed, covering the disabled gate, provider acceptance, recipient mute/stop, invitation acceptance after queueing, snooze attempt preservation, bounded rate-limit retries and ambiguous failure. Typecheck and targeted ESLint passed for that addition. No email was sent.
 
-Completion remains unproven for the following deployed gates: actual OpenAI journeys for every shared/personal action family; signed-in continuation/history beyond 160 turns; the corrected allocation target; import/reconciliation through the live assistant; recovery under stale reviews and interrupted inference; and final signed-in screenshots at 320, 375, 768 and 1440 pixels. Existing unit, SQL and browser fixtures provide regression evidence for those mechanisms, not proof of those deployed journeys. The locked Mac prevents access to the controlled signed-in Safari sessions; unlocking is the next required external step. Live Brevo delivery is separately deferred by user decision.
+The checkpoints below record partial verification and interruptions at the time they occurred. They do not override the current verification status above. Existing unit, SQL and browser fixtures provide regression evidence for mechanisms, not proof of all deployed journeys. Live Brevo delivery is separately deferred by user decision.
 
 ## Applied pilot database validation — November 10
 

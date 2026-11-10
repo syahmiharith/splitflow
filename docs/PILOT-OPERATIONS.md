@@ -41,3 +41,9 @@ For an initial private completion summary, query `pilot_creation_measurements` g
 ## SMTP provider IP authorization
 
 Brevo may reject a valid SMTP credential with `525 5.7.1 Unauthorized IP address` when IP blocking is enabled and the hosted Auth server has not been authorized. This occurred during the first hosted confirmation-email attempt. Compare the failed Auth request time with Brevo's unauthorized-IP entry, obtain approval for the exact address, and add that address while keeping IP blocking enabled. Recheck after a hosting migration or an outbound-address change. A saved SMTP password alone does not verify delivery. Retry an actual code request and confirm receipt and sign-in before closing the incident.
+
+## Runtime dependency validation — November 10, 2026
+
+The maintained lockfile now selects Next and `@next/env` 15.5.28, Zod 4.6.6 and sharp 0.35.5. These address the [Next image optimizer advisory](https://github.com/advisories/GHSA-2464-fhr4-w9xw) and [Zod validation memory-exhaustion advisory](https://github.com/advisories/GHSA-mrhx-c7xc-m3w5). Zod processes submitted expense data. No app `next/image`, remote image allowlist, image upload endpoint or configured Server Action was found during the narrow reachability check; no exploit was attempted.
+
+Frozen install, typecheck, lint, 423 unit/API tests and production build passed for the dependency patch, with three pre-existing conditional local tests skipped. The production graph audit dropped from 81 to 63 findings; it is not clean. The remaining critical proxy-addr advisory requires an Express trust-proxy configuration absent from this app; the package arrives through the legacy agents/MCP dependency tree. No MCP/Hono/Express or WebSocket server initialization was found. This assessment does not establish that every remaining advisory is unexploitable; retain normal dependency maintenance and retest the deployed journeys after dependency changes.

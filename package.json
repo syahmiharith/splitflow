@@ -15,7 +15,7 @@
   },
   "dependencies": {
     "@ai-sdk/react": "^3.0.192",
-    "@next/env": "^15.3.4",
+    "@next/env": "^15.5.28",
     "@openai/agents": "^0.11.4",
     "@radix-ui/react-accordion": "^1.2.12",
     "@radix-ui/react-dialog": "^1.1.15",
@@ -26,10 +26,10 @@
     "ai": "^6.0.190",
     "framer-motion": "^12.40.0",
     "lucide-react": "^0.468.0",
-    "next": "^15.3.4",
+    "next": "^15.5.28",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "zod": "^4.4.3"
+    "zod": "^4.6.6"
   },
   "devDependencies": {
     "@eslint/js": "^9.29.0",
